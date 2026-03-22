@@ -8,6 +8,10 @@ cd frontend && npm run build && cd ..
 
 # 2. 构建 Docker 镜像
 docker build -f docker/app.Dockerfile -t damaohongtu/eido:latest .
+
+# 构建amd和arm版
+docker buildx build -f docker/app.Dockerfile --platform linux/amd64,linux/arm64 -t damaohongtu/eido:latest .
+
 ```
 
 ---

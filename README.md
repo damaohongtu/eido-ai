@@ -63,12 +63,55 @@ allowed_tools:
 ---
 
 ## 快速启动
+### 获取镜像
+```bash
+// linux/arm64
+docker pull damaohongtu/eido:latest 
+
+// linux/amd64
+```
+
+### 启动
+- MiniMax
+
+```bash
+docker run -d -p 80:80 \
+  -e ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic \
+  -e ANTHROPIC_API_KEY=<your_minimax_key> \
+  -v /path/to/.claude:/workspace/.claude \
+  damaohongtu/eido:latest
+```
+
+- DeepSeek
+
+```bash
+docker run -d -p 80:80 \
+  -e ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic \
+  -e ANTHROPIC_AUTH_TOKEN=<your_deepseek_key> \
+  -e ANTHROPIC_MODEL=deepseek-chat \
+  -e ANTHROPIC_SMALL_FAST_MODEL=deepseek-chat \
+  -e API_TIMEOUT_MS=600000 \
+  -e CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+  -v /path/to/.claude:/workspace/.claude \
+  damaohongtu/eido:latest
+```
+
+## 本地运行
 
 ### 前置要求
 
-- conda 环境 `eido`（Python 3.11+）
+- Python 3.11+
 - Node.js 18+
+- @anthropic-ai/claude-code
+```bash
+npm install -g @anthropic-ai/claude-code --registry https://registry.npmmirror.com
+```
 - 配置 `backend/.env`（参见 `backend/.env.example`）
+- 配置环境变量
+```bash
+export ANTHROPIC_API_KEY='your-api-key-here'
+export ANTHROPIC_BASE_URL='your-base-url'
+```
 
 ### 后端
 
@@ -100,19 +143,6 @@ npm run dev
 # 服务启动在 http://localhost:5173
 ```
 
-### MCP 服务（按需启动）
-
-```bash
-conda activate eido
-
-# 财务数据服务
-cd mcp_servers/fin_data
-python ratio_server.py
-
-# 搜索服务
-cd mcp_servers/search
-python server.py
-```
 
 ---
 

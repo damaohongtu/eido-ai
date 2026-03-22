@@ -1,0 +1,12 @@
+{
+  "default_mailbox": "163",
+  "163_email": {
+    "email": "your_email@163.com",
+    "auth_password": "your_auth_password",
+    "pop_server": "pop.163.com",
+    "pop_port": 995,
+    "smtp_server": "smtp.163.com",
+    "smtp_port": 465
+  },
+  "last_check_time": "2026-02-18T23:45:31.834934"
+}

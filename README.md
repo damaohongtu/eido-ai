@@ -1,8 +1,22 @@
-# Eido Eido
+# Eido 
 
-面向投资研究场景的 AI 智能体平台。用户通过 `@技能` 驱动 Claude Code SDK 自主规划并执行复杂分析任务，支持多技能串行流水线和多轮对话。
+面向投资研究场景的 AI 智能体平台。通过 Claude Code SDK 自主规划并执行复杂分析任务，支持多技能串行流水线和多轮对话。
 
 ---
+## 举个🌰
+获取申万二级行业行情并发送到指定邮箱。
+- 技能安装
+在 skill-example文件夹中提供了两个技能：获取申万二级行业行情数据、发送邮件。注意修改“skill-example/email-master-万能邮箱助手/scripts/config.json”中的配置。
+ 
+![](images/eg1-skills.png)
+
+- 对话
+Eido自动规划执行任务，自动重试直至完成任务：生成html格式的报告，发送邮件。
+![](images/eg1-chat.png)
+
+- 执行结果
+指定邮箱收到收到html格式邮件
+![](images/eg1-email.png)
 
 ## 架构概览
 

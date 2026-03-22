@@ -1,0 +1,19 @@
+# Core Framework
+fastapi==0.120.1
+uvicorn[standard]==0.40.0
+pydantic==2.12.5
+pydantic-settings==2.10.1
+
+# LLM & AI
+python-dotenv==1.2.1       # pydantic-settings env_file 依赖
+claude-agent-sdk==0.1.44
+
+# Utilities
+httpx==0.28.1
+pyyaml==6.0.3
+
+requests
+
+cos-python-sdk-v5
+
+litellm[proxy]==1.82.0

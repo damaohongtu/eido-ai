@@ -1,0 +1,40 @@
+__MACOSX
+node_modules
+.env
+.DS_Store
+dist
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+
+# Backend
+backend/.env
+backend/venv/
+backend/checkpoints/
+uploads/
+
+# Logs
+*.log
+backend.log
+frontend.log
+
+# Dev Scripts
+.backend.pid
+.frontend.pid
+
+# IDE
+.vscode/
+.idea/
+*.swp
+uploads/
+outputs/
+
+config.json
+.claude/skills/

@@ -1,0 +1,9 @@
+model_list:
+  - model_name: deepseek-chat
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_base: https://api.deepseek.com/v1
+      api_key: your_deepseek_api_key_here
+      max_tokens: 8192
+      max_completion_tokens: 8192
+      drop_params: true

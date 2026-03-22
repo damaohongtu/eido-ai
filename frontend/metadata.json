@@ -1,0 +1,8 @@
+{
+  "name": "Copy of Eido - Intelligence Knowledge Assistant",
+  "description": "A sophisticated AI assistant platform featuring skills, agent and tool marketplaces, and advanced reasoning capabilities with thinking visualization.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

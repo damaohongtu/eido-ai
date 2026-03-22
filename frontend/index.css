@@ -1,0 +1,258 @@
+@import 'antd/dist/reset.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局背景样式 - 极简浅灰 */
+body {
+  background-color: #f5f5f5;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: center;
+}
+
+/* 自定义滚动条样式 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Markdown 样式 */
+.markdown-body h1 {
+  @apply text-2xl font-bold mb-4 mt-6;
+}
+
+.markdown-body h2 {
+  @apply text-xl font-bold mb-3 mt-5;
+}
+
+.markdown-body h3 {
+  @apply text-lg font-bold mb-2 mt-4;
+}
+
+.markdown-body p {
+  @apply mb-4 leading-relaxed;
+}
+
+.markdown-body p:last-child {
+  margin-bottom: 0px;
+}
+
+.markdown-body ul {
+  @apply list-disc pl-6 mb-4;
+}
+
+.markdown-body ol {
+  @apply list-decimal pl-6 mb-4;
+}
+
+.markdown-body code {
+  @apply bg-gray-100 px-1 rounded text-gray-700 font-mono text-sm;
+}
+
+.markdown-body pre {
+  @apply bg-gray-800 text-gray-100 p-4 rounded-xl overflow-x-auto mb-4;
+}
+
+.markdown-body pre code {
+  @apply bg-transparent p-0 text-gray-100;
+}
+
+.markdown-body table {
+  @apply w-full border-collapse mb-4;
+}
+
+.markdown-body th,
+.markdown-body td {
+  @apply border border-gray-200 p-2 text-sm;
+}
+
+.markdown-body th {
+  @apply bg-gray-50 font-bold;
+}
+
+.markdown-body blockquote {
+  @apply border-l-4 border-gray-400 pl-4 italic text-gray-600 mb-4;
+}
+
+/* 动画辅助类 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-from-bottom {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-in {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+.slide-in-from-right {
+  animation-name: slide-in-from-right;
+}
+
+.slide-in-from-bottom {
+  animation-name: slide-in-from-bottom;
+}
+
+.headClass {
+    font-size: 34px;
+    color: #333333;
+    letter-spacing: -0.68px;
+    font-weight: 400;
+    width: 250px;
+    margin-left: calc(50% - 125px);
+    margin-top: 15vh;
+}
+
+/* Markdown 预览样式 - 极简灰 */
+.markdown-preview {
+  @apply text-gray-900;
+}
+
+.markdown-preview h1 {
+  @apply text-3xl font-black mb-6 mt-8 text-gray-900 border-b-2 border-gray-200 pb-3;
+}
+
+.markdown-preview h2 {
+  @apply text-2xl font-bold mb-4 mt-6 text-gray-800;
+}
+
+.markdown-preview h3 {
+  @apply text-xl font-bold mb-3 mt-5 text-gray-800;
+}
+
+.markdown-preview h4 {
+  @apply text-lg font-bold mb-2 mt-4 text-gray-700;
+}
+
+.markdown-preview h5 {
+  @apply text-base font-bold mb-2 mt-3 text-gray-700;
+}
+
+.markdown-preview h6 {
+  @apply text-sm font-bold mb-2 mt-3 text-gray-600;
+}
+
+.markdown-preview p {
+  @apply mb-4 leading-relaxed text-gray-700;
+}
+
+.markdown-preview p:last-child {
+  @apply mb-0;
+}
+
+.markdown-preview ul {
+  @apply list-disc pl-6 mb-4 space-y-2;
+}
+
+.markdown-preview ol {
+  @apply list-decimal pl-6 mb-4 space-y-2;
+}
+
+.markdown-preview li {
+  @apply text-gray-700 leading-relaxed;
+}
+
+.markdown-preview code {
+  @apply bg-gray-100 px-2 py-1 rounded text-gray-700 font-mono text-sm border border-gray-200;
+}
+
+.markdown-preview pre {
+  @apply bg-gray-800 text-gray-100 p-4 rounded-xl overflow-x-auto mb-4 shadow-lg;
+}
+
+.markdown-preview pre code {
+  @apply bg-transparent p-0 text-gray-100 border-0;
+}
+
+.markdown-preview table {
+  @apply w-full border-collapse mb-6 shadow-sm;
+}
+
+.markdown-preview th,
+.markdown-preview td {
+  @apply border border-gray-300 p-3 text-sm;
+}
+
+.markdown-preview th {
+  @apply bg-gray-100 font-bold text-gray-900;
+}
+
+.markdown-preview td {
+  @apply bg-white text-gray-700;
+}
+
+.markdown-preview blockquote {
+  @apply border-l-4 border-gray-400 pl-6 py-2 italic text-gray-600 mb-4 bg-gray-50 rounded-r-lg;
+}
+
+.markdown-preview strong {
+  @apply font-bold text-gray-900;
+}
+
+.markdown-preview em {
+  @apply italic text-gray-700;
+}
+
+.markdown-preview a {
+  @apply text-gray-600 hover:text-gray-800 underline font-medium;
+}
+
+.markdown-preview hr {
+  @apply border-t-2 border-gray-200 my-8;
+}
+
+.markdown-preview img {
+  @apply rounded-lg shadow-md max-w-full h-auto my-4;
+}
+
+/* DetailModal 样式 */
+.detail-modal .ant-modal-body {
+  padding: 0 !important;
+}
+
+.detail-modal .markdown-body {
+  @apply text-gray-700;
+}

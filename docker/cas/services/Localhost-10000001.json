@@ -1,0 +1,7 @@
+{
+  "@class": "org.apereo.cas.services.RegexRegisteredService",
+  "serviceId": "^https?://.*",
+  "name": "Local dev allow http(s) callbacks",
+  "id": 10000001,
+  "evaluationOrder": 1
+}

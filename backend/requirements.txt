@@ -17,3 +17,8 @@ requests
 cos-python-sdk-v5
 
 litellm[proxy]==1.82.0
+
+# CAS & scheduling
+python-cas>=1.6.0
+apscheduler>=3.10.0
+itsdangerous>=2.0

@@ -5,9 +5,10 @@ import logging
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
+from app.core.auth import get_current_user_id
 from app.core.config import settings
 from app.schemas.chat import ChatRequest, ChatResponse, ErrorResponse
 from app.services.claude_skill_service import get_claude_skill_service
@@ -20,7 +21,10 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 
 @router.post("/upload")
-async def upload_chat_file(file: UploadFile = File(...)):
+async def upload_chat_file(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
     """上传聊天附件，支持 .md 和 .pdf，最大 20 MB。返回工作区内的绝对路径供 agent 读取。"""
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -37,12 +41,15 @@ async def upload_chat_file(file: UploadFile = File(...)):
     out_path = upload_dir / safe_name
     out_path.write_bytes(content)
     abs_path = str(out_path.resolve())
-    logger.info(f"上传文件: {file.filename} -> {abs_path}")
+    logger.info(f"[{user_id}] 上传文件: {file.filename} -> {abs_path}")
     return {"path": abs_path, "name": file.filename or safe_name}
 
 
 @router.post("/chat")
-async def chat_completion(request: ChatRequest):
+async def chat_completion(
+    request: ChatRequest,
+    user_id: str = Depends(get_current_user_id),
+):
     """
     统一聊天入口：通过 claude_agent_sdk 自动从用户输入中识别并执行相关技能，流式返回。
     """
@@ -55,12 +62,12 @@ async def chat_completion(request: ChatRequest):
             raise HTTPException(status_code=503, detail="技能服务未初始化")
 
         logger.info(
-            f"收到聊天请求 - 消息数: {len(request.messages)}"
+            f"[{user_id}] 收到聊天请求 - 消息数: {len(request.messages)}"
             + (f" [含流水线上下文 {len(request.context)} 字符]" if request.context else "")
         )
 
         return StreamingResponse(
-            svc.execute_stream(request.messages, request.context),
+            svc.execute_stream(request.messages, request.context, user_id=user_id),
             media_type="text/event-stream",
         )
 

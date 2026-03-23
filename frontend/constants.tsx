@@ -1,10 +1,7 @@
 import { Skill, Agent, Tool, Message } from './types';
 
-// 开发环境直连后端，生产环境通过nginx代理
-// 注意：api.ts 内部已拼接 /api/v1/... 前缀，此处不能包含 /api
-export const BACKEND_URL = import.meta.env.MODE === 'production'
-  ? '/ai-eido'
-  : 'http://localhost:8000';
+// 统一走同源代理（开发环境 vite proxy, 生产环境 nginx），确保 session cookie 正常收发
+export const BACKEND_URL = '/ai-eido';
 
 export const SYSTEM_TOOLS: Tool[] = [
   {

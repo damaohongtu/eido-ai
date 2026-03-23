@@ -3,6 +3,7 @@ Main FastAPI application entrypoint.
 """
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.core.config import settings
 from app.api.v1.api import api_router
 import logging
@@ -57,13 +58,20 @@ def create_application() -> FastAPI:
         redoc_url=f"{settings.API_V1_STR}/redoc"
     )
     
-    # Configure CORS（前端未使用 credentials，可安全使用 allow_origins=["*"]）
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=False,
+        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.SESSION_SECRET_KEY,
+        session_cookie="eido_session",
+        same_site="lax",
+        https_only=False,
     )
     
     # 添加请求日志中间件
@@ -95,13 +103,16 @@ def create_application() -> FastAPI:
     
     # Legacy route for backward compatibility
     @app.post("/api/chat")
-    async def legacy_chat_endpoint(request: dict):
+    async def legacy_chat_endpoint(raw_request: Request):
         """Legacy chat endpoint for backward compatibility."""
         from app.api.v1.endpoints.chat import chat_completion
         from app.schemas.chat import ChatRequest
-        
-        chat_request = ChatRequest(**request)
-        return await chat_completion(chat_request)
+        from app.core.auth import get_current_user_id
+
+        body = await raw_request.json()
+        chat_request = ChatRequest(**body)
+        user_id = get_current_user_id(raw_request)
+        return await chat_completion(chat_request, user_id=user_id)
     
     @app.get("/")
     async def root():
@@ -119,9 +130,12 @@ def create_application() -> FastAPI:
     
     @app.on_event("startup")
     async def startup_event():
-        """应用启动事件：初始化技能服务"""
+        """应用启动事件：初始化技能服务、定时任务调度"""
         from pathlib import Path
         from app.services.claude_skill_service import init_claude_skill_service
+        from app.services.scheduled_task_store import ScheduledTaskStore
+        from app.services import scheduler_service
+        from app.api.v1.endpoints import tasks as tasks_ep
 
         logger.info("=" * 60)
         logger.info("正在初始化系统服务...")
@@ -135,7 +149,22 @@ def create_application() -> FastAPI:
             logger.info(f"✓ 技能服务初始化完成: 发现 {skill_count} 个技能")
         except Exception as e:
             logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
-    
+
+        try:
+            store = ScheduledTaskStore()
+            store.connect()
+            tasks_ep.set_store(store)
+            scheduler_service.init_scheduler(store)
+            logger.info("✓ 定时任务调度器初始化完成")
+        except Exception as e:
+            logger.error(f"✗ 定时任务调度器初始化失败: {e}", exc_info=True)
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        from app.services import scheduler_service
+        scheduler_service.shutdown_scheduler()
+        logger.info("Scheduler stopped")
+
     logger.info(f"Application {settings.PROJECT_NAME} v{settings.VERSION} initialized")
     
     return app

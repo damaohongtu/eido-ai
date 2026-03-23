@@ -200,7 +200,8 @@ class ClaudeSkillService:
         return "\n".join(lines)
 
     async def execute_stream(
-        self, messages: list, context: Optional[str] = None
+        self, messages: list, context: Optional[str] = None,
+        *, user_id: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
 
@@ -208,6 +209,7 @@ class ClaudeSkillService:
 
         messages  完整对话历史（含所有 user / assistant 轮次）。
         context   多技能流水线中上一步的输出，附加在 prompt 末尾。
+        user_id   当前用户 ID，用于生成 agent 子进程的身份 token。
         """
         logger.info(f"▶ execute_stream 开始 | 消息数: {len(messages)}"
                     + (f" | 含上下文 {len(context)} 字符" if context else ""))
@@ -235,7 +237,7 @@ class ClaudeSkillService:
             f"## 执行说明\n\n"
             f"请根据用户的最新请求，判断需要使用哪个技能（必要时可组合多个技能），"
             f"使用 Read 工具读取对应的 SKILL.md 文件，然后严格按照技能说明完成任务。\n"
-            f"所有环境变量均已配置，无需额外设置。\n\n"
+            f"所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
             f"---\n\n"
             f"## 对话历史\n\n{conversation_block}"
             f"{context_section}"
@@ -257,11 +259,17 @@ class ClaudeSkillService:
 
         # 执行
         try:
+            agent_env: dict[str, str] = {}
+            if user_id:
+                from app.core.user_token import create_user_token
+                agent_env["EIDO_USER_TOKEN"] = create_user_token(user_id)
+
             options = ClaudeAgentOptions(
                 allowed_tools=self.AUTO_ALLOWED_TOOLS,
                 cwd=str(self.workspace_root),
                 setting_sources=["project"],
                 permission_mode="acceptEdits",
+                env=agent_env,
             )
 
             logger.info(f"  工具集: {self.AUTO_ALLOWED_TOOLS}")

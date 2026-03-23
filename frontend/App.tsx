@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ViewType, Skill, Agent, Tool, Message, ChatSession, Reference, SkillAction } from './types';
 import { SYSTEM_SKILLS, SYSTEM_AGENTS, SYSTEM_TOOLS, INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
@@ -7,6 +7,7 @@ import ChatArea from './components/ChatArea';
 import ReferenceArea from './components/ReferenceArea';
 import HomeView from './components/HomeView';
 import SkillManager from './components/SkillManager';
+import ScheduledTasksManager from './components/ScheduledTasksManager';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from './services/api';
@@ -326,6 +327,8 @@ const App: React.FC = () => {
             onSelectSkill={(skill) => createNewSession(skill.id)}
           />
         )}
+
+        {activeView === ViewType.SCHEDULED_TASKS && <ScheduledTasksManager />}
 
           </>
         )}

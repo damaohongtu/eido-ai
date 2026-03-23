@@ -1,4 +1,4 @@
-import { Message, Skill, ExecutionStep, Tool, Agent, Reference } from "../types";
+import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask } from "../types";
 import { BACKEND_URL } from "../constants";
 
 /** 工作区文件（如图片）的预览 URL，供聊天中生成的 K 线图等直接展示 */
@@ -467,6 +467,69 @@ export class ApiService {
       onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
       if (isAborted) throw error;
     }
+  }
+
+  /** 定时任务列表 */
+  async listTasks(enabled?: boolean): Promise<ScheduledTask[]> {
+    const q = new URLSearchParams();
+    if (enabled !== undefined) q.set('enabled', String(enabled));
+    const qs = q.toString();
+    // 必须与路由一致带尾部 /，否则 FastAPI 307 到 uvicorn 绝对地址时浏览器直连 8000，session cookie（挂在 localhost:3000 代理域）不会带上 → 401 误跳转登录
+    const url = `${BACKEND_URL}/api/v1/tasks/${qs ? `?${qs}` : ''}`;
+    const response = await this._fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+    if (!response.ok) throw new Error(`获取任务列表失败: ${response.status}`);
+    return response.json();
+  }
+
+  async createTask(body: {
+    name: string;
+    schedule: string;
+    type: 'skill' | 'script' | 'chat';
+    params: Record<string, unknown>;
+  }): Promise<ScheduledTask> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t || `创建任务失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async updateTask(
+    taskId: string,
+    body: Partial<{
+      name: string;
+      schedule: string;
+      type: string;
+      params: Record<string, unknown>;
+      enabled: boolean;
+    }>
+  ): Promise<ScheduledTask> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`更新任务失败: ${response.status}`);
+    return response.json();
+  }
+
+  async deleteTask(taskId: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error(`删除任务失败: ${response.status}`);
+  }
+
+  async runTaskNow(taskId: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}/run`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error(`触发任务失败: ${response.status}`);
   }
 }
 

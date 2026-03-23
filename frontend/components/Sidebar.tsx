@@ -50,13 +50,26 @@ const Sidebar: React.FC<SidebarProps> = ({
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [userMenuOpen]);
 
-  const NavItem = ({ view, label, iconPath }: { view: ViewType, label: string, iconPath: string }) => (
+  const NavItem = ({
+    view,
+    label,
+    iconPath,
+    icon,
+  }: {
+    view: ViewType;
+    label: string;
+    iconPath?: string;
+    icon?: React.ReactNode;
+  }) => (
     <button
+      type="button"
       onClick={() => onNavigate(view)}
       className={`flex items-center space-x-3 px-4 py-2 rounded-lg transition-all w-full text-left ${activeView === view ? 'bg-gray-200 text-gray-900' : 'hover:bg-gray-100 text-gray-600'
         }`}
     >
-      <img src={iconPath} alt={label} className="w-5 h-5 object-contain" />
+      <span className="w-5 h-5 shrink-0 flex items-center justify-center text-current">
+        {iconPath ? <img src={iconPath} alt="" className="w-5 h-5 object-contain" /> : icon}
+      </span>
       <span className="font-semibold">{label}</span>
     </button>
   );
@@ -81,6 +94,20 @@ const Sidebar: React.FC<SidebarProps> = ({
         <nav className="space-y-1 mb-8">
           <NavItem view={ViewType.HOME} label="探索发现" iconPath={getAssetUrl('/images/side/探索发现.png')} />
           <NavItem view={ViewType.SKILLS} label="我的技能" iconPath={getAssetUrl('/images/side/我的技能.png')} />
+          <NavItem
+            view={ViewType.SCHEDULED_TASKS}
+            label="自动任务"
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            }
+          />
         </nav>
 
         <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-2">历史记录</div>

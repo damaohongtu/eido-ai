@@ -48,6 +48,7 @@ class Settings(BaseSettings):
 
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "logs"
 
     @property
     def scheduled_tasks_db_path(self) -> Path:

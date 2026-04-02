@@ -7,39 +7,39 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.core.config import settings
 from app.api.v1.api import api_router
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import time
 from pathlib import Path
 
-# Configure logging with enhanced format
-log_dir = Path("logs")
-log_dir.mkdir(exist_ok=True)
+log_dir = Path(settings.LOG_DIR)
+log_dir.mkdir(parents=True, exist_ok=True)
 
-# 创建日志格式器
 detailed_formatter = logging.Formatter(
     '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# 配置根日志记录器
 root_logger = logging.getLogger()
 root_logger.setLevel(settings.LOG_LEVEL)
 
-# 控制台处理器
 console_handler = logging.StreamHandler()
 console_handler.setLevel(settings.LOG_LEVEL)
 console_handler.setFormatter(detailed_formatter)
 
-# 文件处理器 - 所有日志
-file_handler = logging.FileHandler(log_dir / 'app.log', encoding='utf-8')
+file_handler = TimedRotatingFileHandler(
+    log_dir / 'app.log', when='midnight', backupCount=7, encoding='utf-8'
+)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(detailed_formatter)
+file_handler.suffix = '%Y-%m-%d'
 
-# 文件处理器 - 错误日志
-error_handler = logging.FileHandler(log_dir / 'error.log', encoding='utf-8')
+error_handler = TimedRotatingFileHandler(
+    log_dir / 'error.log', when='midnight', backupCount=7, encoding='utf-8'
+)
 error_handler.setLevel(logging.ERROR)
 error_handler.setFormatter(detailed_formatter)
+error_handler.suffix = '%Y-%m-%d'
 
-# 添加处理器
 root_logger.addHandler(console_handler)
 root_logger.addHandler(file_handler)
 root_logger.addHandler(error_handler)

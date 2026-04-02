@@ -46,6 +46,9 @@ docker run -d -p 80:80 \
   -e ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic \
   -e ANTHROPIC_API_KEY=<your_minimax_key> \
   -v /path/to/.claude:/workspace/.claude \
+  -v ~/eido-logs/app:/var/log/eido/app \
+  -v ~/eido-logs/litellm:/var/log/eido/litellm \
+  -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 ```
 
@@ -60,10 +63,14 @@ docker run -d -p 80:80 \
   -e API_TIMEOUT_MS=600000 \
   -e CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
   -v /path/to/.claude:/workspace/.claude \
+  -v ~/eido-logs/app:/var/log/eido/app \
+  -v ~/eido-logs/litellm:/var/log/eido/litellm \
+  -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 ```
 
 > `-v /path/to/.claude` 替换为宿主机上 `.claude` 目录的实际路径，例如 `/home/user/.claude`
+> 日志目录映射到宿主机 `~/eido-logs/` 下，按 app / litellm / nginx 分开存放，按日滚动保留 7 天
 
 ---
 

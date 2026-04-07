@@ -11,9 +11,10 @@ export default defineConfig({
     // 配置代理，将 API 请求转发到后端
     proxy: {
       '/ai-eido/api': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/ai-eido\/api/, '/api'),
+        cookieDomainRewrite: { '*': '' },
       },
     },
   },

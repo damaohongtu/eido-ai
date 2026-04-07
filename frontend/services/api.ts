@@ -1,4 +1,4 @@
-import { Message, Skill, ExecutionStep, Tool, Agent, Reference } from "../types";
+import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask } from "../types";
 import { BACKEND_URL } from "../constants";
 
 /** 工作区文件（如图片）的预览 URL，供聊天中生成的 K 线图等直接展示 */
@@ -7,6 +7,27 @@ export function getWorkspaceFileUrl(path: string): string {
 }
 
 export class ApiService {
+  private async _fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const response = await fetch(input, { ...init, credentials: 'include' });
+    if (response.status === 401) {
+      window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+      throw new Error('未登录，正在跳转登录页');
+    }
+    return response;
+  }
+
+  async checkAuth(): Promise<{ user_id: string; username: string } | null> {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
+        credentials: 'include',
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * 获取工具列表
    */
@@ -28,7 +49,7 @@ export class ApiService {
     const url = `${BACKEND_URL}/api/v1/tools/?${queryParams.toString()}`;
     
     try {
-      const response = await fetch(url, {
+      const response = await this._fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -49,7 +70,7 @@ export class ApiService {
    */
   async getTool(toolId: string): Promise<Tool> {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/tools/${toolId}`, {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/tools/${toolId}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -86,7 +107,7 @@ export class ApiService {
     const url = `${BACKEND_URL}/api/v1/agents/?${queryParams.toString()}`;
     
     try {
-      const response = await fetch(url, {
+      const response = await this._fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -107,7 +128,7 @@ export class ApiService {
    */
   async getAgent(agentId: string): Promise<Agent> {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/agents/${agentId}`, {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/agents/${agentId}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -142,7 +163,7 @@ export class ApiService {
     const url = `${BACKEND_URL}/api/v1/skills/?${queryParams.toString()}`;
     
     try {
-      const response = await fetch(url, {
+      const response = await this._fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -163,7 +184,7 @@ export class ApiService {
    */
   async getSkill(skillId: string): Promise<Skill> {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -186,7 +207,7 @@ export class ApiService {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${BACKEND_URL}/api/v1/skills/upload`, {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -212,7 +233,7 @@ export class ApiService {
     agent_ids?: string[];
   }): Promise<Skill> {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/skills/`, {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(skillData),
@@ -241,7 +262,7 @@ export class ApiService {
     is_active: boolean;
   }>): Promise<Skill> {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(skillData),
@@ -263,7 +284,7 @@ export class ApiService {
    */
   async deleteSkill(skillId: string): Promise<void> {
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
         method: 'DELETE',
       });
 
@@ -282,7 +303,7 @@ export class ApiService {
   async uploadChatFile(file: File): Promise<{ path: string; name: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${BACKEND_URL}/api/v1/chat/upload`, {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/chat/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -324,7 +345,7 @@ export class ApiService {
       : (context || undefined);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/chat/chat`, {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/chat/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -446,6 +467,69 @@ export class ApiService {
       onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
       if (isAborted) throw error;
     }
+  }
+
+  /** 定时任务列表 */
+  async listTasks(enabled?: boolean): Promise<ScheduledTask[]> {
+    const q = new URLSearchParams();
+    if (enabled !== undefined) q.set('enabled', String(enabled));
+    const qs = q.toString();
+    // 必须与路由一致带尾部 /，否则 FastAPI 307 到 uvicorn 绝对地址时浏览器直连 8000，session cookie（挂在 localhost:3000 代理域）不会带上 → 401 误跳转登录
+    const url = `${BACKEND_URL}/api/v1/tasks/${qs ? `?${qs}` : ''}`;
+    const response = await this._fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+    if (!response.ok) throw new Error(`获取任务列表失败: ${response.status}`);
+    return response.json();
+  }
+
+  async createTask(body: {
+    name: string;
+    schedule: string;
+    type: 'skill' | 'script' | 'chat';
+    params: Record<string, unknown>;
+  }): Promise<ScheduledTask> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const t = await response.text();
+      throw new Error(t || `创建任务失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async updateTask(
+    taskId: string,
+    body: Partial<{
+      name: string;
+      schedule: string;
+      type: string;
+      params: Record<string, unknown>;
+      enabled: boolean;
+    }>
+  ): Promise<ScheduledTask> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`更新任务失败: ${response.status}`);
+    return response.json();
+  }
+
+  async deleteTask(taskId: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error(`删除任务失败: ${response.status}`);
+  }
+
+  async runTaskNow(taskId: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}/run`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error(`触发任务失败: ${response.status}`);
   }
 }
 

@@ -1,0 +1,72 @@
+########################################################################
+# Eido Docker Compose
+#
+# 基于预构建镜像 damaohongtu/eido:latest 起停服务。
+#
+# 使用方式：
+#   1. 复制 .env.example 为 .env 并填写实际配置
+#      cp docker/.env.example docker/.env
+#   2. 启动
+#      docker compose -f docker/docker-compose.yml up -d
+#   3. 停止
+#      docker compose -f docker/docker-compose.yml down
+#   4. 查看日志
+#      docker compose -f docker/docker-compose.yml logs -f eido
+#
+# 如需 CAS 单点登录，启用 cas profile：
+#   docker compose -f docker/docker-compose.yml --profile cas up -d
+########################################################################
+
+services:
+  eido:
+    image: damaohongtu/eido:latest
+    container_name: eido
+    restart: unless-stopped
+    ports:
+      - "${EIDO_PORT:-80}:80"
+    environment:
+      # LLM 配置（必填）
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+      - ANTHROPIC_SMALL_FAST_MODEL=${ANTHROPIC_SMALL_FAST_MODEL:-}
+      - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
+      - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-0}
+      # CAS 认证（可选，启用 cas profile 时配合使用）
+      - AUTH_DISABLED=${AUTH_DISABLED:-True}
+      - CAS_SERVER_URL=${CAS_SERVER_URL:-}
+      - CAS_SERVICE_URL=${CAS_SERVICE_URL:-}
+      - FRONTEND_URL=${FRONTEND_URL:-}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:-dev-secret-change-in-production}
+    volumes:
+      - ${CLAUDE_DIR:-~/.claude}:/workspace/.claude
+      - ${LOG_DIR:-~/eido-logs}/app:/var/log/eido/app
+      - ${LOG_DIR:-~/eido-logs}/litellm:/var/log/eido/litellm
+      - ${LOG_DIR:-~/eido-logs}/nginx:/var/log/eido/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/ai-eido/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---------- 可选：CAS 单点登录 ----------
+  cas:
+    image: apereo/cas:6.6.10
+    container_name: cas-server
+    restart: unless-stopped
+    profiles:
+      - cas
+    ports:
+      - "${CAS_PORT:-3331}:8080"
+    environment:
+      - CAS_AUTHN_ACCEPT_USERS=${CAS_USERS:-casuser::Mellon,test1::123456,test2::123456,admin::admin123}
+      - CAS_TGC_SECURE=false
+      - SERVER_SSL_ENABLED=false
+      - SERVER_PORT=8080
+      - CAS_SERVICE_REGISTRY_JSON_LOCATION=file:/etc/cas/services/
+      - CAS_SERVICE_REGISTRY_CORE_INIT_FROM_JSON=true
+    volumes:
+      - ./cas/config:/etc/cas/config
+      - ./cas/services:/etc/cas/services

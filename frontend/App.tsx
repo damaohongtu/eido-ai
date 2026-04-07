@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ViewType, Skill, Agent, Tool, Message, ChatSession, Reference, SkillAction } from './types';
 import { SYSTEM_SKILLS, SYSTEM_AGENTS, SYSTEM_TOOLS, INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
@@ -7,9 +7,11 @@ import ChatArea from './components/ChatArea';
 import ReferenceArea from './components/ReferenceArea';
 import HomeView from './components/HomeView';
 import SkillManager from './components/SkillManager';
+import ScheduledTasksManager from './components/ScheduledTasksManager';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from './services/api';
+import { BACKEND_URL } from './constants';
 
 const STORAGE_SESSIONS_KEY = 'eido_chat_sessions';
 const STORAGE_ACTIVE_SESSION_KEY = 'eido_active_session_id';
@@ -50,6 +52,27 @@ function fixStaleRunningSteps(sessions: ChatSession[]): ChatSession[] {
 }
 
 const App: React.FC = () => {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ user_id: string; username: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('login')) {
+      params.delete('login');
+      const clean = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (clean ? `?${clean}` : ''));
+    }
+
+    api.checkAuth().then(user => {
+      if (!user) {
+        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+        return;
+      }
+      setCurrentUser(user);
+      setAuthChecked(true);
+    });
+  }, []);
+
   const [sessions, setSessions] = useState<ChatSession[]>(() =>
     fixStaleRunningSteps(readStorage<ChatSession[]>(STORAGE_SESSIONS_KEY, []))
   );
@@ -209,6 +232,16 @@ const App: React.FC = () => {
     return { activeReferences: references, activeThinkingLog: thinkingLog };
   }, [activeSession?.messages]);
 
+  const handleLogout = () => {
+    try {
+      sessionStorage.removeItem(STORAGE_SESSIONS_KEY);
+      sessionStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+    window.location.href = `${BACKEND_URL}/api/v1/auth/logout`;
+  };
+
   const handleCommitWorkspace = () => {
     if (!activeSessionId) return;
     const commitMsg: Message = {
@@ -224,6 +257,17 @@ const App: React.FC = () => {
     setExecutingAction(null);
   };
 
+  if (!authChecked) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-400 mx-auto mb-3"></div>
+          <p className="text-gray-400 text-sm">正在验证登录状态...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden text-gray-900 font-sans">
       <Sidebar 
@@ -237,6 +281,8 @@ const App: React.FC = () => {
         }}
         onNewChat={() => createNewSession()}
         onDeleteSession={deleteSession}
+        currentUser={currentUser!}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 flex flex-col relative min-w-0 bg-white shadow-lg shadow-gray-200/30">
@@ -281,6 +327,8 @@ const App: React.FC = () => {
             onSelectSkill={(skill) => createNewSession(skill.id)}
           />
         )}
+
+        {activeView === ViewType.SCHEDULED_TASKS && <ScheduledTasksManager />}
 
           </>
         )}

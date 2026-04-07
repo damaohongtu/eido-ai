@@ -4,6 +4,25 @@ export enum ViewType {
   CHAT = 'chat',
   SKILLS = 'skills',
   SKILL_EDITOR = 'skill_editor',
+  /** 定时自动任务 */
+  SCHEDULED_TASKS = 'scheduled_tasks',
+}
+
+/** 后端 /api/v1/tasks 定时任务 */
+export interface ScheduledTask {
+  id: string;
+  user_id: string;
+  name: string;
+  schedule: string;
+  type: string;
+  params: {
+    messages?: { role: string; content: string }[];
+    [key: string]: unknown;
+  };
+  enabled: boolean;
+  last_run_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Tool {

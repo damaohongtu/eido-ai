@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         nginx \
         supervisor \
+        logrotate \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -41,12 +42,21 @@ COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Log rotation config
+COPY docker/logrotate-eido.conf /etc/logrotate.d/eido
+COPY docker/log-cron.sh /opt/log-cron.sh
+RUN chmod +x /opt/log-cron.sh
+
+# Create log directories
+RUN mkdir -p /var/log/eido/app /var/log/eido/litellm /var/log/eido/nginx
+
 # Mount point for host .claude directory
 RUN mkdir -p /workspace/.claude/skills
 
 # Workspace paths — fixed for container layout
 ENV WORKSPACE_ROOT=/workspace
 ENV SKILLS_DIR=/workspace/.claude/skills
+ENV LOG_DIR=/var/log/eido/app
 
 EXPOSE 80
 

@@ -80,6 +80,9 @@ docker run -d -p 80:80 \
   -e ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic \
   -e ANTHROPIC_API_KEY=<your_minimax_key> \
   -v /path/to/.claude:/workspace/.claude \
+  -v ~/eido-logs/app:/var/log/eido/app \
+  -v ~/eido-logs/litellm:/var/log/eido/litellm \
+  -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 ```
 
@@ -94,8 +97,55 @@ docker run -d -p 80:80 \
   -e API_TIMEOUT_MS=600000 \
   -e CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
   -v /path/to/.claude:/workspace/.claude \
+  -v ~/eido-logs/app:/var/log/eido/app \
+  -v ~/eido-logs/litellm:/var/log/eido/litellm \
+  -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 ```
+
+- CAS 服务（必须挂载 **配置 + 服务 JSON**，否则回调会报 *Application Not Authorized to Use CAS*）
+
+环境变量 `CAS_SERVICEREGISTRY_CORE_INIT_FROM_JSON` 不能替代 `cas.serviceRegistry.json.location`，很多镜像下不会加载 `/etc/cas/services` 里的定义。请使用仓库内 `docker/cas/config/application.properties`。
+
+```bash
+# 在项目根目录 eido-ai 下执行
+docker rm -f cas-server 2>/dev/null
+
+docker run -d \
+  --name cas-server \
+  -p 3331:8080 \
+  -e CAS_AUTHN_ACCEPT_USERS="casuser::Mellon,test1::123456,test2::123456,admin::admin123" \
+  -e CAS_TGC_SECURE=false \
+  -e SERVER_SSL_ENABLED=false \
+  -e SERVER_PORT=8080 \
+  -e CAS_SERVICE_REGISTRY_JSON_LOCATION=file:/etc/cas/services/ \
+  -e CAS_SERVICE_REGISTRY_CORE_INIT_FROM_JSON=true \
+  -v "$(pwd)/docker/cas/config:/etc/cas/config" \
+  -v "$(pwd)/docker/cas/services:/etc/cas/services" \
+  apereo/cas:6.6.10
+```
+
+启动后确认已加载服务（**数字须 ≥1**，若为 0 仍会报 *Application Not Authorized*）：
+
+```bash
+docker logs cas-server 2>&1 | grep -i "Loaded"
+```
+
+若看到 `Loaded [0] service(s)`：先确认在项目根目录执行 `docker run`（`$(pwd)/docker/cas/...` 路径要对）；再在容器内检查挂载：`docker exec cas-server ls -la /etc/cas/services`。仍不行可把 `application.properties` 里 `cas.service-registry.core.init-default-services` 临时改为 `true` 再试。
+
+> `docker/cas/services/Localhost-10000001.json` 中 `serviceId` 为 `^https?://.*`，**仅适合本机开发**；生产请改为精确 URL 或严格正则。
+
+后端 `.env` 示例（`CAS_SERVER_URL` 须带 `/cas/` 后缀，或由程序自动补全末尾 `/`）：
+
+```env
+AUTH_DISABLED=False
+CAS_SERVER_URL=http://localhost:3331/cas/
+CAS_SERVICE_URL=http://localhost:8000/api/v1/auth/callback
+FRONTEND_URL=http://localhost:3000/ai-eido/
+```
+
+> 说明：`python-cas` 用 `urljoin` 拼登录地址；若写成 `http://host:3331/cas`（无末尾 `/`），会变成错误的 `http://host:3331/login`。本项目已在 `config.py` 中自动为 `CAS_SERVER_URL` 补全末尾 `/`。
+
 
 ## 本地运行
 

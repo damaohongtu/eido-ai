@@ -394,10 +394,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       } else if (e.key === 'Escape') {
         setMentionMenu(prev => ({ ...prev, visible: false }));
       }
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      // Enter 发送，Shift+Enter 换行
-      e.preventDefault();
-      handleSubmit();
     }
   };
 

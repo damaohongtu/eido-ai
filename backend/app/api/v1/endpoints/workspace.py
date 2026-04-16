@@ -31,7 +31,11 @@ def _resolve_safe_path(path_str: str) -> Path:
 
 
 @router.get("/file")
-async def get_workspace_file(path: str = Query(..., description="工作区内文件路径，支持绝对或相对路径")):
+async def get_workspace_file(
+    path: str = Query(..., description="工作区内文件路径，支持绝对或相对路径"),
+    download: bool = Query(False, description="是否以附件形式下载"),
+    filename: str | None = Query(None, description="下载时使用的文件名"),
+):
     """
     获取工作区内的文件内容，用于聊天中生成的图片预览。
     支持绝对路径（如 /Users/.../workspace/chart.png）或相对路径（如 workspace/chart.png）。
@@ -62,4 +66,10 @@ async def get_workspace_file(path: str = Query(..., description="工作区内文
         }
         media_type = media_types.get(ext)
 
-    return FileResponse(resolved, media_type=media_type)
+    download_name = filename or resolved.name
+    return FileResponse(
+        resolved,
+        media_type=media_type,
+        filename=download_name,
+        content_disposition_type="attachment" if download else "inline",
+    )

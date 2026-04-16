@@ -1,9 +1,19 @@
 import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask } from "../types";
 import { BACKEND_URL } from "../constants";
 
-/** 工作区文件（如图片）的预览 URL，供聊天中生成的 K 线图等直接展示 */
-export function getWorkspaceFileUrl(path: string): string {
-  return `${BACKEND_URL}/api/v1/workspace/file?path=${encodeURIComponent(path)}`;
+/** 工作区文件 URL，支持预览或下载。 */
+export function getWorkspaceFileUrl(
+  path: string,
+  options?: { download?: boolean; filename?: string }
+): string {
+  const query = new URLSearchParams({ path });
+  if (options?.download) {
+    query.set('download', 'true');
+  }
+  if (options?.filename) {
+    query.set('filename', options.filename);
+  }
+  return `${BACKEND_URL}/api/v1/workspace/file?${query.toString()}`;
 }
 
 export class ApiService {

@@ -7,6 +7,71 @@ import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference } fr
 import { api, getWorkspaceFileUrl } from '../services/api';
 import Mermaid from './Mermaid';
 
+const DOWNLOADABLE_FILE_EXTENSIONS = [
+  'md', 'pdf', 'csv', 'xls', 'xlsx', 'html', 'htm', 'txt', 'json',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'
+];
+const DOWNLOADABLE_FILE_SOURCE =
+  `((?:/|(?:output|uploads|\\.claude/skills/[^\\s/]+/output)/)[^\\s"'()\`<>]+\\.(?:${DOWNLOADABLE_FILE_EXTENSIONS.join('|')}))`;
+const DOWNLOADABLE_FILE_PATTERN = new RegExp(DOWNLOADABLE_FILE_SOURCE, 'gi');
+const SINGLE_DOWNLOADABLE_FILE_PATTERN = new RegExp(`^${DOWNLOADABLE_FILE_SOURCE}$`, 'i');
+const FILE_LINK_PATTERN = /\[[^\]]+\]\(([^)\s]+)\)/g;
+const GENERATED_FILE_HINT_PATTERN = new RegExp(
+  `(?:File created successfully at:|写入文件:|写入到文件:|保存为图片:|已保存为图片:|已导出到:|导出到:|生成文件:|输出文件:|保存到:|结果文件:)\s*(${DOWNLOADABLE_FILE_SOURCE})`,
+  'gi'
+);
+const IMAGE_FILE_PATTERN = /\.(png|jpg|jpeg|gif|webp|svg)$/i;
+
+type GeneratedFile = {
+  path: string;
+  name: string;
+  isImage: boolean;
+};
+
+function normalizeWorkspacePath(rawPath: string): string | null {
+  const trimmed = rawPath.trim().replace(/^<|>$/g, '').replace(/[),.;:]+$/g, '');
+  if (!trimmed) return null;
+  if (/^(https?:|data:|mailto:|#)/i.test(trimmed)) return null;
+  if (!SINGLE_DOWNLOADABLE_FILE_PATTERN.test(trimmed)) return null;
+  return trimmed;
+}
+
+function collectFileMatches(input: string, matcher: RegExp): string[] {
+  const matches: string[] = [];
+  matcher.lastIndex = 0;
+  for (const match of input.matchAll(matcher)) {
+    const candidate = match[1] || match[0];
+    const normalized = normalizeWorkspacePath(candidate);
+    if (normalized) matches.push(normalized);
+  }
+  matcher.lastIndex = 0;
+  return matches;
+}
+
+function extractGeneratedFiles(message: Message): GeneratedFile[] {
+  const unique = new Map<string, GeneratedFile>();
+  const addPath = (path: string) => {
+    if (unique.has(path)) return;
+    const segments = path.split('/');
+    const name = segments[segments.length - 1] || path;
+    unique.set(path, { path, name, isImage: IMAGE_FILE_PATTERN.test(path) });
+  };
+
+  collectFileMatches(message.content || '', FILE_LINK_PATTERN).forEach(addPath);
+  collectFileMatches(message.content || '', DOWNLOADABLE_FILE_PATTERN).forEach(addPath);
+  collectFileMatches(message.thinking || '', GENERATED_FILE_HINT_PATTERN).forEach(addPath);
+  (message.thinkingLog || []).forEach(log => {
+    collectFileMatches(log, GENERATED_FILE_HINT_PATTERN).forEach(addPath);
+  });
+
+  return [...unique.values()];
+}
+
+function isWorkspaceFileLink(href?: string): boolean {
+  if (!href) return false;
+  return normalizeWorkspacePath(href) !== null;
+}
+
 interface ChatAreaProps {
   session: ChatSession | null;
   skills: Skill[];
@@ -427,6 +492,43 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           </a>
         </span>
       );
+    },
+    a({ node, href, children, ...props }: any) {
+      if (isWorkspaceFileLink(href)) {
+        const normalizedPath = normalizeWorkspacePath(href);
+        if (!normalizedPath) return <span>{children}</span>;
+        const filename = normalizedPath.split('/').pop() || 'download';
+        return (
+          <span className="inline-flex items-center gap-2 my-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+            <a
+              href={getWorkspaceFileUrl(normalizedPath)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-gray-700 hover:text-gray-900 hover:underline"
+            >
+              {children}
+            </a>
+            <a
+              href={getWorkspaceFileUrl(normalizedPath, { download: true, filename })}
+              className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-600 hover:border-gray-400 hover:text-gray-900"
+            >
+              下载
+            </a>
+          </span>
+        );
+      }
+
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline underline-offset-2 hover:text-blue-700"
+          {...props}
+        >
+          {children}
+        </a>
+      );
     }
   };
 
@@ -451,6 +553,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         {session.messages.map((m, idx) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] space-y-3 ${m.role === 'user' ? 'text-right' : ''}`}>
+              {(() => {
+                const generatedFiles = m.role === 'assistant' ? extractGeneratedFiles(m) : [];
+                return (
+                  <>
               
               {m.role === 'assistant' && (m.thinking || (m.executionSteps && m.executionSteps.length > 0) || m.workflowMermaid) && (
                 <div className="bg-gray-100/80 rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
@@ -505,6 +611,55 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 </div>
               </div>
 
+              {m.role === 'assistant' && generatedFiles.length > 0 && (
+                <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                  <div className="mb-3 text-[10px] font-black uppercase tracking-widest text-gray-500">生成文件</div>
+                  <div className="space-y-2">
+                    {generatedFiles.map(file => (
+                      <div key={file.path} className="rounded-xl bg-gray-50 px-3 py-3">
+                        {file.isImage && (
+                          <a
+                            href={getWorkspaceFileUrl(file.path)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mb-3 block overflow-hidden rounded-xl border border-gray-200 bg-white"
+                          >
+                            <img
+                              src={getWorkspaceFileUrl(file.path)}
+                              alt={file.name}
+                              className="max-h-72 w-full object-contain"
+                              loading="lazy"
+                            />
+                          </a>
+                        )}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-gray-800">{file.name}</div>
+                          <div className="truncate text-xs text-gray-500">{file.path}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={getWorkspaceFileUrl(file.path)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 hover:border-gray-400 hover:text-gray-900"
+                          >
+                            {file.isImage ? '查看' : '打开'}
+                          </a>
+                          <a
+                            href={getWorkspaceFileUrl(file.path, { download: true, filename: file.name })}
+                            className="rounded-lg bg-gray-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-gray-800"
+                          >
+                            下载
+                          </a>
+                        </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {m.role === 'assistant' && activeSkill && !isTyping && idx === session.messages.length - 1 && activeSkill.actions && activeSkill.actions.length > 0 && m.content && (
                 <div className="flex flex-wrap gap-2 mt-4 animate-in fade-in slide-in-from-top-2">
                   <div className="w-full text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 ml-1">工作流部署:</div>
@@ -539,6 +694,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                   </div>
                 </div>
               )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         ))}

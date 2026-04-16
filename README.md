@@ -10,3 +10,10 @@
 - **开箱即用**：Docker 一键部署，支持 amd64 / arm64 多架构
 
 详见 [quick-start.md](quick-start.md)
+
+
+## TODO
+- [ ] 结果文件要能够下载
+- [ ] 添加plugin
+- [ ] 多模态数据支持
+- [ ] 历史消息存储：文件或者数据库

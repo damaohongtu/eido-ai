@@ -159,6 +159,23 @@ async def get_skill(skill_id: str):
     return _meta_to_response(meta)
 
 
+@router.delete("/{skill_id}", status_code=204)
+async def delete_skill(skill_id: str):
+    """删除用户通过上传安装的技能（内置技能不可删除）。"""
+    svc = get_claude_skill_service()
+    if svc is None:
+        raise HTTPException(status_code=503, detail="技能服务未初始化")
+
+    try:
+        svc.delete_user_upload(skill_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="仅支持删除通过上传安装的技能")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 def _slug(name: str) -> str:
     """将名称转为目录名 slug"""
     s = re.sub(r"[^\w\s-]", "", name)
@@ -233,7 +250,9 @@ def _extract_zip_skill(content: bytes, filename: str, skills_dir: Path):
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(data)
 
-    return get_claude_skill_service().get_skill(skill_id)
+    svc = get_claude_skill_service()
+    svc.mark_user_upload(skill_id)
+    return svc.get_skill(skill_id)
 
 
 def _save_md_skill(content: bytes, filename: str, skills_dir: Path):
@@ -249,4 +268,6 @@ def _save_md_skill(content: bytes, filename: str, skills_dir: Path):
     target_dir.mkdir(parents=True)
     (target_dir / "SKILL.md").write_bytes(content)
 
-    return get_claude_skill_service().get_skill(skill_id)
+    svc = get_claude_skill_service()
+    svc.mark_user_upload(skill_id)
+    return svc.get_skill(skill_id)

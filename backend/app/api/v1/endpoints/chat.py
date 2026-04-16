@@ -16,7 +16,7 @@ from app.services.claude_skill_service import get_claude_skill_service
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = {".md", ".pdf"}
+ALLOWED_EXTENSIONS = {".md", ".pdf", ".csv", ".xls", ".xlsx"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 
@@ -25,12 +25,12 @@ async def upload_chat_file(
     file: UploadFile = File(...),
     user_id: str = Depends(get_current_user_id),
 ):
-    """上传聊天附件，支持 .md 和 .pdf，最大 20 MB。返回工作区内的绝对路径供 agent 读取。"""
+    """上传聊天附件，支持 .md/.pdf/.csv/.xls/.xlsx，最大 20 MB。返回工作区内的绝对路径供 agent 读取。"""
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"仅支持 .md 和 .pdf 格式，当前: {ext or '无扩展名'}"
+            detail=f"仅支持 .md/.pdf/.csv/.xls/.xlsx 格式，当前: {ext or '无扩展名'}"
         )
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:

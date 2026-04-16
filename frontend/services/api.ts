@@ -283,17 +283,19 @@ export class ApiService {
    * 删除Skill
    */
   async deleteSkill(skillId: string): Promise<void> {
-    try {
-      const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
-        method: 'DELETE',
-      });
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
+      method: 'DELETE',
+    });
 
-      if (!response.ok) {
-        throw new Error(`删除Skill失败: ${response.status}`);
-      }
-    } catch (error) {
-      console.error('删除Skill失败:', error);
-      throw error;
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: response.statusText }));
+      const detail =
+        typeof err.detail === 'string'
+          ? err.detail
+          : Array.isArray(err.detail)
+            ? err.detail.map((d: { msg?: string }) => d.msg).filter(Boolean).join('; ')
+            : `删除失败: ${response.status}`;
+      throw new Error(detail || `删除失败: ${response.status}`);
     }
   }
 

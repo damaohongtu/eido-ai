@@ -1,17 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Skill } from '../types';
+import { api } from '../services/api';
 
 interface SkillDetailModalProps {
   visible: boolean;
   onClose: () => void;
   skill: Skill | null;
   onUseSkill?: (skill: Skill) => void;
+  /** 删除用户上传技能成功后回调（用于刷新列表） */
+  onDeleted?: () => void;
 }
 
-const SkillDetailModal: React.FC<SkillDetailModalProps> = ({ visible, onClose, skill, onUseSkill }) => {
+const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
+  visible,
+  onClose,
+  skill,
+  onUseSkill,
+  onDeleted,
+}) => {
+  const [deleting, setDeleting] = useState(false);
+
   if (!skill) return null;
 
   const MarkdownComponents = {
@@ -34,6 +45,31 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({ visible, onClose, s
 
   const hasDetail = !!skill.detail;
   const content = skill.detail || skill.description;
+  const canDelete = skill.is_system === false;
+
+  const handleDelete = () => {
+    Modal.confirm({
+      title: '删除技能',
+      content: `确定删除「${skill.name}」？此操作不可恢复。`,
+      okText: '删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        setDeleting(true);
+        try {
+          await api.deleteSkill(skill.id);
+          onDeleted?.();
+          onClose();
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : '删除失败';
+          Modal.error({ title: '删除失败', content: msg });
+          throw e;
+        } finally {
+          setDeleting(false);
+        }
+      },
+    });
+  };
 
   return (
     <Modal
@@ -58,14 +94,27 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({ visible, onClose, s
             </ReactMarkdown>
           </div>
         </div>
-        {onUseSkill && (
-          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-            <button
-              onClick={() => { onUseSkill(skill); onClose(); }}
-              className="w-full py-2.5 bg-gray-700 text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-colors"
-            >
-              使用此技能
-            </button>
+        {(onUseSkill || canDelete) && (
+          <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-col gap-2">
+            {canDelete && (
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                className="w-full py-2.5 border border-red-200 text-red-700 text-sm font-bold rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {deleting ? '删除中…' : '删除此技能'}
+              </button>
+            )}
+            {onUseSkill && (
+              <button
+                type="button"
+                onClick={() => { onUseSkill(skill); onClose(); }}
+                className="w-full py-2.5 bg-gray-700 text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                使用此技能
+              </button>
+            )}
           </div>
         )}
       </div>

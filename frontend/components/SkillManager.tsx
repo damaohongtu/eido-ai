@@ -99,6 +99,7 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill }) => {
         onClose={() => setDetailSkill(null)}
         skill={detailSkill}
         onUseSkill={onSelectSkill}
+        onDeleted={loadSkills}
       />
       <UploadSkillModal
         visible={uploadModalOpen}

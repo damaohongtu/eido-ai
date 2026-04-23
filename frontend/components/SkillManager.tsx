@@ -71,7 +71,7 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
             <button
               type="button"
               onClick={() => { setNewSkillName(''); setCreateModalOpen(true); }}
-              className="px-4 py-2 bg-gray-700 text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-colors"
+              className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-100 hover:border-gray-400 transition-colors"
             >
               新建技能
             </button>

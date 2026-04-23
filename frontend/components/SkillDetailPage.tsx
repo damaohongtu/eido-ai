@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Tabs, Button, Modal, message, Spin } from 'antd';
 import {
   ArrowLeftOutlined,
-  EditOutlined,
   DeleteOutlined,
   PlayCircleOutlined,
 } from '@ant-design/icons';
@@ -16,7 +15,6 @@ interface SkillDetailPageProps {
   skill: Skill;
   onBack: () => void;
   onUseSkill: (skill: Skill) => void;
-  onEdit: (skill: Skill) => void;
   onDeleted: () => void;
 }
 
@@ -42,7 +40,6 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
   skill: initialSkill,
   onBack,
   onUseSkill,
-  onEdit,
   onDeleted,
 }) => {
   const [skill, setSkill] = useState<Skill>(initialSkill);
@@ -51,7 +48,6 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
   const [activeTab, setActiveTab] = useState('docs');
 
   const isSystem = skill.is_system;
-  const canEdit = !isSystem;
   const canDelete = !isSystem;
 
   useEffect(() => {
@@ -60,11 +56,6 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
       try {
         const detail = await api.getSkill(initialSkill.id);
         setSkill(detail);
-        // Auto-open editor for newly created skills with empty content
-        const detailContent = detail.detail || detail.description;
-        if (!detail.is_system && (!detailContent || !detailContent.trim())) {
-          onEdit(detail);
-        }
       } catch (err) {
         console.error('加载技能详情失败:', err);
         message.error('加载技能详情失败');
@@ -152,15 +143,6 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {canEdit && (
-              <Button
-                icon={<EditOutlined />}
-                onClick={() => onEdit(skill)}
-                className="font-bold"
-              >
-                编辑
-              </Button>
-            )}
             {canDelete && (
               <Button
                 danger

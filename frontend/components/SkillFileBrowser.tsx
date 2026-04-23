@@ -481,10 +481,10 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
                   </Button>
                   <Button
                     size="small"
-                    type="primary"
                     icon={<SaveOutlined />}
                     onClick={saveEdit}
                     loading={saving}
+                    style={{ backgroundColor: '#374151', borderColor: '#374151', color: '#fff' }}
                   >
                     保存
                   </Button>

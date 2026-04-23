@@ -133,6 +133,7 @@ def create_application() -> FastAPI:
         """应用启动事件：初始化技能服务、定时任务调度"""
         from pathlib import Path
         from app.services.claude_skill_service import init_claude_skill_service
+        from app.services.skill_management_service import init_skill_management_service
         from app.services.scheduled_task_store import ScheduledTaskStore
         from app.services import scheduler_service
         from app.api.v1.endpoints import tasks as tasks_ep
@@ -145,6 +146,8 @@ def create_application() -> FastAPI:
             skills_dir = Path(settings.SKILLS_DIR)
             workspace_root = Path(settings.WORKSPACE_ROOT)
             svc = init_claude_skill_service(skills_dir, workspace_root)
+            # Initialize management service with reference to execution service
+            init_skill_management_service(skills_dir, workspace_root, svc)
             skill_count = len(svc.scan_skills())
             logger.info(f"✓ 技能服务初始化完成: 发现 {skill_count} 个技能")
         except Exception as e:

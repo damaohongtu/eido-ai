@@ -9,7 +9,6 @@ import ReferenceArea from './components/ReferenceArea';
 import HomeView from './components/HomeView';
 import SkillManager from './components/SkillManager';
 import SkillDetailPage from './components/SkillDetailPage';
-import SkillEditor from './components/SkillEditor';
 import ScheduledTasksManager from './components/ScheduledTasksManager';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -95,8 +94,6 @@ const App: React.FC = () => {
 
   // Skill page view state
   const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
-  const [editorSkill, setEditorSkill] = useState<Skill | null>(null);
-  const [editorSaving, setEditorSaving] = useState(false);
 
   // Workspace (Report Editor) State
   const [executingAction, setExecutingAction] = useState<SkillAction | null>(null);
@@ -365,55 +362,9 @@ const App: React.FC = () => {
               setDetailSkill(null);
               createNewSession(skill.id);
             }}
-            onEdit={(skill) => {
-              setEditorSkill(skill);
-              setActiveView(ViewType.SKILL_EDITOR);
-            }}
             onDeleted={() => {
               refreshSkills();
               setDetailSkill(null);
-              setActiveView(ViewType.SKILLS);
-            }}
-          />
-        )}
-
-        {activeView === ViewType.SKILL_EDITOR && (
-          <SkillEditor
-            skill={editorSkill}
-            onSave={async (skill) => {
-              if (editorSaving) return;
-              setEditorSaving(true);
-              try {
-                if (!editorSkill) {
-                  const lines = skill.description.split('\n');
-                  const desc = lines[0]?.trim() || '';
-                  await api.createSkill({
-                    name: skill.name,
-                    description: desc,
-                    content: skill.description,
-                    icon: skill.icon || undefined,
-                  });
-                  message.success('技能创建成功');
-                } else {
-                  await api.updateSkill(editorSkill.id, {
-                    name: skill.name,
-                    description: skill.description,
-                    content: skill.description,
-                    icon: skill.icon || undefined,
-                  });
-                  message.success('技能更新成功');
-                }
-                await refreshSkills();
-                setEditorSkill(null);
-                setActiveView(ViewType.SKILLS);
-              } catch (err) {
-                message.error(err instanceof Error ? err.message : '保存失败');
-              } finally {
-                setEditorSaving(false);
-              }
-            }}
-            onCancel={() => {
-              setEditorSkill(null);
               setActiveView(ViewType.SKILLS);
             }}
           />

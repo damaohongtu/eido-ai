@@ -4,7 +4,6 @@ export enum ViewType {
   CHAT = 'chat',
   SKILLS = 'skills',
   SKILL_DETAIL = 'skill_detail',
-  SKILL_EDITOR = 'skill_editor',
   /** 定时自动任务 */
   SCHEDULED_TASKS = 'scheduled_tasks',
 }

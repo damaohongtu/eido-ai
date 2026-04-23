@@ -307,6 +307,8 @@ async def delete_file(skill_id: str, request: FileDeleteRequest):
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=f"删除失败: {e}")
 
 
 @router.post("/{skill_id}/files/mkdir")

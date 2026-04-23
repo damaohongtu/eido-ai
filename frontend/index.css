@@ -256,3 +256,18 @@ body {
 .detail-modal .markdown-body {
   @apply text-gray-700;
 }
+
+/* SkillDetailPage Tabs - 深灰高亮替代蓝色 */
+.skill-detail-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #111827 !important;
+  font-weight: 700;
+}
+.skill-detail-tabs .ant-tabs-tab:hover .ant-tabs-tab-btn {
+  color: #374151 !important;
+}
+.skill-detail-tabs .ant-tabs-tab .ant-tabs-tab-btn {
+  color: #6b7280;
+}
+.skill-detail-tabs .ant-tabs-ink-bar {
+  background: #374151 !important;
+}

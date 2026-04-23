@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Modal, Input, message } from 'antd';
 import { Skill } from '../types';
 import { api } from '../services/api';
 import UploadSkillModal from './UploadSkillModal';
@@ -6,14 +7,17 @@ import UploadSkillModal from './UploadSkillModal';
 interface SkillManagerProps {
   onSelectSkill?: (skill: Skill) => void;
   onViewDetail: (skill: Skill) => void;
-  onCreateSkill: () => void;
+  onRefreshAppSkills?: () => void;
 }
 
-const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail, onCreateSkill }) => {
+const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail, onRefreshAppSkills }) => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState<string | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [newSkillName, setNewSkillName] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const loadSkills = async () => {
     setSkillsLoading(true);
@@ -33,6 +37,28 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
     loadSkills();
   }, []);
 
+  const handleCreateSkill = async () => {
+    const name = newSkillName.trim();
+    if (!name) {
+      message.warning('请输入技能名称');
+      return;
+    }
+    setCreating(true);
+    try {
+      const newSkill = await api.createSkill({ name, description: '', content: '' });
+      message.success('技能创建成功');
+      setCreateModalOpen(false);
+      setNewSkillName('');
+      onRefreshAppSkills?.();
+      loadSkills();
+      onViewDetail(newSkill);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : '创建失败');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="flex-1 p-6 lg:p-8 overflow-y-auto">
       <div className="max-w-6xl mx-auto">
@@ -44,7 +70,7 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onCreateSkill}
+              onClick={() => { setNewSkillName(''); setCreateModalOpen(true); }}
               className="px-4 py-2 bg-gray-700 text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-colors"
             >
               新建技能
@@ -106,8 +132,31 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
       <UploadSkillModal
         visible={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
-        onSuccess={loadSkills}
+        onSuccess={() => { loadSkills(); onRefreshAppSkills?.(); }}
       />
+
+      <Modal
+        title="新建技能"
+        open={createModalOpen}
+        onOk={handleCreateSkill}
+        onCancel={() => { setCreateModalOpen(false); setNewSkillName(''); }}
+        okText="创建"
+        cancelText="取消"
+        confirmLoading={creating}
+        okButtonProps={{ disabled: !newSkillName.trim() }}
+      >
+        <div className="py-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">请输入技能名称</label>
+          <Input
+            placeholder="例如：数据分析助手"
+            value={newSkillName}
+            onChange={(e) => setNewSkillName(e.target.value)}
+            onPressEnter={handleCreateSkill}
+            autoFocus
+            maxLength={50}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

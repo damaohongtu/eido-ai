@@ -60,6 +60,11 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
       try {
         const detail = await api.getSkill(initialSkill.id);
         setSkill(detail);
+        // Auto-open editor for newly created skills with empty content
+        const detailContent = detail.detail || detail.description;
+        if (!detail.is_system && (!detailContent || !detailContent.trim())) {
+          onEdit(detail);
+        }
       } catch (err) {
         console.error('加载技能详情失败:', err);
         message.error('加载技能详情失败');
@@ -133,13 +138,13 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
           <div className="flex items-center gap-4">
             <button
               onClick={onBack}
-              className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-gray-800 transition-all font-bold text-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-gray-800 transition-all font-bold text-sm whitespace-nowrap"
             >
               <ArrowLeftOutlined />
               <span>返回</span>
             </button>
             <div className="flex items-center gap-3">
-              <span className="text-3xl">{skill.icon || '⚡'}</span>
+              {skill.icon && <span className="text-3xl">{skill.icon}</span>}
               <div>
                 <h1 className="text-2xl font-black text-gray-900 tracking-tight">{skill.name}</h1>
                 <p className="text-sm text-gray-500 font-medium">{skill.description}</p>

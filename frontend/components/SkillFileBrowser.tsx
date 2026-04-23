@@ -52,9 +52,9 @@ function buildTreeData(nodes: FileNode[]): TreeDataNode[] {
     title: (
       <span className="flex items-center gap-1">
         {node.type === 'dir' ? (
-          <FolderOutlined className="text-amber-500" />
+          <FolderOutlined className="text-gray-500" />
         ) : (
-          <FileOutlined className="text-blue-500" />
+          <FileOutlined className="text-gray-500" />
         )}
         <span className="text-sm text-gray-700">{node.name}</span>
         {node.type === 'file' && node.size !== undefined && (
@@ -425,9 +425,9 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
               selectedKeys={selectedPath ? [selectedPath] : []}
               switcherIcon={({ expanded }) =>
                 expanded ? (
-                  <FolderOpenOutlined className="text-amber-500 text-xs" />
+                  <FolderOpenOutlined className="text-gray-500 text-xs" />
                 ) : (
-                  <FolderOutlined className="text-amber-500 text-xs" />
+                  <FolderOutlined className="text-gray-500 text-xs" />
                 )
               }
             />
@@ -443,7 +443,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
                   {selectedPath}
                 </span>
                 {isEditing && (
-                  <span className="text-xs text-blue-500">编辑中</span>
+                  <span className="text-xs text-gray-500">编辑中</span>
                 )}
               </div>
               <div className="flex-1 p-3 overflow-auto">
@@ -493,7 +493,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
             </>
           ) : selectedNodeType === 'dir' ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <FolderOutlined className="text-4xl mb-2 text-amber-400" />
+              <FolderOutlined className="text-4xl mb-2 text-gray-400" />
               <p>已选择目录: {selectedPath}</p>
             </div>
           ) : (
@@ -581,6 +581,11 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
         <p>
           确定删除 <strong>{deleteTarget}</strong> 吗？此操作不可恢复。
         </p>
+        {selectedNodeType === 'dir' && (
+          <p className="mt-2 text-orange-500 text-sm">
+            ⚠ 将删除该文件夹及其所有内容
+          </p>
+        )}
       </Modal>
     </div>
   );

@@ -350,10 +350,7 @@ const App: React.FC = () => {
               setDetailSkill(skill);
               setActiveView(ViewType.SKILL_DETAIL);
             }}
-            onCreateSkill={() => {
-              setEditorSkill(null);
-              setActiveView(ViewType.SKILL_EDITOR);
-            }}
+            onRefreshAppSkills={refreshSkills}
           />
         )}
 

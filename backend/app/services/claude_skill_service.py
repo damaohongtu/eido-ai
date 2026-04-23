@@ -316,20 +316,24 @@ class ClaudeSkillService:
         file_path.write_text(content, encoding="utf-8")
 
     def delete_file(self, skill_id: str, path: str) -> None:
-        """删除技能目录下指定文件或空目录；禁止删除 SKILL.md"""
+        """删除技能目录下指定文件或目录（目录递归删除）；禁止删除 SKILL.md"""
         skill_dir = self._get_skill_dir(skill_id)
         if not (skill_dir / USER_UPLOAD_MARKER).exists():
             raise PermissionError("系统技能不可修改")
+        if not path or path in (".", "/"):
+            raise PermissionError("禁止删除技能根目录")
         file_path = self._validate_file_path(skill_dir, path)
         resolved = file_path.resolve()
         if resolved.name == "SKILL.md":
             raise PermissionError("禁止删除 SKILL.md")
+        if resolved == skill_dir.resolve():
+            raise PermissionError("禁止删除技能根目录")
         if not file_path.exists():
             raise FileNotFoundError(f"文件不存在: {path}")
         if file_path.is_file():
             file_path.unlink()
         elif file_path.is_dir():
-            file_path.rmdir()
+            shutil.rmtree(file_path)
         else:
             raise ValueError("未知文件类型")
 

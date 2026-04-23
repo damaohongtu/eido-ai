@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.services.claude_skill_service import get_claude_skill_service
+from app.services.skill_management_service import get_skill_management_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -45,11 +46,39 @@ class SkillResponse(BaseModel):
     allowed_tools: List[str] = []
     tools: list = []
     agents: list = []
+    detail: Optional[str] = None  # SKILL.md 完整内容
 
 
 class SkillListResponse(BaseModel):
     items: List[SkillResponse]
     total: int
+
+
+class CreateSkillRequest(BaseModel):
+    name: str
+    description: str
+    content: str
+    icon: Optional[str] = None
+
+
+class UpdateSkillRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    content: Optional[str] = None
+    icon: Optional[str] = None
+
+
+class FileWriteRequest(BaseModel):
+    path: str
+    content: str
+
+
+class FileDeleteRequest(BaseModel):
+    path: str
+
+
+class FileMkdirRequest(BaseModel):
+    path: str
 
 
 # ------------------------------------------------------------------ #
@@ -74,6 +103,7 @@ def _meta_to_response(meta) -> SkillResponse:
         allowed_tools=meta.allowed_tools,
         tools=meta.tools,
         agents=meta.agents,
+        detail=meta.content,
     )
 
 
@@ -162,16 +192,138 @@ async def get_skill(skill_id: str):
 @router.delete("/{skill_id}", status_code=204)
 async def delete_skill(skill_id: str):
     """删除用户通过上传安装的技能（内置技能不可删除）。"""
-    svc = get_claude_skill_service()
-    if svc is None:
-        raise HTTPException(status_code=503, detail="技能服务未初始化")
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
 
     try:
-        svc.delete_user_upload(skill_id)
+        mgmt_svc.delete_user_upload(skill_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
     except PermissionError:
         raise HTTPException(status_code=403, detail="仅支持删除通过上传安装的技能")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/", response_model=SkillResponse)
+async def create_skill(request: CreateSkillRequest):
+    """创建新技能"""
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    try:
+        meta = mgmt_svc.create_skill(
+            name=request.name,
+            description=request.description,
+            content=request.content,
+            icon=request.icon,
+        )
+        return _meta_to_response(meta)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("创建技能失败")
+        raise HTTPException(status_code=500, detail=f"创建失败: {e}")
+
+
+@router.put("/{skill_id}", response_model=SkillResponse)
+async def update_skill(skill_id: str, request: UpdateSkillRequest):
+    """更新技能元数据或正文"""
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    try:
+        meta = mgmt_svc.update_skill(
+            skill_id=skill_id,
+            name=request.name,
+            description=request.description,
+            content=request.content,
+            icon=request.icon,
+        )
+        return _meta_to_response(meta)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{skill_id}/files")
+async def list_files(skill_id: str):
+    """列出技能目录下的文件树"""
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    try:
+        return mgmt_svc.list_files(skill_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{skill_id}/files/read")
+async def read_file(skill_id: str, path: str = Query(...)):
+    """读取技能目录下指定文件"""
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    try:
+        return mgmt_svc.read_file(skill_id, path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"文件不存在: {path}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{skill_id}/files/write")
+async def write_file(skill_id: str, request: FileWriteRequest):
+    """向技能目录写入文件"""
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    try:
+        mgmt_svc.write_file(skill_id, request.path, request.content)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{skill_id}/files/delete")
+async def delete_file(skill_id: str, request: FileDeleteRequest):
+    """删除技能目录下指定文件"""
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    try:
+        mgmt_svc.delete_file(skill_id, request.path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"文件不存在: {request.path}")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except OSError as e:
+        raise HTTPException(status_code=400, detail=f"删除失败: {e}")
+
+
+@router.post("/{skill_id}/files/mkdir")
+async def mkdir(skill_id: str, request: FileMkdirRequest):
+    """在技能目录下创建子目录"""
+    mgmt_svc = get_skill_management_service()
+    if not mgmt_svc:
+        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    try:
+        mgmt_svc.mkdir(skill_id, request.path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -250,8 +402,9 @@ def _extract_zip_skill(content: bytes, filename: str, skills_dir: Path):
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(data)
 
+    mgmt_svc = get_skill_management_service()
+    mgmt_svc.mark_user_upload(skill_id)
     svc = get_claude_skill_service()
-    svc.mark_user_upload(skill_id)
     return svc.get_skill(skill_id)
 
 
@@ -268,6 +421,7 @@ def _save_md_skill(content: bytes, filename: str, skills_dir: Path):
     target_dir.mkdir(parents=True)
     (target_dir / "SKILL.md").write_bytes(content)
 
+    mgmt_svc = get_skill_management_service()
+    mgmt_svc.mark_user_upload(skill_id)
     svc = get_claude_skill_service()
-    svc.mark_user_upload(skill_id)
     return svc.get_skill(skill_id)

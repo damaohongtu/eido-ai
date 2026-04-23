@@ -17,8 +17,15 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
   const isReadOnly = skill?.is_system || false;
   const [name, setName] = useState(skill?.name || '');
   const [icon, setIcon] = useState(skill?.icon || '⚡');
-  const [blueprint, setBlueprint] = useState(skill?.description || '');
+  const [blueprint, setBlueprint] = useState(skill?.detail || skill?.description || '');
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // 当 skill prop 变化时同步状态（用于切换编辑不同技能）
+  useEffect(() => {
+    setName(skill?.name || '');
+    setIcon(skill?.icon || '⚡');
+    setBlueprint(skill?.detail || skill?.description || '');
+  }, [skill?.id, skill?.name, skill?.icon, skill?.detail, skill?.description]);
   const [showPreview, setShowPreview] = useState(true);
   const [selectedItem, setSelectedItem] = useState<Tool | Agent | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -241,7 +248,7 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-700 mx-auto mb-4"></div>
           <p className="text-slate-500">加载编辑器资源中...</p>
         </div>
       </div>
@@ -327,7 +334,7 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
             className={`px-8 py-3 rounded-[1.2rem] font-bold transition-all shadow-xl active:scale-95 ${
               isReadOnly 
                 ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 shadow-none' 
-                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20 disabled:bg-slate-100 disabled:text-slate-400'
+                : 'bg-gray-700 hover:bg-gray-800 text-white shadow-gray-700/20 disabled:bg-slate-100 disabled:text-slate-400'
             }`}
           >
             {isReadOnly ? '关闭查看' : '发布'}
@@ -342,8 +349,8 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
             <div className="flex-1 p-12 overflow-y-auto custom-scrollbar relative">
               <div className="max-w-4xl mx-auto h-full flex flex-col">
                 <div className="mb-8 flex items-center justify-between">
-                  <label className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  <label className="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-gray-500 animate-pulse"></span>
                     Markdown 编辑
                   </label>
                   <div className="text-[12px] text-slate-300 font-medium">
@@ -384,12 +391,12 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
                           <button 
                             key={m.id} 
                             onClick={() => insertMention(m)} 
-                            className={`w-full flex items-center space-x-4 px-5 py-4 text-left transition-all ${mentionMenu.index === i ? 'bg-indigo-600 text-white' : 'hover:bg-slate-50 text-slate-700'}`}
+                            className={`w-full flex items-center space-x-4 px-5 py-4 text-left transition-all ${mentionMenu.index === i ? 'bg-gray-700 text-white' : 'hover:bg-slate-50 text-slate-700'}`}
                           >
                             <span className="text-2xl">{m.icon}</span>
                             <div className="flex-1 min-w-0">
                               <div className={`text-sm font-bold truncate ${mentionMenu.index === i ? 'text-white' : 'text-slate-900'}`}>{m.name}</div>
-                              <div className={`text-[9px] font-black uppercase tracking-tighter ${mentionMenu.index === i ? 'text-indigo-200' : 'text-slate-400'}`}>{m.type}</div>
+                              <div className={`text-[9px] font-black uppercase tracking-tighter ${mentionMenu.index === i ? 'text-gray-300' : 'text-slate-400'}`}>{m.type}</div>
                             </div>
                           </button>
                         ))}
@@ -409,12 +416,12 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
                    activeComponents.map(m => (
                      <div 
                        key={m.id} 
-                       className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm animate-in zoom-in-90 cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all"
+                       className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm animate-in zoom-in-90 cursor-pointer hover:shadow-md hover:border-gray-300 transition-all"
                        onClick={() => handleComponentClick(m)}
                      >
                         <span className="text-sm">{m.icon}</span>
                         <span className="text-[11px] font-bold text-slate-700">@{m.name}</span>
-                        <span className={`text-[8px] px-1 rounded font-black uppercase ${m.type === 'Agent' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>{m.type}</span>
+                        <span className={`text-[8px] px-1 rounded font-black uppercase ${m.type === 'Agent' ? 'bg-gray-100 text-gray-600' : 'bg-gray-50 text-gray-500'}`}>{m.type}</span>
                      </div>
                    ))
                  )}
@@ -433,12 +440,12 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
             <div className="flex-1 p-12 overflow-y-auto custom-scrollbar">
               <div className="max-w-4xl mx-auto">
                 <div className="mb-8 flex items-center justify-between">
-                  <label className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <label className="text-[11px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-gray-500"></span>
                     {isReadOnly ? '系统技能文档' : '实时预览'}
                   </label>
                   {isReadOnly && (
-                    <span className="text-[10px] bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
+                    <span className="text-[10px] bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-bold uppercase tracking-wider">
                       只读模式
                     </span>
                   )}
@@ -463,12 +470,12 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
                   {activeComponents.map(m => (
                     <div 
                       key={m.id} 
-                      className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all"
+                      className="flex items-center space-x-2 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md hover:border-gray-300 transition-all"
                       onClick={() => handleComponentClick(m)}
                     >
                       <span className="text-sm">{m.icon}</span>
                       <span className="text-[11px] font-bold text-slate-700">@{m.name}</span>
-                      <span className={`text-[8px] px-1 rounded font-black uppercase ${m.type === 'Agent' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>{m.type}</span>
+                      <span className={`text-[8px] px-1 rounded font-black uppercase ${m.type === 'Agent' ? 'bg-gray-100 text-gray-600' : 'bg-gray-50 text-gray-500'}`}>{m.type}</span>
                     </div>
                   ))}
                 </div>
@@ -489,11 +496,11 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
                </section>
                
                <section className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
-                  <h4 className="text-[12px] font-black text-indigo-600 uppercase tracking-widest mb-3">人格注入</h4>
+                  <h4 className="text-[12px] font-black text-gray-600 uppercase tracking-widest mb-3">人格注入</h4>
                   <p className="text-sm text-slate-400 leading-relaxed mb-4">
                     提及一个 <b>@智能体</b>（如 @研究分析师）会让 Eido 采用该人格的推理风格。
                   </p>
-                  <h4 className="text-[12px] font-black text-emerald-600 uppercase tracking-widest mb-3">工具映射</h4>
+                  <h4 className="text-[12px] font-black text-gray-600 uppercase tracking-widest mb-3">工具映射</h4>
                   <p className="text-sm text-slate-400 leading-relaxed">
                     提及一个 <b>@工具</b>（如 @谷歌搜索）会在思考过程中赋予 Eido 该特定能力。
                   </p>

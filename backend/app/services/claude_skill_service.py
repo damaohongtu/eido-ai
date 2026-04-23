@@ -7,7 +7,6 @@
 """
 import json
 import logging
-import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -151,33 +150,6 @@ class ClaudeSkillService:
             updated_at=mtime,
             is_system=not is_user_upload,
         )
-
-    def mark_user_upload(self, skill_id: str) -> None:
-        """将技能目录标记为用户上传安装，允许后续删除。"""
-        skill_dir = self.skills_dir / skill_id
-        if not (skill_dir / "SKILL.md").exists():
-            raise FileNotFoundError(f"技能不存在: {skill_id}")
-        (skill_dir / USER_UPLOAD_MARKER).write_text("", encoding="utf-8")
-
-    def delete_user_upload(self, skill_id: str) -> None:
-        """删除用户上传的技能目录；系统技能（无标记）不可删。"""
-        if not skill_id or any(sep in skill_id for sep in ("/", "\\", "..")):
-            raise ValueError("无效的技能 ID")
-
-        skill_dir = (self.skills_dir / skill_id).resolve()
-        base = self.skills_dir.resolve()
-        try:
-            skill_dir.relative_to(base)
-        except ValueError:
-            raise ValueError("无效的技能路径") from None
-
-        if not (skill_dir / "SKILL.md").exists():
-            raise FileNotFoundError(f"技能不存在: {skill_id}")
-        if not (skill_dir / USER_UPLOAD_MARKER).exists():
-            raise PermissionError("仅支持删除通过上传安装的技能")
-
-        shutil.rmtree(skill_dir)
-        logger.info("已删除用户上传技能: %s", skill_id)
 
     # ------------------------------------------------------------------ #
     #  技能执行                                                             #

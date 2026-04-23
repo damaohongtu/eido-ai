@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { message } from 'antd';
 import { ViewType, Skill, Agent, Tool, Message, ChatSession, Reference, SkillAction } from './types';
 import { SYSTEM_SKILLS, SYSTEM_AGENTS, SYSTEM_TOOLS, INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
@@ -7,6 +8,7 @@ import ChatArea from './components/ChatArea';
 import ReferenceArea from './components/ReferenceArea';
 import HomeView from './components/HomeView';
 import SkillManager from './components/SkillManager';
+import SkillDetailPage from './components/SkillDetailPage';
 import ScheduledTasksManager from './components/ScheduledTasksManager';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -89,7 +91,10 @@ const App: React.FC = () => {
   const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  
+
+  // Skill page view state
+  const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
+
   // Workspace (Report Editor) State
   const [executingAction, setExecutingAction] = useState<SkillAction | null>(null);
   const [workspaceContent, setWorkspaceContent] = useState('');
@@ -130,11 +135,24 @@ const App: React.FC = () => {
     loadSkills();
   }, []);
 
-  const activeSession = useMemo(() => 
+  const activeSession = useMemo(() =>
     sessions.find(s => s.id === activeSessionId) || null
   , [sessions, activeSessionId]);
 
   const allSkills = useMemo(() => [...systemSkills, ...userSkills], [systemSkills, userSkills]);
+
+  const refreshSkills = async () => {
+    try {
+      const [systemResult, userResult] = await Promise.all([
+        api.getSkills({ is_system: true, limit: 100 }),
+        api.getSkills({ is_system: false, limit: 100 }),
+      ]);
+      setSystemSkills(systemResult.items);
+      setUserSkills(userResult.items);
+    } catch (error) {
+      console.error('刷新技能失败:', error);
+    }
+  };
 
   // Sync editor content with last assistant output
   useEffect(() => {
@@ -325,6 +343,30 @@ const App: React.FC = () => {
         {activeView === ViewType.SKILLS && (
           <SkillManager
             onSelectSkill={(skill) => createNewSession(skill.id)}
+            onViewDetail={(skill) => {
+              setDetailSkill(skill);
+              setActiveView(ViewType.SKILL_DETAIL);
+            }}
+            onRefreshAppSkills={refreshSkills}
+          />
+        )}
+
+        {activeView === ViewType.SKILL_DETAIL && detailSkill && (
+          <SkillDetailPage
+            skill={detailSkill}
+            onBack={() => {
+              setDetailSkill(null);
+              setActiveView(ViewType.SKILLS);
+            }}
+            onUseSkill={(skill) => {
+              setDetailSkill(null);
+              createNewSession(skill.id);
+            }}
+            onDeleted={() => {
+              refreshSkills();
+              setDetailSkill(null);
+              setActiveView(ViewType.SKILLS);
+            }}
           />
         )}
 

@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Modal } from 'antd';
+import { FolderOutlined, DownOutlined, RightOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Skill } from '../types';
 import { api } from '../services/api';
+import SkillFileBrowser from './SkillFileBrowser';
 
 interface SkillDetailModalProps {
   visible: boolean;
@@ -12,6 +14,8 @@ interface SkillDetailModalProps {
   onUseSkill?: (skill: Skill) => void;
   /** 删除用户上传技能成功后回调（用于刷新列表） */
   onDeleted?: () => void;
+  /** 编辑用户上传技能 */
+  onEdit?: (skill: Skill) => void;
 }
 
 const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
@@ -20,8 +24,10 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   skill,
   onUseSkill,
   onDeleted,
+  onEdit,
 }) => {
   const [deleting, setDeleting] = useState(false);
+  const [filesExpanded, setFilesExpanded] = useState(false);
 
   if (!skill) return null;
 
@@ -46,6 +52,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   const hasDetail = !!skill.detail;
   const content = skill.detail || skill.description;
   const canDelete = skill.is_system === false;
+  const canEdit = skill.is_system === false && !!onEdit;
 
   const handleDelete = () => {
     Modal.confirm({
@@ -94,8 +101,38 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             </ReactMarkdown>
           </div>
         </div>
-        {(onUseSkill || canDelete) && (
+        {/* 文件浏览器折叠区域 */}
+        <div className="flex-shrink-0 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => setFilesExpanded(!filesExpanded)}
+            className="w-full px-6 py-3 flex items-center gap-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <FolderOutlined className="text-amber-500" />
+            <span className="font-medium">文件</span>
+            {filesExpanded ? <DownOutlined className="text-xs ml-auto" /> : <RightOutlined className="text-xs ml-auto" />}
+          </button>
+          {filesExpanded && (
+            <div className="px-6 pb-4" style={{ height: '400px' }}>
+              <SkillFileBrowser
+                skillId={skill.id}
+                isSystem={skill.is_system}
+                visible={filesExpanded}
+              />
+            </div>
+          )}
+        </div>
+        {(onUseSkill || canDelete || canEdit) && (
           <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-col gap-2">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => { onEdit(skill); onClose(); }}
+                className="w-full py-2.5 border border-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                编辑此技能
+              </button>
+            )}
             {canDelete && (
               <button
                 type="button"

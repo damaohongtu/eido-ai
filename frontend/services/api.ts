@@ -236,11 +236,8 @@ export class ApiService {
   async createSkill(skillData: {
     name: string;
     description: string;
+    content: string;
     icon?: string;
-    output_schema?: Record<string, any>;
-    is_public?: boolean;
-    tool_ids?: string[];
-    agent_ids?: string[];
   }): Promise<Skill> {
     try {
       const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/`, {
@@ -266,14 +263,12 @@ export class ApiService {
   async updateSkill(skillId: string, skillData: Partial<{
     name: string;
     description: string;
+    content: string;
     icon: string;
-    output_schema: Record<string, any>;
-    is_public: boolean;
-    is_active: boolean;
   }>): Promise<Skill> {
     try {
       const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(skillData),
       });
@@ -287,6 +282,68 @@ export class ApiService {
       console.error('更新Skill失败:', error);
       throw error;
     }
+  }
+
+  /**
+   * 获取技能文件列表
+   */
+  async getSkillFiles(skillId: string): Promise<any[]> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}/files`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`获取文件列表失败: ${response.status}`);
+    return response.json();
+  }
+
+  /**
+   * 读取技能文件内容
+   */
+  async readSkillFile(skillId: string, path: string): Promise<string> {
+    const encodedPath = encodeURIComponent(path);
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}/files/read?path=${encodedPath}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`读取文件失败: ${response.status}`);
+    const data = await response.json();
+    return data.content;
+  }
+
+  /**
+   * 写入技能文件
+   */
+  async writeSkillFile(skillId: string, path: string, content: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}/files/write`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, content }),
+    });
+    if (!response.ok) throw new Error(`写入文件失败: ${response.status}`);
+  }
+
+  /**
+   * 删除技能文件
+   */
+  async deleteSkillFile(skillId: string, path: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}/files/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (!response.ok) throw new Error(`删除文件失败: ${response.status}`);
+  }
+
+  /**
+   * 在技能目录下创建子目录
+   */
+  async mkdirSkillFile(skillId: string, path: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/skills/${skillId}/files/mkdir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (!response.ok) throw new Error(`创建目录失败: ${response.status}`);
   }
 
   /**

@@ -7,6 +7,7 @@
 """
 import json
 import logging
+import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,9 @@ from typing import AsyncGenerator, List, Optional
 logger = logging.getLogger(__name__)
 
 DEFAULT_ALLOWED_TOOLS = ["Bash", "Glob", "Read", "WebFetch"]
+
+# 用户通过 /skills/upload 安装的技能目录下会写入此标记；无标记的视为内置/系统技能，禁止删除
+USER_UPLOAD_MARKER = ".eido-user-upload"
 
 
 def _parse_frontmatter(content: str) -> tuple[dict, str]:
@@ -134,6 +138,8 @@ class ClaudeSkillService:
         stat = skill_md.stat()
         mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
 
+        is_user_upload = (skill_dir / USER_UPLOAD_MARKER).exists()
+
         return SkillMeta(
             id=skill_id,
             name=name,
@@ -143,7 +149,35 @@ class ClaudeSkillService:
             skill_dir=skill_dir,
             created_at=mtime,
             updated_at=mtime,
+            is_system=not is_user_upload,
         )
+
+    def mark_user_upload(self, skill_id: str) -> None:
+        """将技能目录标记为用户上传安装，允许后续删除。"""
+        skill_dir = self.skills_dir / skill_id
+        if not (skill_dir / "SKILL.md").exists():
+            raise FileNotFoundError(f"技能不存在: {skill_id}")
+        (skill_dir / USER_UPLOAD_MARKER).write_text("", encoding="utf-8")
+
+    def delete_user_upload(self, skill_id: str) -> None:
+        """删除用户上传的技能目录；系统技能（无标记）不可删。"""
+        if not skill_id or any(sep in skill_id for sep in ("/", "\\", "..")):
+            raise ValueError("无效的技能 ID")
+
+        skill_dir = (self.skills_dir / skill_id).resolve()
+        base = self.skills_dir.resolve()
+        try:
+            skill_dir.relative_to(base)
+        except ValueError:
+            raise ValueError("无效的技能路径") from None
+
+        if not (skill_dir / "SKILL.md").exists():
+            raise FileNotFoundError(f"技能不存在: {skill_id}")
+        if not (skill_dir / USER_UPLOAD_MARKER).exists():
+            raise PermissionError("仅支持删除通过上传安装的技能")
+
+        shutil.rmtree(skill_dir)
+        logger.info("已删除用户上传技能: %s", skill_id)
 
     # ------------------------------------------------------------------ #
     #  技能执行                                                             #

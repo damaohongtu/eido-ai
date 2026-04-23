@@ -38,3 +38,4 @@ outputs/
 
 config.json
 .claude/skills/
+.agents

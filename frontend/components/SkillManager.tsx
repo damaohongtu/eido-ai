@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Skill } from '../types';
 import { api } from '../services/api';
-import SkillDetailModal from './SkillDetailModal';
 import UploadSkillModal from './UploadSkillModal';
 
 interface SkillManagerProps {
   onSelectSkill?: (skill: Skill) => void;
+  onViewDetail: (skill: Skill) => void;
+  onCreateSkill: () => void;
 }
 
-const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill }) => {
+const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail, onCreateSkill }) => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState<string | null>(null);
-  const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const loadSkills = async () => {
@@ -41,13 +41,22 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill }) => {
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">我的技能</h1>
             <p className="text-sm text-gray-500 font-medium">选择技能开始专业分析工作流</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setUploadModalOpen(true)}
-            className="px-4 py-2 bg-gray-700 text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-colors"
-          >
-            上传技能
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onCreateSkill}
+              className="px-4 py-2 bg-gray-700 text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              新建技能
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadModalOpen(true)}
+              className="px-4 py-2 bg-gray-700 text-white text-sm font-bold rounded-lg hover:bg-gray-800 transition-colors"
+            >
+              上传技能
+            </button>
+          </div>
         </div>
 
         {skillsLoading ? (
@@ -77,11 +86,11 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill }) => {
                 key={skill.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => setDetailSkill(skill)}
+                onClick={() => onViewDetail(skill)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    setDetailSkill(skill);
+                    onViewDetail(skill);
                   }
                 }}
                 className="bg-white rounded-xl border border-gray-200 p-5 cursor-pointer hover:border-gray-300 hover:bg-gray-50/50 transition-all text-left"
@@ -94,13 +103,6 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill }) => {
         )}
       </div>
 
-      <SkillDetailModal
-        visible={!!detailSkill}
-        onClose={() => setDetailSkill(null)}
-        skill={detailSkill}
-        onUseSkill={onSelectSkill}
-        onDeleted={loadSkills}
-      />
       <UploadSkillModal
         visible={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}

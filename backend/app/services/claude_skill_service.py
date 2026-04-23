@@ -180,6 +180,168 @@ class ClaudeSkillService:
         logger.info("已删除用户上传技能: %s", skill_id)
 
     # ------------------------------------------------------------------ #
+    #  路径安全                                                             #
+    # ------------------------------------------------------------------ #
+
+    def _get_skill_dir(self, skill_id: str) -> Path:
+        """验证 skill_id 安全并返回解析后的技能目录路径"""
+        if not skill_id or any(sep in skill_id for sep in ("/", "\\", "..")):
+            raise ValueError("无效的技能 ID")
+
+        skill_dir = (self.skills_dir / skill_id).resolve()
+        base = self.skills_dir.resolve()
+        try:
+            skill_dir.relative_to(base)
+        except ValueError:
+            raise ValueError("无效的技能路径") from None
+
+        if not (skill_dir / "SKILL.md").exists():
+            raise FileNotFoundError(f"技能不存在: {skill_id}")
+        return skill_dir
+
+    def _validate_file_path(self, skill_dir: Path, path: str) -> Path:
+        """验证文件路径不逃逸出技能目录，返回解析后的 Path"""
+        if not path or ".." in path:
+            raise ValueError("无效的文件路径")
+
+        file_path = (skill_dir / path).resolve()
+        try:
+            file_path.relative_to(skill_dir.resolve())
+        except ValueError:
+            raise ValueError("文件路径超出技能目录范围") from None
+        return file_path
+
+    @staticmethod
+    def _slug(name: str) -> str:
+        """将名称转为目录名 slug"""
+        import re
+        s = re.sub(r"[^\w\s-]", "", name)
+        s = re.sub(r"[-\s]+", "-", s).strip().lower()
+        return s or "skill"
+
+    # ------------------------------------------------------------------ #
+    #  技能 CRUD 与文件管理                                                  #
+    # ------------------------------------------------------------------ #
+
+    def create_skill(self, name: str, description: str, content: str, icon: Optional[str] = None) -> SkillMeta:
+        """创建新技能目录并写入 SKILL.md"""
+        skill_id = self._slug(name)
+        target_dir = self.skills_dir / skill_id
+        if target_dir.exists():
+            raise ValueError(f"技能已存在: {skill_id}")
+
+        target_dir.mkdir(parents=True)
+        try:
+            import yaml
+            frontmatter = {"name": name, "description": description}
+            if icon:
+                frontmatter["icon"] = icon
+            fm_text = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
+            skill_md = f"---\n{fm_text}---\n\n{content}"
+            (target_dir / "SKILL.md").write_text(skill_md, encoding="utf-8")
+            (target_dir / USER_UPLOAD_MARKER).write_text("", encoding="utf-8")
+        except Exception:
+            shutil.rmtree(target_dir, ignore_errors=True)
+            raise
+
+        return self._load_skill(target_dir)
+
+    def update_skill(self, skill_id: str, name: Optional[str] = None, description: Optional[str] = None,
+                     content: Optional[str] = None, icon: Optional[str] = None) -> SkillMeta:
+        """更新技能元数据或正文；系统技能不可修改"""
+        skill_dir = self._get_skill_dir(skill_id)
+        if not (skill_dir / USER_UPLOAD_MARKER).exists():
+            raise PermissionError("系统技能不可修改")
+
+        existing = self._load_skill(skill_dir)
+        meta, body = _parse_frontmatter(existing.content)
+
+        if "name" not in meta:
+            meta["name"] = existing.name
+        if "description" not in meta:
+            meta["description"] = existing.description
+
+        if name is not None:
+            meta["name"] = name
+        if description is not None:
+            meta["description"] = description
+        if icon is not None:
+            meta["icon"] = icon
+        if content is not None:
+            body = content
+
+        import yaml
+        fm_text = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False)
+        new_text = f"---\n{fm_text}---\n\n{body}"
+        skill_md = skill_dir / "SKILL.md"
+        skill_md.write_text(new_text, encoding="utf-8")
+
+        return self._load_skill(skill_dir)
+
+    def list_files(self, skill_id: str) -> List[dict]:
+        """递归列出技能目录下所有文件（树形结构）"""
+        skill_dir = self._get_skill_dir(skill_id)
+
+        def walk(dir_path: Path, rel_prefix: str = "") -> List[dict]:
+            items: List[dict] = []
+            for entry in sorted(dir_path.iterdir()):
+                rel = f"{rel_prefix}/{entry.name}" if rel_prefix else entry.name
+                if entry.name == USER_UPLOAD_MARKER or entry.name == "__pycache__" or entry.suffix == ".pyc":
+                    continue
+                if entry.is_dir():
+                    children = walk(entry, rel)
+                    items.append({"name": entry.name, "path": rel, "type": "dir", "children": children})
+                else:
+                    items.append({"name": entry.name, "path": rel, "type": "file", "size": entry.stat().st_size})
+            return items
+
+        return walk(skill_dir)
+
+    def read_file(self, skill_id: str, path: str) -> dict:
+        """读取技能目录下指定文件内容"""
+        skill_dir = self._get_skill_dir(skill_id)
+        file_path = self._validate_file_path(skill_dir, path)
+        if not file_path.exists() or not file_path.is_file():
+            raise FileNotFoundError(f"文件不存在: {path}")
+        content = file_path.read_text(encoding="utf-8")
+        return {"path": path, "content": content, "size": file_path.stat().st_size}
+
+    def write_file(self, skill_id: str, path: str, content: str) -> None:
+        """向技能目录写入文件"""
+        skill_dir = self._get_skill_dir(skill_id)
+        if not (skill_dir / USER_UPLOAD_MARKER).exists():
+            raise PermissionError("系统技能不可修改")
+        file_path = self._validate_file_path(skill_dir, path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(content, encoding="utf-8")
+
+    def delete_file(self, skill_id: str, path: str) -> None:
+        """删除技能目录下指定文件或空目录；禁止删除 SKILL.md"""
+        skill_dir = self._get_skill_dir(skill_id)
+        if not (skill_dir / USER_UPLOAD_MARKER).exists():
+            raise PermissionError("系统技能不可修改")
+        file_path = self._validate_file_path(skill_dir, path)
+        resolved = file_path.resolve()
+        if resolved.name == "SKILL.md":
+            raise PermissionError("禁止删除 SKILL.md")
+        if not file_path.exists():
+            raise FileNotFoundError(f"文件不存在: {path}")
+        if file_path.is_file():
+            file_path.unlink()
+        elif file_path.is_dir():
+            file_path.rmdir()
+        else:
+            raise ValueError("未知文件类型")
+
+    def mkdir(self, skill_id: str, path: str) -> None:
+        """在技能目录下创建子目录"""
+        skill_dir = self._get_skill_dir(skill_id)
+        if not (skill_dir / USER_UPLOAD_MARKER).exists():
+            raise PermissionError("系统技能不可修改")
+        dir_path = self._validate_file_path(skill_dir, path)
+        dir_path.mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------ #
     #  技能执行                                                             #
     # ------------------------------------------------------------------ #
 

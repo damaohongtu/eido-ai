@@ -17,8 +17,15 @@ const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) =>
   const isReadOnly = skill?.is_system || false;
   const [name, setName] = useState(skill?.name || '');
   const [icon, setIcon] = useState(skill?.icon || '⚡');
-  const [blueprint, setBlueprint] = useState(skill?.description || '');
+  const [blueprint, setBlueprint] = useState(skill?.detail || skill?.description || '');
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // 当 skill prop 变化时同步状态（用于切换编辑不同技能）
+  useEffect(() => {
+    setName(skill?.name || '');
+    setIcon(skill?.icon || '⚡');
+    setBlueprint(skill?.detail || skill?.description || '');
+  }, [skill?.id, skill?.name, skill?.icon, skill?.detail, skill?.description]);
   const [showPreview, setShowPreview] = useState(true);
   const [selectedItem, setSelectedItem] = useState<Tool | Agent | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);

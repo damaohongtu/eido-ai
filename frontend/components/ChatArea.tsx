@@ -12,7 +12,7 @@ const DOWNLOADABLE_FILE_EXTENSIONS = [
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'
 ];
 const DOWNLOADABLE_FILE_SOURCE =
-  `((?:/|(?:output|uploads|\\.claude/skills/[^\\s/]+/output)/)[^\\s"'()\`<>]+\\.(?:${DOWNLOADABLE_FILE_EXTENSIONS.join('|')}))`;
+  `((?:/|(?:outputs?|uploads|\\.claude/skills/[^\\s/]+/output)/)[^\\s"'()\`<>]+\\.(?:${DOWNLOADABLE_FILE_EXTENSIONS.join('|')}))`;
 const DOWNLOADABLE_FILE_PATTERN = new RegExp(DOWNLOADABLE_FILE_SOURCE, 'gi');
 const SINGLE_DOWNLOADABLE_FILE_PATTERN = new RegExp(`^${DOWNLOADABLE_FILE_SOURCE}$`, 'i');
 const FILE_LINK_PATTERN = /\[[^\]]+\]\(([^)\s]+)\)/g;
@@ -21,6 +21,13 @@ const GENERATED_FILE_HINT_PATTERN = new RegExp(
   'gi'
 );
 const IMAGE_FILE_PATTERN = /\.(png|jpg|jpeg|gif|webp|svg)$/i;
+
+function createMessageId(prefix = 'msg'): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 type GeneratedFile = {
   path: string;
@@ -211,7 +218,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const makeUpdater = (assistantId: string) => {
     thinkingLogsRef.current[assistantId] = [];
     return (content: string, thinking: string, steps?: any, confirmation?: any, references?: any, mermaid?: string) => {
-      // 去重追加：thinking 不为空且与上一条不同时才记录
       if (thinking) {
         const log = thinkingLogsRef.current[assistantId];
         if (log[log.length - 1] !== thinking) {
@@ -237,8 +243,21 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     context?: string,
     skillHint?: string
   ) => {
+    if (!session) return;
     abortControllerRef.current = new AbortController();
-    await api.streamChat(msgs, makeUpdater(assistantId), context, skillHint ?? undefined, abortControllerRef.current.signal);
+    try {
+      await api.streamChat(
+        msgs,
+        makeUpdater(assistantId),
+        session.id,
+        assistantId,
+        context,
+        skillHint ?? undefined,
+        abortControllerRef.current.signal
+      );
+    } finally {
+      delete thinkingLogsRef.current[assistantId];
+    }
   };
 
   /** 用户点击停止，中断当前执行 */
@@ -248,13 +267,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   /** 多技能串行流水线：每个技能独立生成一条 assistant 消息，前一步输出传给下一步 */
   const runPipeline = async (baseMessages: Message[], orderedSkills: typeof skills) => {
+    if (!session) return;
     let previousOutput = '';
     let contextMessages = [...baseMessages];
     abortControllerRef.current = new AbortController();
 
     for (let i = 0; i < orderedSkills.length; i++) {
       const skill = orderedSkills[i];
-      const assistantId = `pipeline-${Date.now()}-${i}`;
+      const assistantId = createMessageId(`pipeline-${i}`);
 
       const placeholder: Message = {
         id: assistantId,
@@ -275,13 +295,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             finalContent = content;
             updater(content, thinking, steps, confirmation, references, mermaid);
           },
+          session.id,
+          assistantId,
           previousOutput || undefined,
           skill.id,
           abortControllerRef.current?.signal
         );
       } catch {
+        delete thinkingLogsRef.current[assistantId];
         break;
       }
+      delete thinkingLogsRef.current[assistantId];
       previousOutput = finalContent;
       contextMessages = [...contextMessages, { ...placeholder, content: finalContent }];
     }
@@ -290,6 +314,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
+    if (!session) {
+      console.warn('未选择会话，无法上传文件');
+      return;
+    }
     const allowed = ['.md', '.pdf', '.csv', '.xls', '.xlsx'];
     setUploading(true);
     try {
@@ -300,7 +328,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           console.warn(`跳过不支持格式: ${f.name}`);
           continue;
         }
-        const { path } = await api.uploadChatFile(f);
+        const { path } = await api.uploadChatFile(f, session.id);
         setAttachments(prev => [...prev, { name: f.name, path }]);
       }
     } catch (err) {
@@ -341,7 +369,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const content = buildContentWithAttachments(input.trim() || '请分析我上传的文件。');
 
     const userMsg: Message = {
-      id: Date.now().toString(),
+      id: createMessageId('user'),
       role: 'user',
       content,
       timestamp: Date.now()
@@ -360,7 +388,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         await runPipeline(baseMessages, mentionedSkills);
       } else {
         // 单次执行（有或无 @mention 均交由后端自动规划）
-        const assistantId = (Date.now() + 1).toString();
+        const assistantId = createMessageId('assistant');
         onSendMessage({
           id: assistantId,
           role: 'assistant',
@@ -473,7 +501,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     img({ node, src, alt, ...props }: any) {
       // 外部 URL 和 data URL 直接使用；本地/工作区路径通过 API 代理预览
       const isExternal = src?.startsWith('http://') || src?.startsWith('https://') || src?.startsWith('data:');
-      const imgSrc = isExternal ? src : (src ? getWorkspaceFileUrl(src) : src);
+      const imgSrc = isExternal ? src : (src ? getWorkspaceFileUrl(src, { sessionId: session?.id }) : src);
       if (!imgSrc) return null;
       return (
         <span className="block my-3">
@@ -497,7 +525,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         return (
           <span className="inline-flex items-center gap-2 my-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
             <a
-              href={getWorkspaceFileUrl(normalizedPath)}
+              href={getWorkspaceFileUrl(normalizedPath, { sessionId: session?.id })}
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-gray-700 hover:text-gray-900 hover:underline"
@@ -505,7 +533,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               {children}
             </a>
             <a
-              href={getWorkspaceFileUrl(normalizedPath, { download: true, filename })}
+              href={getWorkspaceFileUrl(normalizedPath, { download: true, filename, sessionId: session?.id })}
               className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-bold text-gray-600 hover:border-gray-400 hover:text-gray-900"
             >
               下载
@@ -615,13 +643,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                       <div key={file.path} className="rounded-xl bg-gray-50 px-3 py-3">
                         {file.isImage && (
                           <a
-                            href={getWorkspaceFileUrl(file.path)}
+                            href={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="mb-3 block overflow-hidden rounded-xl border border-gray-200 bg-white"
                           >
                             <img
-                              src={getWorkspaceFileUrl(file.path)}
+                              src={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
                               alt={file.name}
                               className="max-h-72 w-full object-contain"
                               loading="lazy"
@@ -635,7 +663,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                         </div>
                         <div className="flex items-center gap-2">
                           <a
-                            href={getWorkspaceFileUrl(file.path)}
+                            href={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 hover:border-gray-400 hover:text-gray-900"
@@ -643,7 +671,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                             {file.isImage ? '查看' : '打开'}
                           </a>
                           <a
-                            href={getWorkspaceFileUrl(file.path, { download: true, filename: file.name })}
+                            href={getWorkspaceFileUrl(file.path, { download: true, filename: file.name, sessionId: session?.id })}
                             className="rounded-lg bg-gray-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-gray-800"
                           >
                             下载

@@ -130,11 +130,13 @@ def create_application() -> FastAPI:
     
     @app.on_event("startup")
     async def startup_event():
-        """应用启动事件：初始化技能服务、定时任务调度"""
+        """应用启动事件：初始化技能服务、会话存储、会话工作区、定时任务调度"""
         from pathlib import Path
         from app.services.claude_skill_service import init_claude_skill_service
         from app.services.skill_management_service import init_skill_management_service
         from app.services.scheduled_task_store import ScheduledTaskStore
+        from app.services.chat_session_store import init_chat_session_store
+        from app.services.session_workspace import get_session_workspace_manager
         from app.services import scheduler_service
         from app.api.v1.endpoints import tasks as tasks_ep
 
@@ -146,12 +148,23 @@ def create_application() -> FastAPI:
             skills_dir = Path(settings.SKILLS_DIR)
             workspace_root = Path(settings.WORKSPACE_ROOT)
             svc = init_claude_skill_service(skills_dir, workspace_root)
-            # Initialize management service with reference to execution service
             init_skill_management_service(skills_dir, workspace_root, svc)
             skill_count = len(svc.scan_skills())
             logger.info(f"✓ 技能服务初始化完成: 发现 {skill_count} 个技能")
         except Exception as e:
             logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
+
+        try:
+            ws = get_session_workspace_manager()
+            logger.info(f"✓ 会话工作区根目录: {ws.root}")
+        except Exception as e:
+            logger.error(f"✗ 会话工作区初始化失败: {e}", exc_info=True)
+
+        try:
+            init_chat_session_store()
+            logger.info("✓ 会话存储 (ChatSessionStore) 初始化完成")
+        except Exception as e:
+            logger.error(f"✗ 会话存储初始化失败: {e}", exc_info=True)
 
         try:
             store = ScheduledTaskStore()

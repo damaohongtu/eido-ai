@@ -196,32 +196,53 @@ class ClaudeSkillService:
         return "\n\n".join(lines)
 
     def _build_skills_index(self) -> str:
-        """构建可用技能索引文本，用于告知 Claude 有哪些技能可以使用"""
+        """构建可用技能索引文本，用于告知 Claude 有哪些技能可以使用。
+
+        SKILL.md 路径必须是绝对路径——agent cwd 会被切到 session 工作区，相对路径会失效。
+        """
         skills = self.scan_skills()
         if not skills:
             return "（当前没有可用技能）"
         lines = []
         for s in skills:
-            lines.append(f"- **{s.id}**: {s.description}\n  SKILL.md 路径: `{s.skill_dir / 'SKILL.md'}`")
+            abs_path = (s.skill_dir / "SKILL.md").resolve()
+            lines.append(f"- **{s.id}**: {s.description}\n  SKILL.md 绝对路径: `{abs_path}`")
         return "\n".join(lines)
 
     async def execute_stream(
         self, messages: list, context: Optional[str] = None,
-        *, user_id: Optional[str] = None,
+        *, user_id: Optional[str] = None, session_id: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
 
         无需指定 skill_id，Claude 根据用户输入自动选择并读取相应 SKILL.md 执行任务。
 
-        messages  完整对话历史（含所有 user / assistant 轮次）。
-        context   多技能流水线中上一步的输出，附加在 prompt 末尾。
-        user_id   当前用户 ID，用于生成 agent 子进程的身份 token。
+        messages    完整对话历史（含所有 user / assistant 轮次）。
+        context     多技能流水线中上一步的输出，附加在 prompt 末尾。
+        user_id     当前用户 ID，用于生成 agent 子进程的身份 token。
+        session_id  会话 ID。指定后 agent cwd 切到该会话工作区（强隔离）；
+                    未指定则回退到全局 workspace_root（兼容历史路径）。
         """
-        logger.info(f"▶ execute_stream 开始 | 消息数: {len(messages)}"
-                    + (f" | 含上下文 {len(context)} 字符" if context else ""))
+        logger.info(
+            f"▶ execute_stream 开始 | 消息数: {len(messages)}"
+            + (f" | session={session_id}" if session_id else "")
+            + (f" | 含上下文 {len(context)} 字符" if context else "")
+        )
 
         yield self._sse({"type": "thinking", "content": "正在分析请求，自动规划执行..."})
         yield self._sse({"type": "workflow_start", "skill_name": "auto"})
+
+        # 解析 cwd（按 session 隔离时使用 session 工作区）
+        if session_id:
+            from app.services.session_workspace import get_session_workspace_manager
+            try:
+                cwd = get_session_workspace_manager().session_root(session_id)
+            except ValueError as e:
+                yield self._sse({"type": "error", "message": f"非法 session_id: {e}"})
+                yield "data: [DONE]\n\n"
+                return
+        else:
+            cwd = self.workspace_root
 
         # 构建 prompt
         skills_index = self._build_skills_index()
@@ -235,15 +256,27 @@ class ClaudeSkillService:
                 f"## 上一步执行结果（供参考）\n\n{truncated}\n\n"
             )
 
+        skills_root_abs = Path(self.skills_dir).resolve()
+
+        workspace_section = (
+            f"**当前会话工作区（你的 cwd）**: `{cwd}`\n"
+            f"  - 用户上传文件位于: `{cwd / 'uploads'}`\n"
+            f"  - 你生成的所有产物请写入: `{cwd / 'outputs'}`\n"
+            f"**技能库根目录（绝对路径，仅可读取）**: `{skills_root_abs}`\n"
+        )
+
         prompt = (
-            f"**工作区根目录**: {self.workspace_root}\n\n"
+            f"{workspace_section}\n"
             f"## 可用技能列表\n\n"
             f"{skills_index}\n\n"
             f"---\n\n"
             f"## 执行说明\n\n"
             f"请根据用户的最新请求，判断需要使用哪个技能（必要时可组合多个技能），"
-            f"使用 Read 工具读取对应的 SKILL.md 文件，然后严格按照技能说明完成任务。\n"
-            f"所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
+            f"使用 Read 工具读取对应 SKILL.md 的**绝对路径**（cwd 已切到会话工作区，相对路径无效），"
+            f"然后严格按照技能说明完成任务。\n"
+            f"- 所有写文件操作请落在 `{cwd / 'outputs'}` 目录下；不要写到工作区之外。\n"
+            f"- 用户上传文件已在消息中提供绝对路径，可直接 Read。\n"
+            f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
             f"---\n\n"
             f"## 对话历史\n\n{conversation_block}"
             f"{context_section}"
@@ -269,17 +302,19 @@ class ClaudeSkillService:
             if user_id:
                 from app.core.user_token import create_user_token
                 agent_env["EIDO_USER_TOKEN"] = create_user_token(user_id)
+            if session_id:
+                agent_env["EIDO_SESSION_ID"] = session_id
 
             options = ClaudeAgentOptions(
                 allowed_tools=self.AUTO_ALLOWED_TOOLS,
-                cwd=str(self.workspace_root),
+                cwd=str(cwd),
                 setting_sources=["project"],
                 permission_mode="acceptEdits",
                 env=agent_env,
             )
 
             logger.info(f"  工具集: {self.AUTO_ALLOWED_TOOLS}")
-            logger.info(f"  工作目录: {self.workspace_root}")
+            logger.info(f"  工作目录: {cwd}")
 
             async for message in query(prompt=prompt, options=options):
                 self._log_message(message)

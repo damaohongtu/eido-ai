@@ -1,10 +1,10 @@
-import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask } from "../types";
-import { BACKEND_URL } from "../constants";
+import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession } from "../types";
+import { BACKEND_URL, INITIAL_CHAT_STATE } from "../constants";
 
-/** 工作区文件 URL，支持预览或下载。 */
+/** 工作区文件 URL，支持预览或下载；传入 sessionId 时只允许访问该会话工作区。 */
 export function getWorkspaceFileUrl(
   path: string,
-  options?: { download?: boolean; filename?: string }
+  options?: { download?: boolean; filename?: string; sessionId?: string }
 ): string {
   const query = new URLSearchParams({ path });
   if (options?.download) {
@@ -13,7 +13,69 @@ export function getWorkspaceFileUrl(
   if (options?.filename) {
     query.set('filename', options.filename);
   }
+  if (options?.sessionId) {
+    query.set('session_id', options.sessionId);
+  }
   return `${BACKEND_URL}/api/v1/workspace/file?${query.toString()}`;
+}
+
+export interface PersistedSession {
+  id: string;
+  user_id: string;
+  title: string;
+  skill_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersistedMessage {
+  id: string;
+  session_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  extra: Record<string, any>;
+  created_at: string;
+}
+
+export interface PersistedSessionDetail extends PersistedSession {
+  messages: PersistedMessage[];
+}
+
+/** 后端 PersistedSession + messages → 前端 ChatSession */
+export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
+  const messages: Message[] = detail.messages.length > 0 ? detail.messages.map(m => ({
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    timestamp: Date.parse(m.created_at) || Date.now(),
+    thinking: m.extra?.thinking,
+    thinkingLog: m.extra?.thinkingLog,
+    executionSteps: m.extra?.executionSteps,
+    workflowMermaid: m.extra?.workflowMermaid,
+    pendingConfirmation: m.extra?.pendingConfirmation,
+    references: m.extra?.references,
+  })) : INITIAL_CHAT_STATE.map((m, i) => ({
+    ...m,
+    id: `${detail.id}-init-${i}`,
+    timestamp: Date.parse(detail.created_at) || Date.now(),
+  }));
+  return {
+    id: detail.id,
+    title: detail.title,
+    skillId: detail.skill_id || undefined,
+    messages,
+    updatedAt: Date.parse(detail.updated_at) || Date.now(),
+  };
+}
+
+export function summaryToSession(s: PersistedSession): ChatSession {
+  return {
+    id: s.id,
+    title: s.title,
+    skillId: s.skill_id || undefined,
+    messages: [],
+    updatedAt: Date.parse(s.updated_at) || Date.now(),
+  };
 }
 
 export class ApiService {
@@ -367,11 +429,15 @@ export class ApiService {
   }
 
   /**
-   * 上传聊天附件（.md / .pdf），返回工作区内的绝对路径
+   * 上传聊天附件到指定会话工作区，返回工作区内的绝对路径
    */
-  async uploadChatFile(file: File): Promise<{ path: string; name: string }> {
+  async uploadChatFile(file: File, sessionId: string): Promise<{ path: string; name: string }> {
+    if (!sessionId) {
+      throw new Error('uploadChatFile 需要 sessionId');
+    }
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('session_id', sessionId);
     const response = await this._fetch(`${BACKEND_URL}/api/v1/chat/upload`, {
       method: 'POST',
       body: formData,
@@ -383,9 +449,83 @@ export class ApiService {
     return response.json();
   }
 
+  // -------------------- 会话持久化 -------------------- //
+
+  async listSessions(): Promise<PersistedSession[]> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`获取会话列表失败: ${response.status}`);
+    return response.json();
+  }
+
+  async getSession(sessionId: string): Promise<PersistedSessionDetail> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`获取会话详情失败: ${response.status}`);
+    return response.json();
+  }
+
+  async createSession(body: { title?: string; skill_id?: string | null }): Promise<PersistedSession> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`创建会话失败: ${response.status}`);
+    return response.json();
+  }
+
+  async patchSession(
+    sessionId: string,
+    body: { title?: string; skill_id?: string | null }
+  ): Promise<PersistedSession> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`更新会话失败: ${response.status}`);
+    return response.json();
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`删除会话失败: ${response.status}`);
+    }
+  }
+
+  async appendMessage(
+    sessionId: string,
+    body: {
+      id?: string;
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      extra?: Record<string, any>;
+    }
+  ): Promise<PersistedMessage> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(err.detail || `追加消息失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
   /**
    * 统一聊天执行入口：由后端 claude_agent_sdk 自动识别并执行技能，流式返回。
    *
+   * sessionId  必填，agent cwd 将切到该会话工作区
    * skillHint  流水线模式下指定本步骤聚焦的技能 ID，拼入 context 传给后端。
    * signal    用于中断请求，传入 AbortController.signal 可实现用户点击停止。
    */
@@ -399,6 +539,8 @@ export class ApiService {
       references?: Reference[],
       workflowMermaid?: string
     ) => void,
+    sessionId: string,
+    assistantMessageId: string,
     context?: string,
     skillHint?: string,
     signal?: AbortSignal
@@ -418,8 +560,10 @@ export class ApiService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: messages.map(m => ({ role: m.role, content: m.content })),
+          messages: messages.map(m => ({ id: m.id, role: m.role, content: m.content })),
           context: effectiveContext,
+          session_id: sessionId,
+          assistant_message_id: assistantMessageId,
         }),
         signal,
       });

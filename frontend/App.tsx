@@ -81,6 +81,9 @@ const App: React.FC = () => {
       }
       setCurrentUser(user);
       setAuthChecked(true);
+      // 异步预热 sandbox 容器；失败时不阻塞登录后续流程，
+      // local/单镜像模式后端会返回 ready=true 直接 no-op
+      api.warmupSandbox().catch(() => undefined);
     });
   }, []);
 

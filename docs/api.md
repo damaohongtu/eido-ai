@@ -273,7 +273,53 @@ Query 参数：
 
 ---
 
-## 七、SSE 事件类型参考
+## 七、Sandbox `/api/v1/sandbox`
+
+仅在 `EIDO_SANDBOX_MODE=docker`（gateway）模式下生效；`local` 模式下接口仍存在，但
+为 no-op，方便前端代码逻辑统一。
+
+### `POST /sandbox/warmup`
+
+登录成功后调用，提前拉起当前用户的沙箱容器，把首条消息的冷启动开销摊到登录后的等待期。
+
+请求：无请求体。
+
+响应：
+
+```json
+{
+  "user_id": "u_123",
+  "container": "eido-user-u_123",
+  "status": "running",
+  "ready": true
+}
+```
+
+`local` 模式响应：`{"ready": true, "mode": "local"}`。
+
+错误：
+
+- `400` user_id 不符合白名单 `^[A-Za-z0-9._@\\-]{1,128}$`
+- `502` user 容器健康检查超时（gateway 已重置该用户的注册表，下次请求会重建）
+
+### `GET /sandbox/status`
+
+返回当前用户容器的运行状态（无副作用，不会触发拉起）。
+
+```json
+{
+  "user_id": "u_123",
+  "running": true,
+  "container": "eido-user-u_123",
+  "last_active_at": 1745605812.345
+}
+```
+
+未拉起时返回 `{"user_id": "...", "running": false}`。
+
+---
+
+## 八、SSE 事件类型参考
 
 `/chat/chat` 流可能 emit 的 `type` 字段：
 

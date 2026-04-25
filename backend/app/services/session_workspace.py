@@ -33,7 +33,7 @@ class SessionWorkspaceManager:
     """会话工作区管理器（无状态，所有操作幂等）。"""
 
     def __init__(self, root: Optional[Path] = None):
-        self._root = (root or Path(settings.WORKSPACE_ROOT) / ".eido" / "workspaces").resolve()
+        self._root = (root or settings.workspaces_root).resolve()
         self._root.mkdir(parents=True, exist_ok=True)
 
     @property

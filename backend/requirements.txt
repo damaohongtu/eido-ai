@@ -40,3 +40,6 @@ litellm[proxy]==1.82.0
 python-cas>=1.6.0
 apscheduler>=3.10.0
 itsdangerous>=2.0
+
+# Sandbox / gateway（仅 gateway 进程使用，user 容器不需要 docker SDK，但保留以共用镜像）
+docker>=7.1.0

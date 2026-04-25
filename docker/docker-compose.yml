@@ -1,31 +1,38 @@
 ########################################################################
 # Eido Docker Compose
 #
-# 基于预构建镜像 damaohongtu/eido:latest 起停服务。
+# 若在仓库根执行，Compose 自动读取的是「当前目录」的 .env，通常不含 docker/ 下配置。
+# 推荐：先 `set -a && . docker/.env && set +a` 再执行 `docker compose -f docker/docker-compose.yml …`
+#（注意是「docker compose」子命令，不要写成 `docker --env-file`，会报 unknown flag）；
+# 或使用仓库内 run.sh（已 source docker/.env）。
 #
-# 使用方式：
-#   1. 复制 .env.example 为 .env 并填写实际配置
-#      cp docker/.env.example docker/.env
-#   2. 启动
-#      docker compose -f docker/docker-compose.yml up -d
-#   3. 停止
-#      docker compose -f docker/docker-compose.yml down
-#   4. 查看日志
-#      docker compose -f docker/docker-compose.yml logs -f eido
+# 两种互斥的部署形态（必须显式指定 profile）：
 #
-# 如需 CAS 单点登录，启用 cas profile：
-#   docker compose -f docker/docker-compose.yml --profile cas up -d
+#   单镜像 / 单租户（兼容老版本）：
+#     docker compose -f docker/docker-compose.yml --profile default up -d
+#
+#   沙箱多用户（每用户独立后端容器）：
+#     docker compose -f docker/docker-compose.yml --profile sandbox up -d
+#
+# 如需 CAS 单点登录，叠加 profile：
+#     docker compose -f docker/docker-compose.yml --profile sandbox --profile cas up -d
+#
+# 注：选择 sandbox profile 时 gateway 会通过 /var/run/docker.sock 拉起
+#     eido-user:<tag> 容器，每个用户一份独立 SQLite + workspace 卷。
 ########################################################################
 
 services:
+  # ============================== 单租户镜像 ============================== #
   eido:
     image: damaohongtu/eido:latest
     container_name: eido
+    profiles:
+      - default
     restart: unless-stopped
     ports:
       - "${EIDO_PORT:-80}:80"
     environment:
-      # LLM 配置（必填）
+      - EIDO_SANDBOX_MODE=local
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
@@ -33,7 +40,6 @@ services:
       - ANTHROPIC_SMALL_FAST_MODEL=${ANTHROPIC_SMALL_FAST_MODEL:-}
       - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
       - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-0}
-      # CAS 认证（可选，启用 cas profile 时配合使用）
       - AUTH_DISABLED=${AUTH_DISABLED:-True}
       - CAS_SERVER_URL=${CAS_SERVER_URL:-}
       - CAS_SERVICE_URL=${CAS_SERVICE_URL:-}
@@ -51,7 +57,59 @@ services:
       retries: 3
       start_period: 15s
 
-  # ---------- 可选：CAS 单点登录 ----------
+  # ============================== 沙箱多用户网关 ============================== #
+  eido-gateway:
+    image: ${EIDO_GATEWAY_IMAGE:-damaohongtu/eido-gateway:latest}
+    container_name: eido-gateway
+    profiles:
+      - sandbox
+    restart: unless-stopped
+    ports:
+      - "${EIDO_PORT:-80}:80"
+    networks:
+      - eido-net
+    environment:
+      - EIDO_SANDBOX_MODE=docker
+      - EIDO_USER_IMAGE=${EIDO_USER_IMAGE:-damaohongtu/eido-user:latest}
+      - EIDO_NET=eido-net
+      - EIDO_SANDBOX_IDLE_TTL=${EIDO_SANDBOX_IDLE_TTL:-900}
+      - EIDO_USER_MEM=${EIDO_USER_MEM:-2g}
+      - EIDO_USER_CPUS=${EIDO_USER_CPUS:-1.0}
+      - EIDO_USER_PIDS_LIMIT=${EIDO_USER_PIDS_LIMIT:-500}
+      - EIDO_GATEWAY_SECRET=${EIDO_GATEWAY_SECRET:?gateway secret 必填}
+      - EIDO_USER_INTERNAL_PORT=8000
+      # 受信网关头开关：开启后 X-Eido-User-Id + X-Eido-Gateway-Secret 可绕开 CAS。
+      # 内置 nginx 已显式 strip 这两个头，外部入口安全；仅 docker exec 进容器内部时可用。
+      - EIDO_TRUST_GATEWAY=${EIDO_TRUST_GATEWAY:-0}
+      # gateway 自身的 LLM 凭据用于调度/技能加载；user 容器会通过 SDK env 注入再次拷贝
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+      - ANTHROPIC_SMALL_FAST_MODEL=${ANTHROPIC_SMALL_FAST_MODEL:-}
+      - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
+      - AUTH_DISABLED=${AUTH_DISABLED:-False}
+      - CAS_SERVER_URL=${CAS_SERVER_URL:-}
+      - CAS_SERVICE_URL=${CAS_SERVICE_URL:-}
+      - FRONTEND_URL=${FRONTEND_URL:-}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:?sandbox 模式必须显式配置 SESSION_SECRET_KEY}
+    volumes:
+      # 控制 docker daemon 才能 docker run user 容器
+      - /var/run/docker.sock:/var/run/docker.sock
+      # 技能库以只读形式提供给 gateway，再通过 docker SDK bind-mount 转挂到 user 容器
+      - ${CLAUDE_DIR:-~/.claude}:/workspace/.claude:ro
+      # gateway 自身持久化：sandbox_registry.db / scheduled_tasks.db
+      - eido-gateway-data:/workspace/.eido
+      - ${LOG_DIR:-~/eido-logs}/gateway:/var/log/eido/app
+      - ${LOG_DIR:-~/eido-logs}/nginx:/var/log/eido/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/ai-eido/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ============================== 可选：CAS 单点登录 ============================== #
   cas:
     image: apereo/cas:6.6.10
     container_name: cas-server
@@ -70,3 +128,13 @@ services:
     volumes:
       - ./cas/config:/etc/cas/config
       - ./cas/services:/etc/cas/services
+
+networks:
+  eido-net:
+    name: eido-net
+    driver: bridge
+
+volumes:
+  # gateway 持久化卷：保存 scheduled_tasks.db 与 sandbox_registry.db（全局）
+  eido-gateway-data:
+    name: eido-gateway-data

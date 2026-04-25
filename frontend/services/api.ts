@@ -101,6 +101,29 @@ export class ApiService {
   }
 
   /**
+   * 沙箱预热：登录成功后调用，提前拉起当前用户的 sandbox 容器，
+   * 把首条消息的冷启动开销摊到登录后的等待期。
+   *
+   * - 单租户/local 模式：后端返回 ready=true，几乎瞬时完成；
+   * - sandbox 模式：gateway 等待 user 容器 /health 就绪，可能耗时数秒。
+   *
+   * 该接口失败不应阻塞登录流；调用方静默吞错即可。
+   */
+  async warmupSandbox(): Promise<{ ready: boolean; container?: string } | null> {
+    try {
+      const response = await this._fetch(`${BACKEND_URL}/api/v1/sandbox/warmup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch (e) {
+      console.warn('warmupSandbox failed (silently ignored)', e);
+      return null;
+    }
+  }
+
+  /**
    * 获取工具列表
    */
   async getTools(params?: {

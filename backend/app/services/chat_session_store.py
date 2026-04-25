@@ -96,7 +96,7 @@ class ChatSessionStore:
         if db_path is not None:
             self._db_path = str(db_path)
         else:
-            self._db_path = str(Path(settings.WORKSPACE_ROOT) / ".eido" / "chat_sessions.db")
+            self._db_path = str(settings.chat_sessions_db_path)
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn: Optional[sqlite3.Connection] = None
 

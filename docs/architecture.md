@@ -233,3 +233,86 @@ sequenceDiagram
 | 流式过程频繁落盘成本高 | 请求开始保存 user；assistant 只在流结束/异常/中断时保存一次最终状态 |
 | 跨会话 message id 撞车 | `chat_messages` 主键改为复合主键 `(session_id, id)` |
 | 会话文件 URL 被他人复用 | `/workspace/file` 对 `session_id` 做用户归属校验 |
+
+---
+
+## 七、多用户沙箱（per-user 容器）
+
+会话级隔离解决了「同一用户内不同对话之间」的污染，多用户层面仍共享同一 SQLite + 同一进程。
+当 `EIDO_SANDBOX_MODE=docker` 时切换到下面的双层架构，把每个用户的后端进程、文件系统、SQLite 都拆到独立容器：
+
+```mermaid
+flowchart LR
+    Browser[浏览器] --> Nginx[nginx :80]
+    Nginx --> GW[eido-gateway<br/>FastAPI]
+    GW -->|"CAS"| CAS[(CAS Server)]
+    GW -->|"docker SDK"| DK[Docker daemon]
+    GW -.->|"reverse proxy<br/>SSE 透传"| UA[eido-user u_alice]
+    GW -.->|"reverse proxy<br/>SSE 透传"| UB[eido-user u_bob]
+    UA --> VA[(volume eido-user-u_alice<br/>/data/chat_sessions.db<br/>/data/workspaces/)]
+    UB --> VB[(volume eido-user-u_bob)]
+    UA -- read-only --> SK[(.claude/skills bind RO)]
+    UB -- read-only --> SK
+    GW --- TASKS[(scheduled_tasks.db<br/>sandbox_registry.db)]
+```
+
+### 7.1 组件职责
+
+| 组件 | 职责 |
+|---|---|
+| `eido-gateway` | CAS 鉴权、`SandboxManager` 编排 user 容器、`/chat/**` `/sessions/**` `/workspace/**` 反向代理（含 SSE）、调度 `scheduled_tasks.db`、提供 `/sandbox/warmup` 与 `/sandbox/status` |
+| `eido-user`   | 单纯跑 `uvicorn app.main:app`，承载 `chat / sessions / workspace`，使用 `EIDO_TRUST_GATEWAY=1` 信任 gateway 注入的 `X-Eido-User-Id` + `X-Eido-Gateway-Secret` |
+| `sandbox_registry.db` | gateway 持有的 rendezvous 表：`user_id → container_name, host, port, last_active_at, status` |
+| 共享网络 `eido-net` | gateway 与所有 user 容器同处一个 docker bridge 网络，内部以容器名解析（`eido-user-<safe_user_id>:8000`） |
+| 命名卷 `eido-user-<safe>` | per-user 持久化 `/data/chat_sessions.db` 与 `/data/workspaces/`，gc 时只删容器不删卷 |
+
+### 7.2 一次 chat 请求时序（含懒拉起 + SSE 透传）
+
+```mermaid
+sequenceDiagram
+    participant FE as 前端
+    participant GW as eido-gateway
+    participant DK as Docker daemon
+    participant US as eido-user(u)
+
+    FE->>GW: POST /api/v1/chat/chat (cookie/token)
+    GW->>GW: get_current_user_id + 入口 user_id 白名单
+    GW->>GW: SandboxManager.ensure_running(user_id)
+    alt 容器缺失/已停
+        GW->>DK: containers.run(image=eido-user, env, mounts, cap_drop=ALL, no-new-privileges, pids_limit, cpus, mem)
+        DK-->>GW: container started
+        GW->>US: GET /health 轮询直到 200
+    end
+    GW->>US: POST /api/v1/chat/chat (注入 X-Eido-User-Id + Secret)
+    US-->>GW: SSE chunks
+    GW-->>FE: SSE chunks (text/event-stream，禁用缓冲)
+    Note over GW: ensure_running 顺手刷新 last_active_at
+```
+
+### 7.3 生命周期与 GC
+
+| 事件 | 行为 |
+|---|---|
+| 用户登录后 | 前端调用 `POST /api/v1/sandbox/warmup`，gateway 立即拉起容器，分摊冷启动（local 模式 no-op） |
+| 首次业务请求 | `ensure_running` 幂等启动，等待 `/health` 200 后再代理；后续请求直接复用 |
+| 持续闲置 | `idle_gc_loop` 每 60s 扫描 `last_active_at`，超过 `EIDO_SANDBOX_IDLE_TTL`（默认 900s）即 stop+remove，**volume 永远保留** |
+| 任意时刻 | `release(user_id)` / `_upsert_row` 都会刷新 `last_active_at`，避免误回收活跃容器 |
+| 调度任务触发 | `task_executor` 在 docker 模式下走 `SandboxManager.ensure_running` + 内部 HTTP（注入 trust headers），等同于一次模拟用户请求 |
+
+### 7.4 安全加固清单
+
+- gateway 启动时强制要求 `EIDO_GATEWAY_SECRET` ≥ 16 字符且 `SESSION_SECRET_KEY` 非默认值，否则拒绝启动
+- gateway 反代时**剥离**入站的 `Cookie / X-Eido-User-Id / X-Eido-Gateway-Secret / X-Eido-User-Token / X-Forwarded-User`，再重新注入（防客户端伪造受信网关头）
+- `auth.py` 校验受信网关头：`hmac.compare_digest(secret)`，且与容器 `EIDO_USER_ID` 严格一致才放行
+- user 容器：`cap_drop=["ALL"] + no-new-privileges + pids_limit + nano_cpus + mem_limit + tmpfs(/tmp) + 非 root user(uid 10001)`
+- `.claude/skills/` 在 user 容器内是只读 bind-mount，技能文件由 gateway 侧的 `/skills` 路由统一管理
+- `/var/run/docker.sock` 仅挂到 gateway，user 容器不接触 docker daemon
+- `eido-net` 仅 gateway 与 user 容器互通，user 之间不主动建立连接（仍可通过 docker 网络隔离策略进一步收紧）
+
+### 7.5 部署与回退
+
+| 模式 | 启动方式 | 关键变量 |
+|---|---|---|
+| 单租户/兼容 | `docker compose --profile default up -d` | `EIDO_SANDBOX_MODE=local` |
+| 沙箱多用户 | `docker compose --profile sandbox up -d` | `EIDO_SANDBOX_MODE=docker`、`EIDO_GATEWAY_SECRET=<32+ random>`、`EIDO_USER_IMAGE`、`EIDO_SANDBOX_IDLE_TTL`、`EIDO_USER_MEM/CPUS/PIDS_LIMIT` |
+| 临时回滚 | 切回 `--profile default` 即可，sandbox 注册表与 user volume 保留，下次切回时复用 |

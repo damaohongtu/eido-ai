@@ -130,7 +130,14 @@ def create_application() -> FastAPI:
     
     @app.on_event("startup")
     async def startup_event():
-        """应用启动事件：初始化技能服务、会话存储、会话工作区、定时任务调度"""
+        """应用启动事件：根据运行模式初始化对应组件。
+
+        三种角色：
+        - user-runtime（EIDO_TRUST_GATEWAY=1）：仅初始化技能服务、会话存储与工作区
+        - gateway（EIDO_SANDBOX_MODE=docker）：初始化 sandbox manager + 调度器（gateway 自身负责触发），
+          技能服务用于跨用户共享只读
+        - 单租户/local：保留原有完整初始化
+        """
         from pathlib import Path
         from app.services.claude_skill_service import init_claude_skill_service
         from app.services.skill_management_service import init_skill_management_service
@@ -140,10 +147,19 @@ def create_application() -> FastAPI:
         from app.services import scheduler_service
         from app.api.v1.endpoints import tasks as tasks_ep
 
+        is_user_runtime = bool(settings.EIDO_TRUST_GATEWAY)
+        is_gateway = (settings.EIDO_SANDBOX_MODE or "").lower() == "docker" and not is_user_runtime
+
         logger.info("=" * 60)
-        logger.info("正在初始化系统服务...")
+        if is_user_runtime:
+            logger.info(f"启动为 USER 沙箱容器 user_id={settings.EIDO_USER_ID}")
+        elif is_gateway:
+            logger.info("启动为 GATEWAY 进程（EIDO_SANDBOX_MODE=docker）")
+        else:
+            logger.info("启动为单租户/兼容模式（EIDO_SANDBOX_MODE=local）")
         logger.info("=" * 60)
 
+        # ---------- 技能服务（user / gateway / local 都需要）---------- #
         try:
             skills_dir = Path(settings.SKILLS_DIR)
             workspace_root = Path(settings.WORKSPACE_ROOT)
@@ -154,32 +170,61 @@ def create_application() -> FastAPI:
         except Exception as e:
             logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
 
-        try:
-            ws = get_session_workspace_manager()
-            logger.info(f"✓ 会话工作区根目录: {ws.root}")
-        except Exception as e:
-            logger.error(f"✗ 会话工作区初始化失败: {e}", exc_info=True)
+        # ---------- 会话工作区 / 会话存储（user 与 local 需要；gateway 不需要）---------- #
+        if not is_gateway:
+            try:
+                ws = get_session_workspace_manager()
+                logger.info(f"✓ 会话工作区根目录: {ws.root}")
+            except Exception as e:
+                logger.error(f"✗ 会话工作区初始化失败: {e}", exc_info=True)
 
-        try:
-            init_chat_session_store()
-            logger.info("✓ 会话存储 (ChatSessionStore) 初始化完成")
-        except Exception as e:
-            logger.error(f"✗ 会话存储初始化失败: {e}", exc_info=True)
+            try:
+                init_chat_session_store()
+                logger.info("✓ 会话存储 (ChatSessionStore) 初始化完成")
+            except Exception as e:
+                logger.error(f"✗ 会话存储初始化失败: {e}", exc_info=True)
 
-        try:
-            store = ScheduledTaskStore()
-            store.connect()
-            tasks_ep.set_store(store)
-            scheduler_service.init_scheduler(store)
-            logger.info("✓ 定时任务调度器初始化完成")
-        except Exception as e:
-            logger.error(f"✗ 定时任务调度器初始化失败: {e}", exc_info=True)
+        # ---------- 定时任务调度（gateway 与 local 需要；user 容器不跑调度）---------- #
+        if not is_user_runtime:
+            try:
+                store = ScheduledTaskStore()
+                store.connect()
+                tasks_ep.set_store(store)
+                scheduler_service.init_scheduler(store)
+                logger.info("✓ 定时任务调度器初始化完成")
+            except Exception as e:
+                logger.error(f"✗ 定时任务调度器初始化失败: {e}", exc_info=True)
+
+        # ---------- gateway 专属：sandbox 编排 ---------- #
+        if is_gateway:
+            try:
+                from app.gateway.sandbox_manager import init_sandbox_manager
+                mgr = init_sandbox_manager(mode=settings.EIDO_SANDBOX_MODE)
+                await mgr.start_idle_gc()
+                logger.info(f"✓ SandboxManager 初始化完成 mode={mgr.mode}")
+            except Exception as e:
+                logger.error(f"✗ SandboxManager 初始化失败: {e}", exc_info=True)
 
     @app.on_event("shutdown")
     async def shutdown_event():
         from app.services import scheduler_service
         scheduler_service.shutdown_scheduler()
         logger.info("Scheduler stopped")
+
+        # gateway 关停 sandbox idle gc + httpx client
+        if (settings.EIDO_SANDBOX_MODE or "").lower() == "docker" and not settings.EIDO_TRUST_GATEWAY:
+            try:
+                from app.gateway.sandbox_manager import get_sandbox_manager
+                mgr = get_sandbox_manager()
+                await mgr.stop_idle_gc()
+                mgr.close()
+            except Exception:
+                pass
+            try:
+                from app.gateway.proxy import close_proxy_client
+                await close_proxy_client()
+            except Exception:
+                pass
 
     logger.info(f"Application {settings.PROJECT_NAME} v{settings.VERSION} initialized")
     

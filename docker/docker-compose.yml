@@ -78,9 +78,9 @@ services:
       - EIDO_USER_PIDS_LIMIT=${EIDO_USER_PIDS_LIMIT:-500}
       - EIDO_GATEWAY_SECRET=${EIDO_GATEWAY_SECRET:?gateway secret 必填}
       - EIDO_USER_INTERNAL_PORT=8000
-      # 受信网关头开关：开启后 X-Eido-User-Id + X-Eido-Gateway-Secret 可绕开 CAS。
-      # 内置 nginx 已显式 strip 这两个头，外部入口安全；仅 docker exec 进容器内部时可用。
-      - EIDO_TRUST_GATEWAY=${EIDO_TRUST_GATEWAY:-0}
+      # 受信网关头开关：仅 user 容器需要，gateway 必须为 0
+      # 否则 gateway 误入 user-runtime 分支，丢失 auth 等路由
+      - EIDO_TRUST_GATEWAY=0
       # gateway 自身的 LLM 凭据用于调度/技能加载；user 容器会通过 SDK env 注入再次拷贝
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}

@@ -34,11 +34,11 @@ sed -i '' \
   -e "s|^EIDO_GATEWAY_SECRET=.*|EIDO_GATEWAY_SECRET=${NEW_GATEWAY_SECRET}|" \
   docker/.env
 
-# EIDO_TRUST_GATEWAY 用追加方式（去重）
-grep -q '^EIDO_TRUST_GATEWAY=' docker/.env || echo 'EIDO_TRUST_GATEWAY=1' >> docker/.env
+# EIDO_TRUST_GATEWAY 仅由 sandbox_manager 注入 user 容器，不要写入 docker/.env
+# 否则 gateway 容器会误入 user-runtime 分支丢失 auth 路由
 
 echo '== 修复后 key 配置 (docker/.env) =='
-grep -E '^(AUTH_DISABLED|CAS_|FRONTEND_URL|SESSION_SECRET_KEY|EIDO_GATEWAY_SECRET|EIDO_TRUST_GATEWAY)=' docker/.env
+grep -E '^(AUTH_DISABLED|CAS_|FRONTEND_URL|SESSION_SECRET_KEY|EIDO_GATEWAY_SECRET)=' docker/.env
 
 # 将 docker/.env 注入当前 shell，供 compose 做 ${VAR} 替换；覆盖宿主机里可能残留的 export
 set -a
@@ -54,7 +54,8 @@ sleep 8
 
 # 再次确认进容器的环境变量
 docker exec eido-gateway sh -lc '
-  echo "trust=$EIDO_TRUST_GATEWAY"
+  echo "trust=$EIDO_TRUST_GATEWAY (应为空或 0)"
+  echo "sandbox_mode=$EIDO_SANDBOX_MODE"
   echo "secret_len=${#EIDO_GATEWAY_SECRET}"
   echo "session_key_len=${#SESSION_SECRET_KEY}"
   echo "cas_server=$CAS_SERVER_URL"

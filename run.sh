@@ -44,6 +44,9 @@ grep -E '^(AUTH_DISABLED|CAS_|FRONTEND_URL|SESSION_SECRET_KEY|EIDO_GATEWAY_SECRE
 set -a
 # shellcheck disable=SC1091
 . "${ROOT}/docker/.env"
+# .env 中的 ~ 不会被 source 展开，必须在 set -a 生效期间修正并自动 export
+CLAUDE_DIR="${CLAUDE_DIR/#\~/$HOME}"
+LOG_DIR="${LOG_DIR/#\~/$HOME}"
 set +a
 
 # 子命令是 compose：docker compose -f ...（「compose」不能省，否则变成 docker -f 报错）

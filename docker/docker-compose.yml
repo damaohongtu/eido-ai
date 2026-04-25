@@ -81,6 +81,8 @@ services:
       # 受信网关头开关：仅 user 容器需要，gateway 必须为 0
       # 否则 gateway 误入 user-runtime 分支，丢失 auth 等路由
       - EIDO_TRUST_GATEWAY=0
+      # 宿主机 .claude 绝对路径（run.sh 已将 ~ 展开为 $HOME），sandbox_manager 需宿主侧路径做 bind-mount
+      - CLAUDE_DIR=${CLAUDE_DIR:-~/.claude}
       # gateway 自身的 LLM 凭据用于调度/技能加载；user 容器会通过 SDK env 注入再次拷贝
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
@@ -96,8 +98,9 @@ services:
     volumes:
       # 控制 docker daemon 才能 docker run user 容器
       - /var/run/docker.sock:/var/run/docker.sock
-      # 技能库以只读形式提供给 gateway，再通过 docker SDK bind-mount 转挂到 user 容器
-      - ${CLAUDE_DIR:-~/.claude}:/workspace/.claude:ro
+      # 技能库挂载到 gateway（需要读写，gateway 负责技能上传/管理）
+      # user 容器由 sandbox_manager 单独以 read_only bind-mount 挂载，与这里无关
+      - ${CLAUDE_DIR:-~/.claude}:/workspace/.claude
       # gateway 自身持久化：sandbox_registry.db / scheduled_tasks.db
       - eido-gateway-data:/workspace/.eido
       - ${LOG_DIR:-~/eido-logs}/gateway:/var/log/eido/app

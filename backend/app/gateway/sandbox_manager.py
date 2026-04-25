@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import sqlite3
 import threading
@@ -302,6 +303,70 @@ class SandboxManager:
         except Exception:
             return None
 
+    def _host_claude_dir_from_gateway_mount(self) -> str | None:
+        """Return the host-side source path mounted at /workspace/.claude.
+
+        The Docker daemon validates bind sources on the host, not inside the
+        gateway container. Inspecting the gateway container's own mounts gives
+        us the real host path even when CLAUDE_DIR was configured as "~/.claude".
+        """
+        if not self._docker:
+            return None
+        container_id = os.environ.get("HOSTNAME", "").strip()
+        if not container_id:
+            return None
+        try:
+            current = self._docker.containers.get(container_id)  # type: ignore
+            current.reload()
+            for mount in current.attrs.get("Mounts", []):
+                if (
+                    mount.get("Destination") == "/workspace/.claude"
+                    and mount.get("Type") == "bind"
+                ):
+                    source = mount.get("Source")
+                    return str(source) if source else None
+        except Exception as e:
+            logger.warning("反查 gateway .claude 宿主挂载失败: %s", e)
+        return None
+
+    def _resolve_host_skills_dir(self) -> str | None:
+        """Resolve a host-side path suitable for Docker bind-mount Source."""
+        skills_dir = settings.SKILLS_DIR
+        if not skills_dir or not Path(skills_dir).exists():
+            return None
+
+        mounted_claude_dir = self._host_claude_dir_from_gateway_mount()
+        if mounted_claude_dir:
+            return str(Path(mounted_claude_dir) / "skills")
+
+        host_claude_dir = os.environ.get("CLAUDE_DIR", "").strip()
+        if host_claude_dir:
+            if host_claude_dir.startswith("~"):
+                logger.warning(
+                    "CLAUDE_DIR=%r 仍包含 ~，无法作为 Docker daemon 的宿主机路径；"
+                    "请在启动 compose 前展开为绝对路径",
+                    host_claude_dir,
+                )
+                return None
+            candidate = Path(host_claude_dir)
+            candidate_str = str(candidate)
+            if (
+                candidate.is_absolute()
+                and candidate_str != "/workspace"
+                and not candidate_str.startswith("/workspace/")
+            ):
+                return str(candidate / "skills")
+            logger.warning(
+                "CLAUDE_DIR=%r 不是可传给 Docker daemon 的宿主机绝对路径，跳过 user skills bind-mount",
+                host_claude_dir,
+            )
+            return None
+
+        logger.warning(
+            "未配置 CLAUDE_DIR，且无法从 gateway 容器挂载中反查宿主机 .claude；跳过 user skills bind-mount"
+        )
+        return None
+
     def _create_container(self, user_id: str, safe: str, name: str) -> SandboxHandle:
         assert self._docker is not None
         from docker.types import Mount  # type: ignore
@@ -324,19 +389,19 @@ class SandboxManager:
             "API_TIMEOUT_MS",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
         ):
-            import os
             v = os.environ.get(k)
             if v:
                 env[k] = v
 
-        skills_dir = settings.SKILLS_DIR
         volume_name = f"eido-user-{safe}"
         mounts: list[Mount] = [Mount("/data", volume_name, type="volume")]
         # 技能库只读 bind-mount，沙箱内仍能 Read 但不可改
-        if skills_dir and Path(skills_dir).exists():
+        # Docker bind-mount Source 必须是宿主侧路径，不能是容器内路径；
+        # 优先从 gateway 自身 mount 反查宿主路径，避免误用 /workspace/.claude/skills。
+        src = self._resolve_host_skills_dir()
+        if src:
             mounts.append(
-                Mount("/workspace/.claude/skills", str(Path(skills_dir).resolve()),
-                      type="bind", read_only=True)
+                Mount("/workspace/.claude/skills", src, type="bind", read_only=True)
             )
 
         try:

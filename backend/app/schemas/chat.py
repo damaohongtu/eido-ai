@@ -7,6 +7,7 @@ from typing import List, Optional, Literal
 
 class Message(BaseModel):
     """Single message in a conversation."""
+    id: Optional[str] = Field(None, description="前端消息 ID；持久化时用于幂等写入")
     role: Literal["user", "assistant", "system"]
     content: str
 
@@ -15,6 +16,8 @@ class ChatRequest(BaseModel):
     """Request schema for chat completions."""
     messages: List[Message] = Field(..., description="Conversation history")
     context: Optional[str] = Field(None, description="Output from previous skill in a pipeline, injected into prompt")
+    session_id: str = Field(..., description="会话 ID，agent 工作目录将切到该会话的 .eido/workspaces/<session_id>/")
+    assistant_message_id: str = Field(..., description="前端 assistant 占位消息 ID；后端保存模型输出时使用")
 
 
 class ChatResponse(BaseModel):

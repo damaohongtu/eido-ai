@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { message } from 'antd';
-import { ViewType, Skill, Agent, Tool, Message, ChatSession, Reference, SkillAction } from './types';
-import { SYSTEM_SKILLS, SYSTEM_AGENTS, SYSTEM_TOOLS, INITIAL_CHAT_STATE } from './constants';
+import { ViewType, Skill, Message, ChatSession, Reference, SkillAction } from './types';
+import { INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import ReferenceArea from './components/ReferenceArea';
@@ -12,13 +11,11 @@ import SkillDetailPage from './components/SkillDetailPage';
 import ScheduledTasksManager from './components/ScheduledTasksManager';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { api } from './services/api';
+import { api, hydrateSession, summaryToSession } from './services/api';
 import { BACKEND_URL } from './constants';
 
-const STORAGE_SESSIONS_KEY = 'eido_chat_sessions';
 const STORAGE_ACTIVE_SESSION_KEY = 'eido_active_session_id';
 
-/** sessionStorage 读写工具，异常时静默降级 */
 function readStorage<T>(key: string, fallback: T): T {
   try {
     const raw = sessionStorage.getItem(key);
@@ -53,6 +50,18 @@ function fixStaleRunningSteps(sessions: ChatSession[]): ChatSession[] {
   }));
 }
 
+/** 从前端 Message 中抽取需要持久化的 extra 字段。 */
+function buildMessageExtra(msg: Message): Record<string, any> {
+  const extra: Record<string, any> = {};
+  if (msg.thinking) extra.thinking = msg.thinking;
+  if (msg.thinkingLog && msg.thinkingLog.length) extra.thinkingLog = msg.thinkingLog;
+  if (msg.executionSteps && msg.executionSteps.length) extra.executionSteps = msg.executionSteps;
+  if (msg.workflowMermaid) extra.workflowMermaid = msg.workflowMermaid;
+  if (msg.references && msg.references.length) extra.references = msg.references;
+  if (msg.pendingConfirmation) extra.pendingConfirmation = msg.pendingConfirmation;
+  return extra;
+}
+
 const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ user_id: string; username: string } | null>(null);
@@ -75,10 +84,7 @@ const App: React.FC = () => {
     });
   }, []);
 
-  const [sessions, setSessions] = useState<ChatSession[]>(() =>
-    fixStaleRunningSteps(readStorage<ChatSession[]>(STORAGE_SESSIONS_KEY, []))
-  );
-
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() =>
     readStorage<string | null>(STORAGE_ACTIVE_SESSION_KEY, null)
   );
@@ -100,12 +106,7 @@ const App: React.FC = () => {
   const [workspaceContent, setWorkspaceContent] = useState('');
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
-  // 持久化会话列表到 sessionStorage
-  useEffect(() => {
-    writeStorage(STORAGE_SESSIONS_KEY, sessions);
-  }, [sessions]);
-
-  // 持久化当前会话 ID 到 sessionStorage
+  // 持久化当前激活 session ID（仅作"上次打开"记忆，不再缓存全部消息）
   useEffect(() => {
     if (activeSessionId) {
       writeStorage(STORAGE_ACTIVE_SESSION_KEY, activeSessionId);
@@ -114,12 +115,43 @@ const App: React.FC = () => {
     }
   }, [activeSessionId]);
 
+  // 鉴权完成后从后端拉取会话列表
+  useEffect(() => {
+    if (!authChecked) return;
+    (async () => {
+      try {
+        const list = await api.listSessions();
+        const summaries = list.map(summaryToSession);
+        setSessions(summaries);
+
+        const cachedId = readStorage<string | null>(STORAGE_ACTIVE_SESSION_KEY, null);
+        const target = cachedId && summaries.find(s => s.id === cachedId)
+          ? cachedId
+          : null;
+        if (target) {
+          try {
+            const detail = await api.getSession(target);
+            const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+            setSessions(prev => prev.map(s => s.id === target ? hydrated : s));
+            setActiveSessionId(target);
+            setActiveView(ViewType.CHAT);
+          } catch (err) {
+            console.warn('恢复上次会话失败:', err);
+            setActiveSessionId(null);
+            removeStorage(STORAGE_ACTIVE_SESSION_KEY);
+          }
+        }
+      } catch (err) {
+        console.error('加载会话列表失败:', err);
+      }
+    })();
+  }, [authChecked]);
+
   // 加载系统技能和用户技能
   useEffect(() => {
     const loadSkills = async () => {
       setLoading(true);
       try {
-        // 并行加载系统技能和用户技能
         const [systemResult, userResult] = await Promise.all([
           api.getSkills({ is_system: true, limit: 100 }),
           api.getSkills({ is_system: false, limit: 100 }),
@@ -162,21 +194,55 @@ const App: React.FC = () => {
     }
   }, [executingAction, activeSessionId]);
 
-  const createNewSession = (skillId?: string) => {
-    const skill = allSkills.find(s => s.id === skillId);
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: '新建会话',
-      skillId,
-      messages: [...INITIAL_CHAT_STATE],
-      updatedAt: Date.now()
-    };
-    setSessions(prev => [newSession, ...prev]);
-    setActiveSessionId(newSession.id);
+  /** 切换激活会话；若该会话尚未拉取过完整消息则按需拉取一次。 */
+  const selectSession = async (id: string) => {
+    const target = sessions.find(s => s.id === id);
+    if (target && target.messages.length === 0) {
+      try {
+        const detail = await api.getSession(id);
+        const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+        setSessions(prev => prev.map(s => s.id === id ? hydrated : s));
+      } catch (err) {
+        console.error('加载会话消息失败:', err);
+        return;
+      }
+    }
+    setActiveSessionId(id);
     setActiveView(ViewType.CHAT);
   };
 
-  const deleteSession = (id: string) => {
+  const createNewSession = async (skillId?: string) => {
+    try {
+      const created = await api.createSession({ skill_id: skillId ?? null });
+      // 初始欢迎语是前端 UI 状态，不写入后端；id 按会话生成，避免本地渲染 key 冲突
+      const initialMessages: Message[] = INITIAL_CHAT_STATE.map((m, i) => ({
+        ...m,
+        id: `${created.id}-init-${i}`,
+        timestamp: Date.now(),
+      }));
+      const newSession: ChatSession = {
+        id: created.id,
+        title: created.title || '新建会话',
+        skillId: created.skill_id || skillId,
+        messages: initialMessages,
+        updatedAt: Date.parse(created.updated_at) || Date.now(),
+      };
+      setSessions(prev => [newSession, ...prev]);
+      setActiveSessionId(newSession.id);
+      setActiveView(ViewType.CHAT);
+
+    } catch (err) {
+      console.error('创建会话失败:', err);
+    }
+  };
+
+  const deleteSession = async (id: string) => {
+    try {
+      await api.deleteSession(id);
+    } catch (err) {
+      console.error('删除会话失败:', err);
+      return;
+    }
     setSessions(prev => prev.filter(s => s.id !== id));
     if (activeSessionId === id) {
       setActiveSessionId(null);
@@ -184,26 +250,41 @@ const App: React.FC = () => {
     }
   };
 
+  /** 添加消息到当前会话；聊天消息由 /chat/chat 后端统一持久化。 */
   const addMessageToActiveSession = (msg: Message) => {
     if (!activeSessionId) return;
     setSessions(prev => prev.map(s => {
       if (s.id === activeSessionId) {
         const messages = [...s.messages, msg];
-        // 第一条用户消息到来时，用其内容（去掉 @技能 标记）更新会话标题
         let title = s.title;
-        const isFirstUserMsg = msg.role === 'user' && s.title === '新建会话';
+        const isFirstUserMsg = msg.role === 'user' && (s.title === '新建会话' || !s.title);
         if (isFirstUserMsg) {
           const cleaned = msg.content
-            .replace(/`@[\u4e00-\u9fa5\w\-]+`/g, '')  // 去掉 `@技能名`
-            .replace(/@[\u4e00-\u9fa5\w\-]+/g, '')     // 去掉 @技能名
+            .replace(/`@[\u4e00-\u9fa5\w\-]+`/g, '')
+            .replace(/@[\u4e00-\u9fa5\w\-]+/g, '')
             .trim();
           title = cleaned.slice(0, 24) + (cleaned.length > 24 ? '…' : '');
           if (!title) title = '新建会话';
+        }
+        if (title !== s.title) {
+          api.patchSession(activeSessionId, { title }).catch(err =>
+            console.warn('更新会话标题失败:', err)
+          );
         }
         return { ...s, messages, title, updatedAt: Date.now() };
       }
       return s;
     }));
+
+    // 非聊天系统消息仍可通过 sessions API 直接追加；user/assistant 由 /chat/chat 统一保存。
+    if (msg.role === 'system') {
+      api.appendMessage(activeSessionId, {
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        extra: buildMessageExtra(msg),
+      }).catch(err => console.warn('追加消息失败:', err));
+    }
   };
 
   const updateAssistantMessage = (id: string, updates: Partial<Message>) => {
@@ -225,9 +306,11 @@ const App: React.FC = () => {
       }
       return s;
     }));
+    api.patchSession(activeSessionId, { skill_id: skillId }).catch(err =>
+      console.warn('更新会话 skill_id 失败:', err)
+    );
   };
 
-  // 从最新 assistant 消息中提取 references 和 thinkingLog
   const { activeReferences, activeThinkingLog } = useMemo(() => {
     if (!activeSession) return { activeReferences: [] as Reference[], activeThinkingLog: [] as string[] };
 
@@ -251,12 +334,7 @@ const App: React.FC = () => {
   }, [activeSession?.messages]);
 
   const handleLogout = () => {
-    try {
-      sessionStorage.removeItem(STORAGE_SESSIONS_KEY);
-      sessionStorage.removeItem(STORAGE_ACTIVE_SESSION_KEY);
-    } catch {
-      /* ignore */
-    }
+    removeStorage(STORAGE_ACTIVE_SESSION_KEY);
     window.location.href = `${BACKEND_URL}/api/v1/auth/logout`;
   };
 
@@ -268,10 +346,7 @@ const App: React.FC = () => {
       content: `Finalized draft in **${executingAction?.label}**. Intelligence record updated.`,
       timestamp: Date.now()
     };
-    setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) return { ...s, messages: [...s.messages, commitMsg], updatedAt: Date.now() };
-      return s;
-    }));
+    addMessageToActiveSession(commitMsg);
     setExecutingAction(null);
   };
 
@@ -293,10 +368,7 @@ const App: React.FC = () => {
         onNavigate={setActiveView}
         sessions={sessions}
         activeSessionId={activeSessionId}
-        onSelectSession={(id) => {
-          setActiveSessionId(id);
-          setActiveView(ViewType.CHAT);
-        }}
+        onSelectSession={(id) => { selectSession(id); }}
         onNewChat={() => createNewSession()}
         onDeleteSession={deleteSession}
         currentUser={currentUser!}

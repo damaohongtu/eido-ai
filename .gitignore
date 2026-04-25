@@ -19,6 +19,9 @@ backend/.env
 backend/venv/
 backend/checkpoints/
 uploads/
+outputs/
+output/
+logs/
 
 # Logs
 *.log
@@ -39,3 +42,12 @@ outputs/
 config.json
 .claude/skills/
 .agents
+
+# Eido session 持久化与隔离工作区
+.eido/workspaces/
+.eido/chat_sessions.db
+.eido/chat_sessions.db-shm
+.eido/chat_sessions.db-wal
+.eido/scheduled_tasks.db
+.eido/scheduled_tasks.db-shm
+.eido/scheduled_tasks.db-wal

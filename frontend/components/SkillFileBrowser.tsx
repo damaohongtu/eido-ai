@@ -34,7 +34,8 @@ interface FileNode {
 
 export interface SkillFileBrowserProps {
   skillId: string;
-  isSystem: boolean;
+  /** true 时仅浏览，禁止新建/编辑/删除文件 */
+  readOnly: boolean;
   visible: boolean;
 }
 
@@ -70,7 +71,7 @@ function buildTreeData(nodes: FileNode[]): TreeDataNode[] {
 
 const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
   skillId,
-  isSystem,
+  readOnly,
   visible,
 }) => {
   const [treeData, setTreeData] = useState<TreeDataNode[]>([]);
@@ -339,9 +340,9 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
     setDeleteModalOpen(true);
   };
 
-  const canEdit = !isSystem && selectedNodeType === 'file' && !isBinary;
+  const canEdit = !readOnly && selectedNodeType === 'file' && !isBinary;
   const canDelete =
-    !isSystem &&
+    !readOnly &&
     selectedPath !== null &&
     selectedPath !== 'SKILL.md' &&
     !selectedPath.endsWith('/SKILL.md');
@@ -351,7 +352,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      {!isSystem && (
+      {!readOnly && (
         <div className="flex items-center gap-2 mb-3 px-1">
           <Button
             size="small"

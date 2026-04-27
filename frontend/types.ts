@@ -90,6 +90,10 @@ export interface Skill {
   version: number;
   usage_count: number;
   user_id?: string | null;
+  /** 当前登录用户是否可编辑/删除/管理该技能（后端 /skills 已计算） */
+  is_owner?: boolean;
+  owner_type?: string;
+  owner_user_id?: string | null;
   created_at: string;
   updated_at: string;
   // 关联信息（SkillDetail 返回）
@@ -98,6 +102,14 @@ export interface Skill {
   // 前端兼容字段
   actions?: SkillAction[];
   detail?: string; // markdown 格式的详细说明
+}
+
+/** 是否可管理该技能：优先 is_owner；未返回时兼容旧逻辑（!is_system 视为用户上传可改） */
+export function skillCanManage(skill: Pick<Skill, 'is_system' | 'is_owner'>): boolean {
+  if (typeof skill.is_owner === 'boolean') {
+    return skill.is_owner;
+  }
+  return !skill.is_system;
 }
 
 export interface SkillToolRef {

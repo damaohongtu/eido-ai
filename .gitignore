@@ -25,6 +25,7 @@ logs/
 
 # Logs
 *.log
+*.bak
 backend.log
 frontend.log
 

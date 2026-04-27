@@ -4,6 +4,13 @@
 技能定义维护在 .claude/skills/ 目录下的 SKILL.md 文件中，
 通过 claude_agent_sdk 自动规划执行，无需数据库。
 用户请求无需携带 skill_id，由 claude_agent_sdk 从用户输入中自动选择并执行技能。
+
+目录布局：
+  $SKILLS_DIR/
+    system/<id>/SKILL.md          # admin 上传/内置，所有用户只读可见
+    users/<safe_user_id>/<id>/    # 用户私有，仅本人可改
+
+权限通过路径区分：在 system/ 下即系统技能；在 users/<uid>/ 下即该用户私有。
 """
 import json
 import logging
@@ -12,12 +19,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator, List, Optional
 
+from app.gateway.sandbox_manager import _safe_user_id
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_ALLOWED_TOOLS = ["Bash", "Glob", "Read", "WebFetch"]
 
-# 用户通过 /skills/upload 安装的技能目录下会写入此标记；无标记的视为内置/系统技能，禁止删除
+# 历史标记文件：保留以兼容旧目录扫描，不再作为权限判定依据
 USER_UPLOAD_MARKER = ".eido-user-upload"
+
+SYSTEM_SUBDIR = "system"
+USERS_SUBDIR = "users"
 
 
 def _parse_frontmatter(content: str) -> tuple[dict, str]:
@@ -72,6 +84,10 @@ class SkillMeta:
     output_schema: Optional[dict] = None
     tools: list = field(default_factory=list)
     agents: list = field(default_factory=list)
+    # 所属类型：system | user
+    owner_type: str = "system"
+    # 当 owner_type == user 时记录原始 user_id（即 CAS username）
+    owner_user_id: Optional[str] = None
 
 
 class ClaudeSkillService:
@@ -85,35 +101,87 @@ class ClaudeSkillService:
     #  技能发现                                                             #
     # ------------------------------------------------------------------ #
 
-    def scan_skills(self) -> List[SkillMeta]:
-        """扫描 skills_dir 下所有包含 SKILL.md 的子目录"""
-        skills: List[SkillMeta] = []
-        if not self.skills_dir.exists():
-            logger.warning(f"技能目录不存在: {self.skills_dir}")
-            return skills
+    @property
+    def system_dir(self) -> Path:
+        return self.skills_dir / SYSTEM_SUBDIR
 
-        for skill_dir in sorted(self.skills_dir.iterdir()):
+    def user_private_dir(self, user_id: str) -> Path:
+        """返回某 user_id 的私有技能根目录（不保证存在）。"""
+        return self.skills_dir / USERS_SUBDIR / _safe_user_id(user_id)
+
+    def _scan_dir(
+        self,
+        root: Path,
+        *,
+        owner_type: str,
+        owner_user_id: Optional[str] = None,
+    ) -> List[SkillMeta]:
+        skills: List[SkillMeta] = []
+        if not root.exists():
+            return skills
+        for skill_dir in sorted(root.iterdir()):
             if not skill_dir.is_dir():
                 continue
             if not (skill_dir / "SKILL.md").exists():
                 continue
             try:
-                meta = self._load_skill(skill_dir)
+                meta = self._load_skill(
+                    skill_dir,
+                    owner_type=owner_type,
+                    owner_user_id=owner_user_id,
+                )
                 skills.append(meta)
             except Exception as e:
                 logger.warning(f"加载技能失败 [{skill_dir.name}]: {e}")
-
-        logger.info(f"扫描到 {len(skills)} 个技能")
         return skills
 
-    def get_skill(self, skill_id: str) -> SkillMeta:
-        """按 slug（目录名）获取技能，不存在则抛出 FileNotFoundError"""
-        skill_dir = self.skills_dir / skill_id
-        if not (skill_dir / "SKILL.md").exists():
-            raise FileNotFoundError(f"技能不存在: {skill_id}")
-        return self._load_skill(skill_dir)
+    def scan_skills(self, *, user_id: Optional[str] = None) -> List[SkillMeta]:
+        """扫描 system 区 +（若给定 user_id）该用户私有区。
 
-    def _load_skill(self, skill_dir: Path) -> SkillMeta:
+        合并策略：同 id 在 user 私有与 system 中都存在时，user 区覆盖 system 区，
+        仅返回一条 user 视角的元数据；这样 LLM 可见的技能列表不会重复。
+        """
+        system_skills = self._scan_dir(self.system_dir, owner_type="system")
+        user_skills: List[SkillMeta] = []
+        if user_id:
+            user_skills = self._scan_dir(
+                self.user_private_dir(user_id),
+                owner_type="user",
+                owner_user_id=user_id,
+            )
+        # 用户私有覆盖同名系统技能
+        user_ids = {s.id for s in user_skills}
+        merged = [s for s in system_skills if s.id not in user_ids] + user_skills
+        merged.sort(key=lambda s: s.id)
+        logger.info(
+            "扫描到 %d 个技能 (system=%d, user=%d, user_id=%s)",
+            len(merged),
+            len(system_skills),
+            len(user_skills),
+            user_id,
+        )
+        return merged
+
+    def get_skill(self, skill_id: str, *, user_id: Optional[str] = None) -> SkillMeta:
+        """按 slug 获取技能。优先 users/<uid>/<id>，回退 system/<id>。"""
+        if user_id:
+            user_dir = self.user_private_dir(user_id) / skill_id
+            if (user_dir / "SKILL.md").exists():
+                return self._load_skill(
+                    user_dir, owner_type="user", owner_user_id=user_id
+                )
+        sys_dir = self.system_dir / skill_id
+        if (sys_dir / "SKILL.md").exists():
+            return self._load_skill(sys_dir, owner_type="system")
+        raise FileNotFoundError(f"技能不存在: {skill_id}")
+
+    def _load_skill(
+        self,
+        skill_dir: Path,
+        *,
+        owner_type: str = "system",
+        owner_user_id: Optional[str] = None,
+    ) -> SkillMeta:
         """从目录中的 SKILL.md 加载技能元数据"""
         skill_md = skill_dir / "SKILL.md"
         content = skill_md.read_text(encoding="utf-8")
@@ -137,8 +205,6 @@ class ClaudeSkillService:
         stat = skill_md.stat()
         mtime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
 
-        is_user_upload = (skill_dir / USER_UPLOAD_MARKER).exists()
-
         return SkillMeta(
             id=skill_id,
             name=name,
@@ -148,7 +214,10 @@ class ClaudeSkillService:
             skill_dir=skill_dir,
             created_at=mtime,
             updated_at=mtime,
-            is_system=not is_user_upload,
+            is_system=(owner_type == "system"),
+            owner_type=owner_type,
+            owner_user_id=owner_user_id,
+            user_id=owner_user_id,
         )
 
     # ------------------------------------------------------------------ #
@@ -195,18 +264,22 @@ class ClaudeSkillService:
 
         return "\n\n".join(lines)
 
-    def _build_skills_index(self) -> str:
+    def _build_skills_index(self, *, user_id: Optional[str] = None) -> str:
         """构建可用技能索引文本，用于告知 Claude 有哪些技能可以使用。
 
         SKILL.md 路径必须是绝对路径——agent cwd 会被切到 session 工作区，相对路径会失效。
+        合并 system 区与该用户私有区；同 id 时私有覆盖。
         """
-        skills = self.scan_skills()
+        skills = self.scan_skills(user_id=user_id)
         if not skills:
             return "（当前没有可用技能）"
         lines = []
         for s in skills:
             abs_path = (s.skill_dir / "SKILL.md").resolve()
-            lines.append(f"- **{s.id}**: {s.description}\n  SKILL.md 绝对路径: `{abs_path}`")
+            scope = "私有" if s.owner_type == "user" else "系统"
+            lines.append(
+                f"- **{s.id}** [{scope}]: {s.description}\n  SKILL.md 绝对路径: `{abs_path}`"
+            )
         return "\n".join(lines)
 
     async def execute_stream(
@@ -244,8 +317,8 @@ class ClaudeSkillService:
         else:
             cwd = self.workspace_root
 
-        # 构建 prompt
-        skills_index = self._build_skills_index()
+        # 构建 prompt（按用户身份合并 system + 私有技能）
+        skills_index = self._build_skills_index(user_id=user_id)
         conversation_block = self._format_messages(messages)
 
         context_section = ""

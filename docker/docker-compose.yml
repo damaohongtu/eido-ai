@@ -45,6 +45,7 @@ services:
       - CAS_SERVICE_URL=${CAS_SERVICE_URL:-}
       - FRONTEND_URL=${FRONTEND_URL:-}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:-dev-secret-change-in-production}
+      - EIDO_ADMIN_USERS=${EIDO_ADMIN_USERS:-admin}
     volumes:
       - ${CLAUDE_DIR:-~/.claude}:/workspace/.claude
       - ${LOG_DIR:-~/eido-logs}/app:/var/log/eido/app
@@ -95,6 +96,8 @@ services:
       - CAS_SERVICE_URL=${CAS_SERVICE_URL:-}
       - FRONTEND_URL=${FRONTEND_URL:-}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:?sandbox 模式必须显式配置 SESSION_SECRET_KEY}
+      # 管理员白名单（逗号分隔 user_id）；命中者的技能写入 system 区供所有用户只读使用
+      - EIDO_ADMIN_USERS=${EIDO_ADMIN_USERS:-admin}
     volumes:
       # 控制 docker daemon 才能 docker run user 容器
       - /var/run/docker.sock:/var/run/docker.sock

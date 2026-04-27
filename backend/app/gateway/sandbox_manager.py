@@ -395,13 +395,37 @@ class SandboxManager:
 
         volume_name = f"eido-user-{safe}"
         mounts: list[Mount] = [Mount("/data", volume_name, type="volume")]
-        # 技能库只读 bind-mount，沙箱内仍能 Read 但不可改
+        # 技能库分两区挂载：
+        #   - system（admin 上传 / 内置）：ro，所有用户共享只读
+        #   - users/<safe>：rw，只挂当前用户私有目录，避免泄露其他用户技能
         # Docker bind-mount Source 必须是宿主侧路径，不能是容器内路径；
         # 优先从 gateway 自身 mount 反查宿主路径，避免误用 /workspace/.claude/skills。
-        src = self._resolve_host_skills_dir()
-        if src:
+        host_skills = self._resolve_host_skills_dir()
+        if host_skills:
+            host_system = str(Path(host_skills) / "system")
+            host_user = str(Path(host_skills) / "users" / safe)
+            # gateway 容器内通过挂载视图等价创建宿主目录，确保 bind-mount 能找到 source
+            try:
+                local_skills = Path(settings.SKILLS_DIR)
+                (local_skills / "system").mkdir(parents=True, exist_ok=True)
+                (local_skills / "users" / safe).mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                logger.warning("准备 skills 子目录失败（继续尝试挂载）: %s", e)
             mounts.append(
-                Mount("/workspace/.claude/skills", src, type="bind", read_only=True)
+                Mount(
+                    "/workspace/.claude/skills/system",
+                    host_system,
+                    type="bind",
+                    read_only=True,
+                )
+            )
+            mounts.append(
+                Mount(
+                    f"/workspace/.claude/skills/users/{safe}",
+                    host_user,
+                    type="bind",
+                    read_only=False,
+                )
             )
 
         try:

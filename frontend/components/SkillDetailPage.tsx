@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Skill } from '../types';
+import { Skill, skillCanManage } from '../types';
 import { api } from '../services/api';
 import SkillFileBrowser from './SkillFileBrowser';
 
@@ -47,8 +47,7 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
   const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState('docs');
 
-  const isSystem = skill.is_system;
-  const canDelete = !isSystem;
+  const canDelete = skillCanManage(skill);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -113,7 +112,7 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
         <div className="py-4" style={{ height: '600px' }}>
           <SkillFileBrowser
             skillId={skill.id}
-            isSystem={skill.is_system}
+            readOnly={!skillCanManage(skill)}
             visible={activeTab === 'files'}
           />
         </div>

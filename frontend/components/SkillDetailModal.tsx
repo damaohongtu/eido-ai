@@ -3,7 +3,7 @@ import { Modal } from 'antd';
 import { FolderOutlined, DownOutlined, RightOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Skill } from '../types';
+import { Skill, skillCanManage } from '../types';
 import { api } from '../services/api';
 import SkillFileBrowser from './SkillFileBrowser';
 
@@ -51,8 +51,9 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
 
   const hasDetail = !!skill.detail;
   const content = skill.detail || skill.description;
-  const canDelete = skill.is_system === false;
-  const canEdit = skill.is_system === false && !!onEdit;
+  const canManage = skillCanManage(skill);
+  const canDelete = canManage;
+  const canEdit = canManage && !!onEdit;
 
   const handleDelete = () => {
     Modal.confirm({
@@ -116,7 +117,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             <div className="px-6 pb-4" style={{ height: '400px' }}>
               <SkillFileBrowser
                 skillId={skill.id}
-                isSystem={skill.is_system}
+                readOnly={!canManage}
                 visible={filesExpanded}
               />
             </div>

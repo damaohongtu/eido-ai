@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     # gateway 内部访问 user 容器使用的端口（容器内监听 8000）
     EIDO_USER_INTERNAL_PORT: int = 8000
 
+    # 管理员白名单（逗号分隔 user_id），命中者上传/修改的技能写入 system 区
+    EIDO_ADMIN_USERS: str = ""
+
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
     LOG_DIR: str = "logs"
@@ -112,6 +115,17 @@ class Settings(BaseSettings):
     @property
     def token_secret(self) -> str:
         return self.EIDO_USER_TOKEN_SECRET.strip() or self.SESSION_SECRET_KEY
+
+    @property
+    def admin_user_set(self) -> set[str]:
+        """admin 白名单（逗号分隔）的集合形式。"""
+        return {u.strip() for u in (self.EIDO_ADMIN_USERS or "").split(",") if u.strip()}
+
+    def is_admin(self, user_id: str | None) -> bool:
+        """判断给定 user_id 是否在 admin 白名单内。"""
+        if not user_id:
+            return False
+        return user_id in self.admin_user_set
 
     @field_validator("CAS_SERVER_URL", mode="before")
     @classmethod

@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { Skill, Tool, Agent, SkillAction } from '../types';
+import { Skill, Tool, Agent, SkillAction, skillCanManage } from '../types';
 import { api } from '../services/api';
 import { Input } from 'antd';
 import ReactMarkdown from 'react-markdown';
@@ -14,7 +14,7 @@ interface SkillEditorProps {
 }
 
 const SkillEditor: React.FC<SkillEditorProps> = ({ skill, onSave, onCancel }) => {
-  const isReadOnly = skill?.is_system || false;
+  const isReadOnly = skill ? !skillCanManage(skill) : false;
   const [name, setName] = useState(skill?.name || '');
   const [icon, setIcon] = useState(skill?.icon || '⚡');
   const [blueprint, setBlueprint] = useState(skill?.detail || skill?.description || '');

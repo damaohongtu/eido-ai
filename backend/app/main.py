@@ -1,6 +1,7 @@
 """
 Main FastAPI application entrypoint.
 """
+import shutil
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
@@ -10,6 +11,50 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 import time
 from pathlib import Path
+
+
+def _migrate_legacy_skills(skills_dir: Path) -> None:
+    """把旧的扁平 SKILLS_DIR/<id> 目录迁移到 SKILLS_DIR/system/<id>。
+
+    幂等：仅迁移 SKILLS_DIR 顶层中含 SKILL.md 的子目录；system/、users/、
+    其他非技能文件保持原状。
+    """
+    if not skills_dir.exists():
+        return
+    system_dir = skills_dir / "system"
+    users_dir = skills_dir / "users"
+    try:
+        system_dir.mkdir(parents=True, exist_ok=True)
+        users_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logging.getLogger(__name__).warning("准备 skills 子目录失败: %s", e)
+        return
+
+    moved = 0
+    for entry in skills_dir.iterdir():
+        if entry.name in ("system", "users"):
+            continue
+        if not entry.is_dir():
+            continue
+        if not (entry / "SKILL.md").exists():
+            continue
+        target = system_dir / entry.name
+        if target.exists():
+            logging.getLogger(__name__).info(
+                "跳过迁移（system 区已存在同名）: %s", entry.name
+            )
+            continue
+        try:
+            shutil.move(str(entry), str(target))
+            moved += 1
+        except Exception as e:
+            logging.getLogger(__name__).warning(
+                "迁移技能失败 %s: %s", entry.name, e
+            )
+    if moved:
+        logging.getLogger(__name__).info(
+            "已迁移 %d 个旧技能目录到 %s", moved, system_dir
+        )
 
 log_dir = Path(settings.LOG_DIR)
 log_dir.mkdir(parents=True, exist_ok=True)
@@ -163,10 +208,13 @@ def create_application() -> FastAPI:
         try:
             skills_dir = Path(settings.SKILLS_DIR)
             workspace_root = Path(settings.WORKSPACE_ROOT)
+            # gateway / local 角色负责数据迁移；user 容器内技能目录是只读的
+            if not is_user_runtime:
+                _migrate_legacy_skills(skills_dir)
             svc = init_claude_skill_service(skills_dir, workspace_root)
             init_skill_management_service(skills_dir, workspace_root, svc)
             skill_count = len(svc.scan_skills())
-            logger.info(f"✓ 技能服务初始化完成: 发现 {skill_count} 个技能")
+            logger.info(f"✓ 技能服务初始化完成: 发现 {skill_count} 个 system 技能")
         except Exception as e:
             logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
 

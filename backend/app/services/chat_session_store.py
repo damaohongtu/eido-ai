@@ -28,6 +28,7 @@ _SCHEMA_SQL = [
         user_id TEXT NOT NULL,
         title TEXT NOT NULL DEFAULT '新建会话',
         skill_id TEXT,
+        claude_session_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     );
@@ -64,11 +65,17 @@ def _new_id() -> str:
 
 
 def _session_row_to_dict(row: sqlite3.Row) -> dict:
+    # claude_session_id 列可能在旧库迁移前不存在；用 try 兜底以容忍历史 schema
+    try:
+        claude_sid = row["claude_session_id"]
+    except (IndexError, KeyError):
+        claude_sid = None
     return {
         "id": row["id"],
         "user_id": row["user_id"],
         "title": row["title"],
         "skill_id": row["skill_id"],
+        "claude_session_id": claude_sid,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -107,8 +114,18 @@ class ChatSessionStore:
         self._conn.execute("PRAGMA foreign_keys=ON")
         for sql in _SCHEMA_SQL:
             self._conn.execute(sql)
+        self._migrate_schema()
         self._conn.commit()
         logger.info(f"ChatSessionStore connected: {self._db_path}")
+
+    def _migrate_schema(self) -> None:
+        """幂等迁移：老库可能缺少 claude_session_id 列，按需追加。"""
+        cols = {
+            r["name"] for r in self.conn.execute("PRAGMA table_info(chat_sessions)").fetchall()
+        }
+        if "claude_session_id" not in cols:
+            logger.info("迁移 chat_sessions：追加列 claude_session_id")
+            self.conn.execute("ALTER TABLE chat_sessions ADD COLUMN claude_session_id TEXT")
 
     def close(self):
         if self._conn:
@@ -182,6 +199,29 @@ class ChatSessionStore:
             (_now_iso(), session_id, user_id),
         )
         self.conn.commit()
+
+    def get_claude_session_id(self, user_id: str, session_id: str) -> Optional[str]:
+        """读取该 eido 会话对应的 Claude Code 原生 session_id；不存在返回 None。"""
+        row = self.conn.execute(
+            "SELECT claude_session_id FROM chat_sessions WHERE id = ? AND user_id = ?",
+            (session_id, user_id),
+        ).fetchone()
+        if not row:
+            return None
+        val = row["claude_session_id"]
+        return val if val else None
+
+    def set_claude_session_id(
+        self, user_id: str, session_id: str, claude_sid: Optional[str]
+    ) -> bool:
+        """写入/清空 claude_session_id。session 不存在/不属于用户返回 False。"""
+        cur = self.conn.execute(
+            "UPDATE chat_sessions SET claude_session_id = ?, updated_at = ?"
+            " WHERE id = ? AND user_id = ?",
+            (claude_sid, _now_iso(), session_id, user_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
 
     def delete_session(self, user_id: str, session_id: str) -> bool:
         cur = self.conn.execute(

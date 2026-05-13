@@ -88,9 +88,10 @@ interface ChatAreaProps {
   rightPanelOpen: boolean;
   onExecuteAction: (action: SkillAction) => void;
   onUpdateSessionSkill?: (skillId: string) => void;
+  onUpdateSessionClaudeId?: (claudeSessionId: string) => void;
 }
 
-const ChatArea: React.FC<ChatAreaProps> = ({
+export const ChatArea: React.FC<ChatAreaProps> = ({
   session,
   skills,
   onSendMessage,
@@ -98,7 +99,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleReferences,
   rightPanelOpen,
   onExecuteAction,
-  onUpdateSessionSkill
+  onUpdateSessionSkill,
+  onUpdateSessionClaudeId,
 }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -217,7 +219,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   /** 构建单条消息的 thinking 累积回调 */
   const makeUpdater = (assistantId: string) => {
     thinkingLogsRef.current[assistantId] = [];
-    return (content: string, thinking: string, steps?: any, confirmation?: any, references?: any, mermaid?: string) => {
+    return (content: string, thinking: string, steps?: any, confirmation?: any, references?: any, mermaid?: string, claudeSessionId?: string) => {
       if (thinking) {
         const log = thinkingLogsRef.current[assistantId];
         if (log[log.length - 1] !== thinking) {
@@ -233,6 +235,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         references,
         workflowMermaid: mermaid,
       });
+      if (claudeSessionId && onUpdateSessionClaudeId) {
+        onUpdateSessionClaudeId(claudeSessionId);
+      }
     };
   };
 
@@ -253,7 +258,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         assistantId,
         context,
         skillHint ?? undefined,
-        abortControllerRef.current.signal
+        abortControllerRef.current.signal,
+        session.claudeSessionId,
       );
     } finally {
       delete thinkingLogsRef.current[assistantId];
@@ -291,15 +297,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       try {
         await api.streamChat(
           contextMessages,
-          (content, thinking, steps, confirmation, references, mermaid) => {
+          (content, thinking, steps, confirmation, references, mermaid, claudeSid) => {
             finalContent = content;
-            updater(content, thinking, steps, confirmation, references, mermaid);
+            updater(content, thinking, steps, confirmation, references, mermaid, claudeSid);
           },
           session.id,
           assistantId,
           previousOutput || undefined,
           skill.id,
-          abortControllerRef.current?.signal
+          abortControllerRef.current?.signal,
+          session.claudeSessionId,
         );
       } catch {
         delete thinkingLogsRef.current[assistantId];

@@ -1,0 +1,7 @@
+{
+    "@class": "org.apereo.cas.services.RegexRegisteredService",
+    "serviceId": "^http://127\\.0\\.0\\.1:8000/.*",
+    "name": "ClawX Backend",
+    "id": 10000002,
+    "evaluationOrder": 1
+  }

@@ -66,6 +66,8 @@ def _accumulate_sse_event(state: dict[str, Any], payload: dict[str, Any]) -> Non
     elif event_type == "thinking":
         content = payload.get("content") or ""
         _set_thinking(state, content)
+    elif event_type == "claude_session":
+        state["claude_session_id"] = payload.get("session_id", "")
     elif event_type == "workflow_graph":
         data = payload.get("data") or {}
         if data.get("format") == "mermaid" and data.get("content"):
@@ -220,6 +222,7 @@ async def chat_completion(
                     request.context,
                     user_id=user_id,
                     session_id=request.session_id,
+                    claude_session_id=request.claude_session_id,
                 ):
                     payload = _parse_sse_payload(event)
                     if payload:
@@ -248,6 +251,16 @@ async def chat_completion(
                         )
                     except Exception as e:
                         logger.error(f"保存 assistant 消息失败: {e}", exc_info=True)
+                # 持久化 claude_session_id，供后续请求复用
+                claude_sid = state.get("claude_session_id")
+                if claude_sid:
+                    try:
+                        store.update_session_claude_id(user_id, request.session_id, claude_sid)
+                        logger.info(
+                            f"[{user_id}][session={request.session_id}] claude_session_id 已持久化: {claude_sid}"
+                        )
+                    except Exception as e:
+                        logger.warning(f"持久化 claude_session_id 失败: {e}")
 
         return StreamingResponse(stream_with_persistence(), media_type="text/event-stream")
 

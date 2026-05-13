@@ -19,7 +19,7 @@ run_compose() {
   fi
 }
 
-HOST_IP=192.168.138.49           # 你当前宿主机的局域网 IP，已确认 gateway/浏览器均可达
+HOST_IP=192.168.138.60           # 你当前宿主机的局域网 IP，已确认 gateway/浏览器均可达
 NEW_GATEWAY_SECRET=$(openssl rand -hex 32)
 NEW_SESSION=$(openssl rand -hex 32)
 

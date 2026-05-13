@@ -28,6 +28,7 @@ _SCHEMA_SQL = [
         user_id TEXT NOT NULL,
         title TEXT NOT NULL DEFAULT '新建会话',
         skill_id TEXT,
+        claude_session_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     );
@@ -69,6 +70,7 @@ def _session_row_to_dict(row: sqlite3.Row) -> dict:
         "user_id": row["user_id"],
         "title": row["title"],
         "skill_id": row["skill_id"],
+        "claude_session_id": row["claude_session_id"] if "claude_session_id" in row.keys() else None,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -107,6 +109,11 @@ class ChatSessionStore:
         self._conn.execute("PRAGMA foreign_keys=ON")
         for sql in _SCHEMA_SQL:
             self._conn.execute(sql)
+        # 向前兼容：添加 claude_session_id 列（旧库可能没有）
+        try:
+            self._conn.execute("ALTER TABLE chat_sessions ADD COLUMN claude_session_id TEXT")
+        except sqlite3.OperationalError:
+            pass  # 列已存在
         self._conn.commit()
         logger.info(f"ChatSessionStore connected: {self._db_path}")
 
@@ -180,6 +187,14 @@ class ChatSessionStore:
         self.conn.execute(
             "UPDATE chat_sessions SET updated_at = ? WHERE id = ? AND user_id = ?",
             (_now_iso(), session_id, user_id),
+        )
+        self.conn.commit()
+
+    def update_session_claude_id(self, user_id: str, session_id: str, claude_session_id: str) -> None:
+        """持久化 Claude Code 内部会话 ID，供后续请求复用。"""
+        self.conn.execute(
+            "UPDATE chat_sessions SET claude_session_id = ? WHERE id = ? AND user_id = ?",
+            (claude_session_id, session_id, user_id),
         )
         self.conn.commit()
 

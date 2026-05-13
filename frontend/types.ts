@@ -160,6 +160,7 @@ export interface ChatSession {
   id: string;
   title: string;
   skillId?: string;
+  claudeSessionId?: string;
   messages: Message[];
   updatedAt: number;
 }

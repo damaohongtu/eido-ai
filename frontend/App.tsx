@@ -314,6 +314,16 @@ const App: React.FC = () => {
     );
   };
 
+  const updateSessionClaudeId = (claudeSessionId: string) => {
+    if (!activeSessionId) return;
+    setSessions(prev => prev.map(s => {
+      if (s.id === activeSessionId) {
+        return { ...s, claudeSessionId, updatedAt: Date.now() };
+      }
+      return s;
+    }));
+  };
+
   const { activeReferences, activeThinkingLog } = useMemo(() => {
     if (!activeSession) return { activeReferences: [] as Reference[], activeThinkingLog: [] as string[] };
 
@@ -403,6 +413,7 @@ const App: React.FC = () => {
                 rightPanelOpen={rightPanelOpen}
                 onExecuteAction={setExecutingAction}
                 onUpdateSessionSkill={updateSessionSkill}
+                onUpdateSessionClaudeId={updateSessionClaudeId}
              />
              {rightPanelOpen && (
                <ReferenceArea

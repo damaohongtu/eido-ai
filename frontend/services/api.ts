@@ -24,6 +24,7 @@ export interface PersistedSession {
   user_id: string;
   title: string;
   skill_id: string | null;
+  claude_session_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +64,7 @@ export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
     id: detail.id,
     title: detail.title,
     skillId: detail.skill_id || undefined,
+    claudeSessionId: detail.claude_session_id || undefined,
     messages,
     updatedAt: Date.parse(detail.updated_at) || Date.now(),
   };
@@ -73,6 +75,7 @@ export function summaryToSession(s: PersistedSession): ChatSession {
     id: s.id,
     title: s.title,
     skillId: s.skill_id || undefined,
+    claudeSessionId: s.claude_session_id || undefined,
     messages: [],
     updatedAt: Date.parse(s.updated_at) || Date.now(),
   };
@@ -560,19 +563,22 @@ export class ApiService {
       steps?: ExecutionStep[],
       pendingConfirmation?: any,
       references?: Reference[],
-      workflowMermaid?: string
+      workflowMermaid?: string,
+      claudeSessionId?: string,
     ) => void,
     sessionId: string,
     assistantMessageId: string,
     context?: string,
     skillHint?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    claudeSessionId?: string,
   ) {
     let fullText = "";
     let fullThinking = "正在分析请求，自动规划执行...";
     let steps: ExecutionStep[] = [];
     let currentReferences: Reference[] = [];
     let workflowMermaid: string | undefined;
+    let capturedClaudeSessionId = claudeSessionId;
 
     const effectiveContext = skillHint
       ? `[本步骤请聚焦使用技能: ${skillHint}]\n\n${context || ''}`.trim()
@@ -587,6 +593,7 @@ export class ApiService {
           context: effectiveContext,
           session_id: sessionId,
           assistant_message_id: assistantMessageId,
+          claude_session_id: capturedClaudeSessionId || undefined,
         }),
         signal,
       });
@@ -617,6 +624,11 @@ export class ApiService {
                 const data = JSON.parse(dataStr);
 
                 switch (data.type) {
+                  case 'claude_session':
+                    capturedClaudeSessionId = data.session_id;
+                    onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid, capturedClaudeSessionId);
+                    break;
+
                   case 'workflow_start':
                     fullThinking = `正在执行: ${data.skill_name}`;
                     onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);

@@ -73,6 +73,8 @@ services:
       - EIDO_SANDBOX_MODE=docker
       - EIDO_USER_IMAGE=${EIDO_USER_IMAGE:-damaohongtu/eido-user:latest}
       - EIDO_NET=eido-net
+      # 传入 gateway，sandbox 拉起 eido-user 时写入容器 dns（内网域名解析）
+      - EIDO_DNS_SERVERS=${EIDO_DNS_SERVERS:-}
       - EIDO_SANDBOX_IDLE_TTL=${EIDO_SANDBOX_IDLE_TTL:-900}
       - EIDO_USER_MEM=${EIDO_USER_MEM:-2g}
       - EIDO_USER_CPUS=${EIDO_USER_CPUS:-1.0}

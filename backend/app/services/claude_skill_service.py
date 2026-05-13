@@ -229,13 +229,12 @@ class ClaudeSkillService:
 
     @staticmethod
     def _format_messages(messages: list) -> str:
-        """将对话历史格式化为 prompt 文本块，一次性传给 claude_agent_sdk。
+        """将对话历史格式化为 prompt 文本块。
 
-        策略：
+        窗口管理由 Claude Code 原生自动压缩负责，此处仅做基本截断：
         - system 消息跳过
-        - 最近 6 条消息保留完整内容
-        - 更早的 assistant 消息截断到 300 字符（减少 token），user 消息保留完整
-        - 超过 30 条时只保留最近 30 条，避免 prompt 过长
+        - 最多保留最近 40 条
+        - 单条超过 8000 字符时截断（极端兜底）
         """
         role_label = {"user": "用户", "assistant": "助手"}
 
@@ -244,23 +243,19 @@ class ClaudeSkillService:
             if (getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else "user")) != "system"
         ]
 
-        if len(filtered) > 30:
-            filtered = filtered[-30:]
+        if len(filtered) > 40:
+            filtered = filtered[-40:]
 
-        recent_threshold = max(0, len(filtered) - 6)
         lines: List[str] = []
-
-        for i, msg in enumerate(filtered):
+        for msg in filtered:
             role = getattr(msg, "role", msg.get("role") if isinstance(msg, dict) else "user")
             content = getattr(msg, "content", msg.get("content") if isinstance(msg, dict) else "")
             label = role_label.get(role, role)
             body = content.strip()
-
-            is_recent = i >= recent_threshold
-            if role == "assistant" and not is_recent:
-                body = body[:300] + ("…（已截断）" if len(body) > 300 else "")
-
-            lines.append(f"**{label}**: {body}")
+            if len(body) > 8000:
+                body = body[:8000] + "…（截断）"
+            if body:
+                lines.append(f"**{label}**: {body}")
 
         return "\n\n".join(lines)
 
@@ -285,27 +280,37 @@ class ClaudeSkillService:
     async def execute_stream(
         self, messages: list, context: Optional[str] = None,
         *, user_id: Optional[str] = None, session_id: Optional[str] = None,
+        claude_session_id: Optional[str] = None,
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
 
-        无需指定 skill_id，Claude 根据用户输入自动选择并读取相应 SKILL.md 执行任务。
-
-        messages    完整对话历史（含所有 user / assistant 轮次）。
-        context     多技能流水线中上一步的输出，附加在 prompt 末尾。
-        user_id     当前用户 ID，用于生成 agent 子进程的身份 token。
-        session_id  会话 ID。指定后 agent cwd 切到该会话工作区（强隔离）；
-                    未指定则回退到全局 workspace_root（兼容历史路径）。
+        messages           完整对话历史（含所有 user / assistant 轮次）。
+        context            多技能流水线中上一步的输出，附加在 prompt 末尾。
+        user_id            当前用户 ID，用于生成 agent 子进程的身份 token。
+        session_id         会话 ID。指定后 agent cwd 切到该会话工作区（强隔离）。
+        claude_session_id  复用已有的 Claude Code 会话。传入时走 resume 模式——
+                           仅发送最新 user 消息，上下文窗口由 Claude Code 原生管理。
+                           不传时开启新会话，发送完整上下文。
         """
+        is_resume = bool(claude_session_id)
+        latest_msg = messages[-1] if messages else None
+        latest_content = (
+            getattr(latest_msg, "content", latest_msg.get("content") if isinstance(latest_msg, dict) else "")
+            if latest_msg else ""
+        ).strip()
+        _claude_sid_emitted = is_resume  # resume 模式不需要重复发送
+
         logger.info(
             f"▶ execute_stream 开始 | 消息数: {len(messages)}"
             + (f" | session={session_id}" if session_id else "")
+            + (f" | 复用 claude 会话={claude_session_id}" if is_resume else "")
             + (f" | 含上下文 {len(context)} 字符" if context else "")
         )
 
         yield self._sse({"type": "thinking", "content": "正在分析请求，自动规划执行..."})
         yield self._sse({"type": "workflow_start", "skill_name": "auto"})
 
-        # 解析 cwd（按 session 隔离时使用 session 工作区）
+        # 解析 cwd
         if session_id:
             from app.services.session_workspace import get_session_workspace_manager
             try:
@@ -317,29 +322,15 @@ class ClaudeSkillService:
         else:
             cwd = self.workspace_root
 
-        # 构建 prompt（按用户身份合并 system + 私有技能）
-        skills_index = self._build_skills_index(user_id=user_id)
-        conversation_block = self._format_messages(messages)
-
-        context_section = ""
-        if context and context.strip():
-            truncated = context.strip()[:4000]
-            context_section = (
-                f"\n\n---\n\n"
-                f"## 上一步执行结果（供参考）\n\n{truncated}\n\n"
-            )
-
         skills_root_abs = Path(self.skills_dir).resolve()
 
-        workspace_section = (
+        # ---- system_prompt: 静态指令，不进对话窗口 ----
+        skills_index = self._build_skills_index(user_id=user_id)
+        system_prompt = (
             f"**当前会话工作区（你的 cwd）**: `{cwd}`\n"
             f"  - 用户上传文件位于: `{cwd / 'uploads'}`\n"
             f"  - 你生成的所有产物请写入: `{cwd / 'outputs'}`\n"
-            f"**技能库根目录（绝对路径，仅可读取）**: `{skills_root_abs}`\n"
-        )
-
-        prompt = (
-            f"{workspace_section}\n"
+            f"**技能库根目录（绝对路径，仅可读取）**: `{skills_root_abs}`\n\n"
             f"## 可用技能列表\n\n"
             f"{skills_index}\n\n"
             f"---\n\n"
@@ -349,13 +340,27 @@ class ClaudeSkillService:
             f"然后严格按照技能说明完成任务。\n"
             f"- 所有写文件操作请落在 `{cwd / 'outputs'}` 目录下；不要写到工作区之外。\n"
             f"- 用户上传文件已在消息中提供绝对路径，可直接 Read。\n"
-            f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
-            f"---\n\n"
-            f"## 对话历史\n\n{conversation_block}"
-            f"{context_section}"
+            f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。"
         )
 
-        logger.debug(f"Prompt 长度: {len(prompt)} 字符")
+        # ---- prompt: 对话内容 ----
+        if is_resume:
+            # 复用会话：仅最新消息，Claude Code 内部有完整历史
+            prompt = latest_content
+            logger.info(f"  [resume] claude_session={claude_session_id} | prompt 长度: {len(prompt)}")
+        else:
+            # 新会话：发送完整对话历史作为初始上下文
+            conversation_block = self._format_messages(messages[:-1]) if len(messages) > 1 else ""
+            query_block = f"## 用户最新请求\n\n**用户**: {latest_content}" if latest_content else ""
+
+            context_section = ""
+            if context and context.strip():
+                ctx_text = context.strip()[:4000]
+                context_section = f"\n\n---\n\n## 上一步执行结果（供参考）\n\n{ctx_text}\n\n"
+
+            prompt_parts = [p for p in [conversation_block, query_block] if p]
+            prompt = "\n\n".join(prompt_parts) + context_section if prompt_parts else context_section
+            logger.info(f"  [新会话] prompt 长度: {len(prompt)} 字符 | 消息数: {len(messages)}")
 
         # 导入 SDK
         try:
@@ -379,18 +384,25 @@ class ClaudeSkillService:
                 agent_env["EIDO_SESSION_ID"] = session_id
 
             options = ClaudeAgentOptions(
+                system_prompt=system_prompt,
                 allowed_tools=self.AUTO_ALLOWED_TOOLS,
                 cwd=str(cwd),
                 setting_sources=["project"],
                 permission_mode="acceptEdits",
                 env=agent_env,
             )
+            if is_resume:
+                options.resume = claude_session_id
 
-            logger.info(f"  工具集: {self.AUTO_ALLOWED_TOOLS}")
-            logger.info(f"  工作目录: {cwd}")
+            logger.info(f"  工具集: {self.AUTO_ALLOWED_TOOLS} | cwd: {cwd}" + (" | resume" if is_resume else ""))
 
             async for message in query(prompt=prompt, options=options):
                 self._log_message(message)
+                if not _claude_sid_emitted:
+                    claude_sid = self._extract_claude_session_id(message)
+                    if claude_sid:
+                        yield self._sse({"type": "claude_session", "session_id": claude_sid})
+                        _claude_sid_emitted = True
                 for event in self._convert_message(message):
                     yield event
 
@@ -398,10 +410,35 @@ class ClaudeSkillService:
             yield self._sse({"type": "workflow_complete", "data": {"references": []}})
 
         except Exception as e:
-            logger.error(f"技能自动执行失败: {e}", exc_info=True)
-            yield self._sse({"type": "error", "message": f"执行失败: {str(e)}"})
+            err_msg = str(e)
+            if "network" in err_msg.lower() or "connection" in err_msg.lower():
+                logger.error(f"网络错误: {e}", exc_info=True)
+                yield self._sse({
+                    "type": "error",
+                    "message": f"网络连接失败，请稍后重试。若持续出现请开启新对话。"
+                })
+            elif "timeout" in err_msg.lower():
+                logger.error(f"超时错误: {e}", exc_info=True)
+                yield self._sse({
+                    "type": "error",
+                    "message": "请求超时，服务繁忙，请重试或开启新对话"
+                })
+            else:
+                logger.error(f"技能自动执行失败: {e}", exc_info=True)
+                yield self._sse({"type": "error", "message": f"执行失败: {err_msg[:300]}"})
 
         yield "data: [DONE]\n\n"
+
+    @staticmethod
+    def _extract_claude_session_id(message: object) -> Optional[str]:
+        """从 ResultMessage 中提取 Claude Code 内部 session_id。"""
+        try:
+            from claude_agent_sdk.types import ResultMessage  # type: ignore
+        except ImportError:
+            return None
+        if isinstance(message, ResultMessage):
+            return message.session_id
+        return None
 
     # ------------------------------------------------------------------ #
     #  消息转换                                                             #

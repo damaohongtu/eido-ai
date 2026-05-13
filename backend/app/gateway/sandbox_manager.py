@@ -455,6 +455,10 @@ class SandboxManager:
                 "io.eido.user_id": user_id,
             },
         )
+        dns_list = settings.eido_user_dns_list
+        if dns_list:
+            kwargs["dns"] = dns_list
+            logger.info("eido-user DNS: %s", ",".join(dns_list))
         logger.info(f"启动 user 容器 user={user_id} name={name} image={settings.EIDO_USER_IMAGE}")
         c = self._docker.containers.run(**kwargs)
         host = name  # docker DNS：容器名即可解析

@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     EIDO_USER_INTERNAL_PORT: int = 8000
 
     # 管理员白名单（逗号分隔 user_id），命中者上传/修改的技能写入 system 区
-    EIDO_ADMIN_USERS: str = ""
+    EIDO_ADMIN_USERS: str = "admin"
 
     # Logging Configuration
     LOG_LEVEL: str = "INFO"

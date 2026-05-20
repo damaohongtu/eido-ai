@@ -12,6 +12,7 @@
 
 权限通过路径区分：在 system/ 下即系统技能；在 users/<uid>/ 下即该用户私有。
 """
+import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
@@ -24,6 +25,12 @@ from app.gateway.sandbox_manager import _safe_user_id
 logger = logging.getLogger(__name__)
 
 DEFAULT_ALLOWED_TOOLS = ["Bash", "Glob", "Read", "WebFetch"]
+
+# SSE 心跳：长任务（例如 Bash 60s+）期间持续向客户端注入 ": ping" 注释帧，
+# 防止 Vite dev proxy / 浏览器 fetch 在长时间无数据时丢弃连接抛 TypeError。
+# 注释行不带 `data: ` 前缀，前端 SSE 解析逻辑会自然忽略。
+HEARTBEAT_INTERVAL_SEC = 12.0
+_HEARTBEAT_FRAME = ": ping\n\n"
 
 # 历史标记文件：保留以兼容旧目录扫描，不再作为权限判定依据
 USER_UPLOAD_MARKER = ".eido-user-upload"
@@ -228,41 +235,31 @@ class ClaudeSkillService:
     AUTO_ALLOWED_TOOLS = ["Bash", "Glob", "Read", "Write", "Edit", "WebFetch"]
 
     @staticmethod
-    def _format_messages(messages: list) -> str:
-        """将对话历史格式化为 prompt 文本块，一次性传给 claude_agent_sdk。
+    def _extract_latest_user_text(messages: list) -> str:
+        """从消息列表尾部找出最后一条 user 消息文本。
 
-        策略：
-        - system 消息跳过
-        - 最近 6 条消息保留完整内容
-        - 更早的 assistant 消息截断到 300 字符（减少 token），user 消息保留完整
-        - 超过 30 条时只保留最近 30 条，避免 prompt 过长
+        切换到原生 resume 后，对话历史由 Claude Code 自己的 jsonl 维护，
+        后端不再重复重建历史，prompt 只携带"本轮最新一条 user 输入"。
         """
-        role_label = {"user": "用户", "assistant": "助手"}
+        def _role(m: object) -> str:
+            return (
+                getattr(m, "role", None)
+                or (m.get("role") if isinstance(m, dict) else "")
+                or ""
+            )
 
-        filtered = [
-            m for m in messages
-            if (getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else "user")) != "system"
-        ]
+        def _content(m: object) -> str:
+            c = (
+                getattr(m, "content", None)
+                if not isinstance(m, dict)
+                else m.get("content")
+            )
+            return (c or "").strip()
 
-        if len(filtered) > 30:
-            filtered = filtered[-30:]
-
-        recent_threshold = max(0, len(filtered) - 6)
-        lines: List[str] = []
-
-        for i, msg in enumerate(filtered):
-            role = getattr(msg, "role", msg.get("role") if isinstance(msg, dict) else "user")
-            content = getattr(msg, "content", msg.get("content") if isinstance(msg, dict) else "")
-            label = role_label.get(role, role)
-            body = content.strip()
-
-            is_recent = i >= recent_threshold
-            if role == "assistant" and not is_recent:
-                body = body[:300] + ("…（已截断）" if len(body) > 300 else "")
-
-            lines.append(f"**{label}**: {body}")
-
-        return "\n\n".join(lines)
+        for msg in reversed(messages or []):
+            if _role(msg) == "user":
+                return _content(msg)
+        return ""
 
     def _build_skills_index(self, *, user_id: Optional[str] = None) -> str:
         """构建可用技能索引文本，用于告知 Claude 有哪些技能可以使用。
@@ -288,9 +285,14 @@ class ClaudeSkillService:
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
 
-        无需指定 skill_id，Claude 根据用户输入自动选择并读取相应 SKILL.md 执行任务。
+        架构要点：
+        - 使用 Claude Code 原生 `resume` 续接：每个 eido 会话首轮跑出 claude_session_id
+          后落盘到 chat_sessions.claude_session_id；后续轮次只需 resume，
+          prompt 仅携带本轮最新一条 user 消息（历史/记忆由 Claude Code 自己的 jsonl 管）。
+        - SSE 心跳：长任务期间每 ~12s 推一个注释帧，防止前端 fetch 在静默期断连。
+        - resume 失败时（claude jsonl 缺失/损坏）自动清掉旧 sid，回退到首轮模式重跑。
 
-        messages    完整对话历史（含所有 user / assistant 轮次）。
+        messages    完整对话历史（仅本轮最新一条 user 真正进入 prompt）。
         context     多技能流水线中上一步的输出，附加在 prompt 末尾。
         user_id     当前用户 ID，用于生成 agent 子进程的身份 token。
         session_id  会话 ID。指定后 agent cwd 切到该会话工作区（强隔离）；
@@ -317,49 +319,10 @@ class ClaudeSkillService:
         else:
             cwd = self.workspace_root
 
-        # 构建 prompt（按用户身份合并 system + 私有技能）
-        skills_index = self._build_skills_index(user_id=user_id)
-        conversation_block = self._format_messages(messages)
-
-        context_section = ""
-        if context and context.strip():
-            truncated = context.strip()[:4000]
-            context_section = (
-                f"\n\n---\n\n"
-                f"## 上一步执行结果（供参考）\n\n{truncated}\n\n"
-            )
-
-        skills_root_abs = Path(self.skills_dir).resolve()
-
-        workspace_section = (
-            f"**当前会话工作区（你的 cwd）**: `{cwd}`\n"
-            f"  - 用户上传文件位于: `{cwd / 'uploads'}`\n"
-            f"  - 你生成的所有产物请写入: `{cwd / 'outputs'}`\n"
-            f"**技能库根目录（绝对路径，仅可读取）**: `{skills_root_abs}`\n"
-        )
-
-        prompt = (
-            f"{workspace_section}\n"
-            f"## 可用技能列表\n\n"
-            f"{skills_index}\n\n"
-            f"---\n\n"
-            f"## 执行说明\n\n"
-            f"请根据用户的最新请求，判断需要使用哪个技能（必要时可组合多个技能），"
-            f"使用 Read 工具读取对应 SKILL.md 的**绝对路径**（cwd 已切到会话工作区，相对路径无效），"
-            f"然后严格按照技能说明完成任务。\n"
-            f"- 所有写文件操作请落在 `{cwd / 'outputs'}` 目录下；不要写到工作区之外。\n"
-            f"- 用户上传文件已在消息中提供绝对路径，可直接 Read。\n"
-            f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
-            f"---\n\n"
-            f"## 对话历史\n\n{conversation_block}"
-            f"{context_section}"
-        )
-
-        logger.debug(f"Prompt 长度: {len(prompt)} 字符")
-
         # 导入 SDK
         try:
             from claude_agent_sdk import query, ClaudeAgentOptions  # type: ignore
+            from claude_agent_sdk import ProcessError  # type: ignore
         except ImportError:
             logger.error("claude_agent_sdk 未安装")
             yield self._sse({
@@ -369,39 +332,214 @@ class ClaudeSkillService:
             yield "data: [DONE]\n\n"
             return
 
-        # 执行
-        try:
-            agent_env: dict[str, str] = {}
-            if user_id:
-                from app.core.user_token import create_user_token
-                agent_env["EIDO_USER_TOKEN"] = create_user_token(user_id)
-            if session_id:
-                agent_env["EIDO_SESSION_ID"] = session_id
+        latest_user_text = self._extract_latest_user_text(messages)
+        if not latest_user_text:
+            yield self._sse({"type": "error", "message": "未找到用户输入"})
+            yield "data: [DONE]\n\n"
+            return
 
+        claude_sid = self._load_claude_sid(user_id, session_id)
+        agent_env = self._build_agent_env(user_id, session_id)
+
+        async def _run_once(resume_sid: Optional[str]) -> AsyncGenerator[str, None]:
+            """单次 SDK 调用，按 resume 模式构建不同 prompt/options。"""
+            prompt = self._build_prompt(
+                cwd=cwd,
+                latest_user_text=latest_user_text,
+                context=context,
+                user_id=user_id,
+                resume=bool(resume_sid),
+            )
             options = ClaudeAgentOptions(
                 allowed_tools=self.AUTO_ALLOWED_TOOLS,
                 cwd=str(cwd),
                 setting_sources=["project"],
                 permission_mode="acceptEdits",
                 env=agent_env,
+                include_partial_messages=True,
+                max_buffer_size=10 * 1024 * 1024,
+                resume=resume_sid,
             )
-
-            logger.info(f"  工具集: {self.AUTO_ALLOWED_TOOLS}")
-            logger.info(f"  工作目录: {cwd}")
+            logger.info(
+                f"  resume={resume_sid or '(none)'} | 工具集={self.AUTO_ALLOWED_TOOLS} "
+                f"| prompt={len(prompt)}B | cwd={cwd}"
+            )
 
             async for message in query(prompt=prompt, options=options):
                 self._log_message(message)
+                # 捕获原生 session_id，持久化以便下一轮 resume
+                try:
+                    from claude_agent_sdk.types import ResultMessage  # type: ignore
+                    if (
+                        session_id
+                        and isinstance(message, ResultMessage)
+                        and getattr(message, "session_id", None)
+                    ):
+                        self._save_claude_sid(user_id, session_id, message.session_id)
+                except Exception as e:
+                    logger.warning(f"持久化 claude_session_id 失败: {e}")
                 for event in self._convert_message(message):
                     yield event
 
-            logger.info("◀ execute_stream 完成")
-            yield self._sse({"type": "workflow_complete", "data": {"references": []}})
+        # ---- 生产者 + 心跳 桥接到外层 yield ----
+        queue: asyncio.Queue = asyncio.Queue()
+        _SENTINEL = object()
 
-        except Exception as e:
-            logger.error(f"技能自动执行失败: {e}", exc_info=True)
-            yield self._sse({"type": "error", "message": f"执行失败: {str(e)}"})
+        # 标志：是否发生过 error 事件，决定结束时是否再发 workflow_complete
+        had_error = {"v": False}
+
+        async def producer() -> None:
+            tried_resume = bool(claude_sid)
+            try:
+                if tried_resume:
+                    try:
+                        async for ev in _run_once(claude_sid):
+                            await queue.put(ev)
+                        return
+                    except ProcessError as e:
+                        # 典型为 claude jsonl 不存在 / 损坏；清 sid 后回退
+                        logger.warning(
+                            f"resume({claude_sid}) 失败，清 sid 并回退到首轮: "
+                            f"exit={e.exit_code} stderr={(e.stderr or '')[:240]}"
+                        )
+                        if session_id:
+                            self._save_claude_sid(user_id, session_id, None)
+                        await queue.put(
+                            self._sse({"type": "thinking", "content": "原会话已失效，重建中..."})
+                        )
+                    except Exception as e:
+                        logger.error(f"resume 模式执行异常: {e}", exc_info=True)
+                        had_error["v"] = True
+                        await queue.put(self._sse({"type": "error", "message": f"执行失败: {e}"}))
+                        return
+                async for ev in _run_once(None):
+                    await queue.put(ev)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(f"技能自动执行失败: {e}", exc_info=True)
+                had_error["v"] = True
+                await queue.put(self._sse({"type": "error", "message": f"执行失败: {e}"}))
+            finally:
+                await queue.put(_SENTINEL)
+
+        async def heartbeat() -> None:
+            try:
+                while True:
+                    await asyncio.sleep(HEARTBEAT_INTERVAL_SEC)
+                    await queue.put(_HEARTBEAT_FRAME)
+            except asyncio.CancelledError:
+                pass
+
+        prod_task = asyncio.create_task(producer())
+        hb_task = asyncio.create_task(heartbeat())
+
+        try:
+            while True:
+                ev = await queue.get()
+                if ev is _SENTINEL:
+                    break
+                yield ev
+            if not had_error["v"]:
+                yield self._sse({"type": "workflow_complete", "data": {"references": []}})
+            logger.info("◀ execute_stream 完成")
+        finally:
+            hb_task.cancel()
+            if not prod_task.done():
+                prod_task.cancel()
+            # 让被 cancel 的任务有机会清理
+            for t in (hb_task, prod_task):
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):
+                    pass
 
         yield "data: [DONE]\n\n"
+
+    # ------------------------------------------------------------------ #
+    #  prompt / options 辅助                                                #
+    # ------------------------------------------------------------------ #
+
+    def _build_prompt(
+        self,
+        *,
+        cwd: Path,
+        latest_user_text: str,
+        context: Optional[str],
+        user_id: Optional[str],
+        resume: bool,
+    ) -> str:
+        """根据是否 resume 构造 prompt：
+        - 首轮：完整 workspace_section + 技能索引 + 执行说明 + 本轮 user 输入
+        - 续接：极简版，仅本轮 user 输入 +（如有）流水线上下文，历史靠 claude jsonl
+        """
+        context_section = ""
+        if context and context.strip():
+            truncated = context.strip()[:4000]
+            context_section = (
+                f"\n\n---\n\n## 上一步执行结果（供参考）\n\n{truncated}\n"
+            )
+
+        if resume:
+            # 续接：让原生记忆机制接管，prompt 只放本轮新输入
+            return (
+                f"## 用户最新请求\n\n{latest_user_text}"
+                f"{context_section}"
+            )
+
+        skills_index = self._build_skills_index(user_id=user_id)
+        skills_root_abs = Path(self.skills_dir).resolve()
+        workspace_section = (
+            f"**当前会话工作区（你的 cwd）**: `{cwd}`\n"
+            f"  - 用户上传文件位于: `{cwd / 'uploads'}`\n"
+            f"  - 你生成的所有产物请写入: `{cwd / 'outputs'}`\n"
+            f"**技能库根目录（绝对路径，仅可读取）**: `{skills_root_abs}`\n"
+        )
+        return (
+            f"{workspace_section}\n"
+            f"## 可用技能列表\n\n{skills_index}\n\n"
+            f"---\n\n"
+            f"## 执行说明\n\n"
+            f"请根据用户的最新请求，判断需要使用哪个技能（必要时可组合多个技能），"
+            f"使用 Read 工具读取对应 SKILL.md 的**绝对路径**（cwd 已切到会话工作区，相对路径无效），"
+            f"然后严格按照技能说明完成任务。\n"
+            f"- 所有写文件操作请落在 `{cwd / 'outputs'}` 目录下；不要写到工作区之外。\n"
+            f"- 用户上传文件已在消息中提供绝对路径，可直接 Read。\n"
+            f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
+            f"---\n\n"
+            f"## 用户最新请求\n\n{latest_user_text}"
+            f"{context_section}"
+        )
+
+    @staticmethod
+    def _build_agent_env(user_id: Optional[str], session_id: Optional[str]) -> dict:
+        env: dict[str, str] = {}
+        if user_id:
+            from app.core.user_token import create_user_token
+            env["EIDO_USER_TOKEN"] = create_user_token(user_id)
+        if session_id:
+            env["EIDO_SESSION_ID"] = session_id
+        return env
+
+    @staticmethod
+    def _load_claude_sid(user_id: Optional[str], session_id: Optional[str]) -> Optional[str]:
+        if not (user_id and session_id):
+            return None
+        try:
+            from app.services.chat_session_store import get_chat_session_store
+            return get_chat_session_store().get_claude_session_id(user_id, session_id)
+        except Exception as e:
+            logger.warning(f"读取 claude_session_id 失败: {e}")
+            return None
+
+    @staticmethod
+    def _save_claude_sid(
+        user_id: Optional[str], session_id: Optional[str], claude_sid: Optional[str]
+    ) -> None:
+        if not (user_id and session_id):
+            return
+        from app.services.chat_session_store import get_chat_session_store
+        get_chat_session_store().set_claude_session_id(user_id, session_id, claude_sid)
 
     # ------------------------------------------------------------------ #
     #  消息转换                                                             #

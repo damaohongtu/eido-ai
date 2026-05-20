@@ -16,8 +16,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.auth import get_current_user_id
+from app.core.config import settings
 from app.schemas.chat import ChatRequest
-from app.services.claude_skill_service import get_claude_skill_service
 from app.services.chat_session_store import get_chat_session_store
 from app.services.session_workspace import (
     get_session_workspace_manager,
@@ -170,7 +170,7 @@ async def chat_completion(
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    """统一聊天入口：通过 claude_agent_sdk 自动识别并执行技能，流式返回。
+    """统一聊天入口：根据 AGENT_HARNESS 配置选择执行后端，流式返回。
 
     要求请求体携带 session_id，agent cwd 会切到对应 session 工作区。
     """
@@ -184,12 +184,20 @@ async def chat_completion(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        svc = get_claude_skill_service()
+        harness_type = settings.AGENT_HARNESS.strip().lower()
+
+        if harness_type == "open_harness":
+            from app.services.open_harness_service import get_open_harness_service
+            svc = get_open_harness_service()
+        else:
+            from app.services.claude_skill_service import get_claude_skill_service
+            svc = get_claude_skill_service()
+
         if svc is None:
-            raise HTTPException(status_code=503, detail="技能服务未初始化")
+            raise HTTPException(status_code=503, detail=f"技能服务未初始化（{harness_type}）")
 
         logger.info(
-            f"[{user_id}][session={request.session_id}] 收到聊天请求 - 消息数: {len(request.messages)}"
+            f"[{user_id}][session={request.session_id}] 收到聊天请求 - harness={harness_type} - 消息数: {len(request.messages)}"
             + (f" [含流水线上下文 {len(request.context)} 字符]" if request.context else "")
         )
 

@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     WORKSPACE_ROOT: str = str(_WORKSPACE_ROOT)
 
     # CAS / Session
-    AUTH_DISABLED: bool = False
+    AUTH_DISABLED: bool = True
     DEFAULT_DEV_USER_ID: str = "dev-local"
     # 须含 /cas 路径；末尾必须有 /，否则 python-cas 用 urljoin 会错误拼成 http://host/login
     CAS_SERVER_URL: str = "http://localhost:3331/cas/"
@@ -77,6 +77,8 @@ class Settings(BaseSettings):
 
     # 管理员白名单（逗号分隔 user_id），命中者上传/修改的技能写入 system 区
     EIDO_ADMIN_USERS: str = "admin"
+
+    AGENT_HARNESS: str = "claude_code"
 
     # Logging Configuration
     LOG_LEVEL: str = "INFO"

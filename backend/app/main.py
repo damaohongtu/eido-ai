@@ -218,6 +218,18 @@ def create_application() -> FastAPI:
         except Exception as e:
             logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
 
+        # ---------- OpenHarness 服务（仅 AGENT_HARNESS=open_harness 时初始化）---------- #
+        harness_type = settings.AGENT_HARNESS.strip().lower()
+        if harness_type == "open_harness":
+            try:
+                from app.services.open_harness_service import init_open_harness_service
+                init_open_harness_service(
+                    Path(settings.SKILLS_DIR), Path(settings.WORKSPACE_ROOT)
+                )
+                logger.info("✓ OpenHarnessService 初始化完成")
+            except Exception as e:
+                logger.error(f"✗ OpenHarnessService 初始化失败: {e}", exc_info=True)
+
         # ---------- 会话工作区 / 会话存储（user 与 local 需要；gateway 不需要）---------- #
         if not is_gateway:
             try:

@@ -259,7 +259,6 @@ class OpenHarnessService:
             model=self._resolve_model(),
             system_prompt=DEFAULT_SYSTEM_PROMPT,
             max_turns=DEFAULT_MAX_TURNS,
-            settings=None,
         )
 
     # ------------------------------------------------------------------ #
@@ -267,17 +266,36 @@ class OpenHarnessService:
     # ------------------------------------------------------------------ #
 
     def _create_api_client(self):
+        """根据环境变量创建 AnthropicApiClient。
+
+        复用 ANTHROPIC_* 环境变量。若 api_key 和 auth_token 均未设置，
+        抛出明确错误提示。
+        """
         from openharness.api import AnthropicApiClient  # type: ignore
 
         api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip() or None
         auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip() or None
         base_url = os.environ.get("ANTHROPIC_BASE_URL", "").strip() or None
 
-        return AnthropicApiClient(
-            api_key=api_key,
-            auth_token=auth_token,
-            base_url=base_url,
+        if not api_key and not auth_token:
+            raise RuntimeError(
+                "OpenHarness 需要 ANTHROPIC_API_KEY 或 ANTHROPIC_AUTH_TOKEN 环境变量。"
+                "请在 docker/.env 或环境中设置。"
+            )
+
+        kwargs: dict = {}
+        if api_key:
+            kwargs["api_key"] = api_key
+        if auth_token:
+            kwargs["auth_token"] = auth_token
+        if base_url:
+            kwargs["base_url"] = base_url
+
+        logger.info(
+            f"AnthropicApiClient | base_url={base_url or '默认'} "
+            f"| auth={'api_key' if api_key else 'auth_token'}"
         )
+        return AnthropicApiClient(**kwargs)
 
     # ------------------------------------------------------------------ #
     #  Tool Registry                                                       #

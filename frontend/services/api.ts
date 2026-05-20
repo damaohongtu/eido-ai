@@ -566,7 +566,8 @@ export class ApiService {
     assistantMessageId: string,
     context?: string,
     skillHint?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    harness?: string
   ) {
     let fullText = "";
     let fullThinking = "正在分析请求，自动规划执行...";
@@ -587,6 +588,7 @@ export class ApiService {
           context: effectiveContext,
           session_id: sessionId,
           assistant_message_id: assistantMessageId,
+          harness: harness || undefined,
         }),
         signal,
       });

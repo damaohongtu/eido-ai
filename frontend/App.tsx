@@ -100,6 +100,13 @@ const App: React.FC = () => {
   const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [harness, setHarness] = useState<string>(() =>
+    readStorage<string>('eido_harness', 'claude_code')
+  );
+
+  useEffect(() => {
+    writeStorage('eido_harness', harness);
+  }, [harness]);
 
   // Skill page view state
   const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
@@ -376,6 +383,8 @@ const App: React.FC = () => {
         onDeleteSession={deleteSession}
         currentUser={currentUser!}
         onLogout={handleLogout}
+        harness={harness}
+        onHarnessChange={setHarness}
       />
 
       <main className="flex-1 flex flex-col relative min-w-0 bg-white shadow-lg shadow-gray-200/30">
@@ -403,6 +412,7 @@ const App: React.FC = () => {
                 rightPanelOpen={rightPanelOpen}
                 onExecuteAction={setExecutingAction}
                 onUpdateSessionSkill={updateSessionSkill}
+                harness={harness}
              />
              {rightPanelOpen && (
                <ReferenceArea

@@ -184,7 +184,7 @@ async def chat_completion(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        harness_type = settings.AGENT_HARNESS.strip().lower()
+        harness_type = (request.harness or "").strip().lower() or settings.AGENT_HARNESS.strip().lower()
 
         if harness_type == "open_harness":
             from app.services.open_harness_service import get_open_harness_service

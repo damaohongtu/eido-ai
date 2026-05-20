@@ -88,6 +88,7 @@ interface ChatAreaProps {
   rightPanelOpen: boolean;
   onExecuteAction: (action: SkillAction) => void;
   onUpdateSessionSkill?: (skillId: string) => void;
+  harness: string;
 }
 
 const ChatArea: React.FC<ChatAreaProps> = ({
@@ -98,7 +99,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleReferences,
   rightPanelOpen,
   onExecuteAction,
-  onUpdateSessionSkill
+  onUpdateSessionSkill,
+  harness,
 }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -253,7 +255,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         assistantId,
         context,
         skillHint ?? undefined,
-        abortControllerRef.current.signal
+        abortControllerRef.current.signal,
+        harness
       );
     } finally {
       delete thinkingLogsRef.current[assistantId];
@@ -299,7 +302,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           assistantId,
           previousOutput || undefined,
           skill.id,
-          abortControllerRef.current?.signal
+          abortControllerRef.current?.signal,
+          harness
         );
       } catch {
         delete thinkingLogsRef.current[assistantId];

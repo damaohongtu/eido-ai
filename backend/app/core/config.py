@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     CAS_SERVER_URL: str = "http://localhost:3331/cas/"
     CAS_SERVICE_URL: str = "http://localhost:8000/api/v1/auth/callback"
     CAS_VERSION: str = "2"
-    FRONTEND_URL: str = "http://localhost:3000/ai-eido/"
+    FRONTEND_URL: str = "http://localhost:3000/ai-research/"
     SESSION_SECRET_KEY: str = "dev-secret-change-in-production"
 
     # Scheduled tasks & signed token
@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     EIDO_USER_CPUS: float = 1.0
     EIDO_USER_PIDS_LIMIT: int = 500
     # gateway → user 共享 secret，user 容器进入"信任网关头"模式必须校验该值
+    EIDO_DNS_SERVERS: str = ""
     EIDO_GATEWAY_SECRET: str = ""
     # user 容器内开关：仅在沙箱模式下置 1
     EIDO_TRUST_GATEWAY: bool = False
@@ -117,6 +118,20 @@ class Settings(BaseSettings):
     @property
     def token_secret(self) -> str:
         return self.EIDO_USER_TOKEN_SECRET.strip() or self.SESSION_SECRET_KEY
+
+    @property
+    def eido_user_dns_list(self) -> list[str]:
+        """从内网 DNS 环境变量解析出的 IP 列表，供 sandbox user 容器使用。"""
+        raw = (self.EIDO_DNS_SERVERS or "").strip()
+        if not raw:
+            return []
+        parts = []
+        for p in raw.split(","):
+            s = p.strip()
+            if s:
+                parts.append(s)
+        return parts
+
 
     @property
     def admin_user_set(self) -> set[str]:

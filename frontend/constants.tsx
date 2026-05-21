@@ -1,7 +1,7 @@
 import { Skill, Agent, Tool, Message } from './types';
 
 // 统一走同源代理（开发环境 vite proxy, 生产环境 nginx），确保 session cookie 正常收发
-export const BACKEND_URL = '/ai-eido';
+export const BACKEND_URL = '/ai-research';
 
 export const SYSTEM_TOOLS: Tool[] = [
   {
@@ -534,7 +534,7 @@ export const INITIAL_CHAT_STATE: Message[] = [
   {
     id: 'm1',
     role: 'assistant',
-    content: "你好！我是 **Eido**，你的知识助手。今天我能帮你什么？",
+    content: "你好！我是 **AI Research**，你的知识助手。今天我能帮你什么？",
     timestamp: Date.now(),
   }
 ];

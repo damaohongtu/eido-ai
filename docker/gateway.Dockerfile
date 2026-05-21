@@ -28,7 +28,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY backend/ .
 
-COPY frontend/dist /var/www/ai-eido
+COPY frontend/dist /var/www/ai-research
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default

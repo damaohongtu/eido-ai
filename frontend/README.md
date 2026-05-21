@@ -88,4 +88,4 @@ npm run build
 VITE_BACKEND_URL=http://localhost:8000
 ```
 
-生产环境默认通过 `/ai-eido/api` 路径访问后端（见 `constants.tsx`）。
+生产环境默认通过 `/ai-research/api` 路径访问后端（见 `constants.tsx`）。

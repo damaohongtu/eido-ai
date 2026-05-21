@@ -124,7 +124,7 @@ npm run dev
 docker compose -f docker/docker-compose.yml --profile default up -d
 ```
 
-启动完成后访问 `http://<host>/ai-eido/`。
+启动完成后访问 `http://<host>/ai-research/`。
 
 > compose 会读取 `docker/.env` 里的变量，所以请先按 §1 完成填写。
 
@@ -229,7 +229,7 @@ docker-compose -f docker/docker-compose.yml --profile sandbox up -d
 
 ### 4.4 验证流程
 
-1. 浏览器访问 `http://<host>/ai-eido/`，CAS 登录或在 `AUTH_DISABLED=True` 下直接进入
+1. 浏览器访问 `http://<host>/ai-research/`，CAS 登录或在 `AUTH_DISABLED=True` 下直接进入
 2. 登录后前端会异步调用 `POST /api/v1/sandbox/warmup`，gateway 拉起当前用户容器
 3. `docker ps --filter label=io.eido.role=user-sandbox` 应能看到 `eido-user-<safe_user_id>`
 4. 发起一次对话，gateway 透传 SSE，停在 `[DONE]` 即成功
@@ -239,7 +239,7 @@ CLI 检查：
 
 ```bash
 # 当前已注册的用户容器
-curl -s http://localhost/ai-eido/api/v1/sandbox/status \
+curl -s http://localhost/ai-research/api/v1/sandbox/status \
      -b "eido_session=<cookie>"   # 需带登录态
 
 # gateway 内部 sandbox 注册表
@@ -320,7 +320,7 @@ docker logs cas-server 2>&1 | grep -i "Loaded"
 AUTH_DISABLED=False
 CAS_SERVER_URL=http://cas-server:3331/cas/      # 必须带尾部 /
 CAS_SERVICE_URL=http://<host>/api/v1/auth/callback
-FRONTEND_URL=http://<host>/ai-eido/
+FRONTEND_URL=http://<host>/ai-research/
 ```
 
 > `python-cas` 用 `urljoin` 拼登录地址；如果写成 `http://host:3331/cas`（无末尾 `/`），会变成错误的 `http://host:3331/login`。`config.py` 已自动补全末尾 `/`，但建议手写正确避免歧义。
@@ -329,18 +329,18 @@ FRONTEND_URL=http://<host>/ai-eido/
 
 ## 6. Nginx 与生产域名
 
-`damaohongtu/eido:latest` 与 `damaohongtu/eido-gateway:latest` 镜像内置 nginx，对外暴露 80 端口，前缀统一为 `/ai-eido/`。
+`damaohongtu/eido:latest` 与 `damaohongtu/eido-gateway:latest` 镜像内置 nginx，对外暴露 80 端口，前缀统一为 `/ai-research/`。
 
 ```
-http://<host>/ai-eido/             # 前端
-http://<host>/ai-eido/api/v1/...   # API
-http://<host>/ai-eido/health       # 健康检查
+http://<host>/ai-research/             # 前端
+http://<host>/ai-research/api/v1/...   # API
+http://<host>/ai-research/health       # 健康检查
 ```
 
 如果需要把 Eido 摆在外层 nginx 后面：
 
 ```nginx
-location /ai-eido/ {
+location /ai-research/ {
     proxy_pass http://eido-host:80;
     proxy_http_version 1.1;
     proxy_set_header Host              $host;
@@ -400,7 +400,7 @@ location /ai-eido/ {
 
 ```bash
 # 手动让 gateway 拉起一个用户容器（替换 <cookie>）
-curl -s -X POST http://<host>/ai-eido/api/v1/sandbox/warmup -b "eido_session=<cookie>"
+curl -s -X POST http://<host>/ai-research/api/v1/sandbox/warmup -b "eido_session=<cookie>"
 
 # 列出该用户容器
 docker ps --filter label=io.eido.role=user-sandbox

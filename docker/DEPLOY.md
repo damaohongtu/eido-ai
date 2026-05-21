@@ -76,7 +76,7 @@ docker run -d -p 80:80 \
 
 ## 访问
 
-浏览器打开：`http://<host>/ai-eido`
+浏览器打开：`http://<host>/ai-research`
 
 ---
 

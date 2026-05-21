@@ -28,8 +28,8 @@ cp docker/.env docker/.env.bak
 # CAS 4 项必须用同一个 host
 sed -i '' \
   -e "s|^CAS_SERVER_URL=.*|CAS_SERVER_URL=http://${HOST_IP}:3331/cas/|" \
-  -e "s|^CAS_SERVICE_URL=.*|CAS_SERVICE_URL=http://${HOST_IP}/ai-eido/api/v1/auth/callback|" \
-  -e "s|^FRONTEND_URL=.*|FRONTEND_URL=http://${HOST_IP}/ai-eido/|" \
+  -e "s|^CAS_SERVICE_URL=.*|CAS_SERVICE_URL=http://${HOST_IP}/ai-research/api/v1/auth/callback|" \
+  -e "s|^FRONTEND_URL=.*|FRONTEND_URL=http://${HOST_IP}/ai-research/|" \
   -e "s|^SESSION_SECRET_KEY=.*|SESSION_SECRET_KEY=${NEW_SESSION}|" \
   -e "s|^EIDO_GATEWAY_SECRET=.*|EIDO_GATEWAY_SECRET=${NEW_GATEWAY_SECRET}|" \
   docker/.env

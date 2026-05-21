@@ -70,7 +70,7 @@ docker compose -f docker/docker-compose.yml --profile sandbox up -d
 
 ### Step 2 · 用户登录
 
-浏览器访问 `http://<host>/ai-eido/`，支持两种鉴权模式：
+浏览器访问 `http://<host>/ai-research/`，支持两种鉴权模式：
 - **CAS 单点登录**（推荐生产环境）：对接企业统一认证
 - **开发模式**：AUTH_DISABLED=True，自动归入默认用户
 
@@ -257,7 +257,7 @@ cp docker/.env.example docker/.env
 docker compose -f docker/docker-compose.yml --profile sandbox up -d
 
 # 4. 浏览器访问
-open http://localhost/ai-eido/
+open http://localhost/ai-research/
 ```
 
 详细部署文档：[quick-start.md](../quick-start.md) | 架构文档：[architecture.md](architecture.md)

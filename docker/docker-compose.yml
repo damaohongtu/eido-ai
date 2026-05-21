@@ -52,7 +52,7 @@ services:
       - ${LOG_DIR:-~/eido-logs}/litellm:/var/log/eido/litellm
       - ${LOG_DIR:-~/eido-logs}/nginx:/var/log/eido/nginx
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/ai-eido/health"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/ai-research/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -73,6 +73,7 @@ services:
       - EIDO_SANDBOX_MODE=docker
       - EIDO_USER_IMAGE=${EIDO_USER_IMAGE:-damaohongtu/eido-user:latest}
       - EIDO_NET=eido-net
+      - EIDO_DNS_SERVERS=${EIDO_DNS_SERVERS:-}
       - EIDO_SANDBOX_IDLE_TTL=${EIDO_SANDBOX_IDLE_TTL:-900}
       - EIDO_USER_MEM=${EIDO_USER_MEM:-2g}
       - EIDO_USER_CPUS=${EIDO_USER_CPUS:-1.0}
@@ -109,7 +110,7 @@ services:
       - ${LOG_DIR:-~/eido-logs}/gateway:/var/log/eido/app
       - ${LOG_DIR:-~/eido-logs}/nginx:/var/log/eido/nginx
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/ai-eido/health"]
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/ai-research/health"]
       interval: 30s
       timeout: 5s
       retries: 3

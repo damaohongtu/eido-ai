@@ -9,7 +9,7 @@ export const BASE_URL = import.meta.env.BASE_URL;
 /**
  * 获取完整的资源路径
  * @param path 相对于 public 的路径，以 / 开头，如 /images/logo.png
- * @returns 完整路径，如 /ai-eido/images/logo.png
+ * @returns 完整路径，如 /ai-research/images/logo.png
  */
 export const getAssetUrl = (path: string): string => {
   // 确保路径以 / 开头

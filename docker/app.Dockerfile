@@ -34,8 +34,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY backend/ .
 
 # Copy pre-built frontend static files
-# Must be at /var/www/ai-eido/ so nginx root /var/www works correctly
-COPY frontend/dist /var/www/ai-eido
+# Must be at /var/www/ai-research/ so nginx root /var/www works correctly
+COPY frontend/dist /var/www/ai-research
 
 # nginx & supervisor config
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

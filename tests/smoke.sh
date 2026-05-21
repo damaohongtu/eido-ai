@@ -6,7 +6,7 @@
 #   bash tests/smoke.sh
 set -euo pipefail
 
-BASE=http://127.0.0.1/ai-eido
+BASE=http://127.0.0.1/ai-research
 USER_ID="${USER_ID:-test-user}"
 
 if [[ -z "${EIDO_GATEWAY_SECRET:-}" ]]; then

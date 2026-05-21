@@ -86,8 +86,8 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* ---- Top: logo + new chat + nav (shrink-0) ---- */}
       <div className="p-6 pb-2 shrink-0">
         <div className="flex items-center space-x-2 mb-8">
-          <div className="w-8 h-8 bg-gray-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">E</div>
-          <h1 className="text-xl font-bold tracking-tight text-gray-900">ido</h1>
+          <div className="w-8 h-8 bg-gray-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">AI</div>
+          <h1 className="text-xl font-bold tracking-tight text-gray-900">research</h1>
         </div>
 
         <button
@@ -102,20 +102,6 @@ const Sidebar: React.FC<SidebarProps> = ({
         <nav className="space-y-1 mb-4">
           <NavItem view={ViewType.HOME} label="探索发现" iconPath={getAssetUrl('/images/side/探索发现.png')} />
           <NavItem view={ViewType.SKILLS} label="我的技能" iconPath={getAssetUrl('/images/side/我的技能.png')} />
-          <NavItem
-            view={ViewType.SCHEDULED_TASKS}
-            label="自动任务"
-            icon={
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            }
-          />
         </nav>
 
         <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-2">历史记录</div>

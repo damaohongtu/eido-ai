@@ -95,3 +95,41 @@ async def get_workspace_file(
         filename=download_name,
         content_disposition_type="attachment" if download else "inline",
     )
+
+
+@router.get("/files")
+async def list_workspace_files(
+    session_id: str = Query(..., description="会话 ID"),
+    user_id: str = Depends(get_current_user_id),
+):
+    try:
+        validate_session_id(session_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if get_chat_session_store().get_session(user_id, session_id) is None:
+        raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+    mgr = get_session_workspace_manager()
+    nodes = mgr.list_directory(session_id)
+    return {"files": [n.to_dict() for n in nodes]}
+
+
+@router.delete("/file")
+async def delete_workspace_file(
+    path: str = Query(..., description="文件路径"),
+    session_id: str = Query(..., description="会话 ID"),
+    user_id: str = Depends(get_current_user_id),
+):
+    try:
+        validate_session_id(session_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if get_chat_session_store().get_session(user_id, session_id) is None:
+        raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+    try:
+        mgr = get_session_workspace_manager()
+        deleted = mgr.delete_file(session_id, path)
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    return {"deleted": True}

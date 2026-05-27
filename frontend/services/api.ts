@@ -19,6 +19,13 @@ export function getWorkspaceFileUrl(
   return `${BACKEND_URL}/api/v1/workspace/file?${query.toString()}`;
 }
 
+export interface WorkspaceFileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: WorkspaceFileNode[];
+}
+
 export interface PersistedSession {
   id: string;
   user_id: string;
@@ -521,6 +528,26 @@ export class ApiService {
     });
     if (!response.ok && response.status !== 404) {
       throw new Error(`删除会话失败: ${response.status}`);
+    }
+  }
+
+  async listWorkspaceFiles(sessionId: string): Promise<WorkspaceFileNode[]> {
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/workspace/files?session_id=${encodeURIComponent(sessionId)}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    if (!response.ok) throw new Error(`获取文件列表失败: ${response.status}`);
+    const data = await response.json();
+    return data.files;
+  }
+
+  async deleteWorkspaceFile(sessionId: string, path: string): Promise<void> {
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/workspace/file?session_id=${encodeURIComponent(sessionId)}&path=${encodeURIComponent(path)}`,
+      { method: 'DELETE' },
+    );
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`删除文件失败: ${response.status}`);
     }
   }
 

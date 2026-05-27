@@ -415,12 +415,13 @@ const App: React.FC = () => {
                 harness={harness}
              />
              {rightPanelOpen && (
-               <ReferenceArea
-                references={activeReferences}
-                thinkingLog={activeThinkingLog}
-                onClose={() => setRightPanelOpen(false)}
-                isFetching={activeSession?.messages.some(m => m.role === 'assistant' && m.executionSteps?.some(s => s.status === 'running'))}
-               />
+             <ReferenceArea
+               references={activeReferences}
+               thinkingLog={activeThinkingLog}
+               sessionId={activeSessionId}
+               onClose={() => setRightPanelOpen(false)}
+               isFetching={activeSession?.messages.some(m => m.role === 'assistant' && m.executionSteps?.some(s => s.status === 'running'))}
+             />
              )}
           </div>
         )}

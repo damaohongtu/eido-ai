@@ -29,8 +29,26 @@ def validate_session_id(session_id: str) -> str:
     return session_id
 
 
+class _FileNode:
+    __slots__ = ("name", "path", "type", "children")
+
+    def __init__(self, name: str, path: str, type_: str, children: list | None = None):
+        self.name = name
+        self.path = path
+        self.type = type_
+        self.children = children or []
+
+    def to_dict(self):
+        d = {"name": self.name, "path": self.path, "type": self.type}
+        if self.children:
+            d["children"] = [c.to_dict() for c in self.children]
+        return d
+
+
 class SessionWorkspaceManager:
     """会话工作区管理器（无状态，所有操作幂等）。"""
+
+    _SKIP_NAMES = {".DS_Store", "Thumbs.db"}
 
     def __init__(self, root: Optional[Path] = None):
         self._root = (root or settings.workspaces_root).resolve()
@@ -69,6 +87,44 @@ class SessionWorkspaceManager:
         except ValueError as e:
             raise ValueError(f"路径不在 session {session_id} 工作区内: {rel_or_abs_path}") from e
         return resolved
+
+    def _scan_dir(self, dir_path: Path, root_path: Path) -> list[_FileNode]:
+        nodes: list[_FileNode] = []
+        try:
+            entries = sorted(dir_path.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower()))
+        except OSError:
+            return nodes
+        for entry in entries:
+            if entry.name in self._SKIP_NAMES:
+                continue
+            rel = str(entry.relative_to(root_path))
+            if entry.is_dir():
+                node = _FileNode(entry.name, rel, "directory")
+                node.children = self._scan_dir(entry, root_path)
+                if node.children:
+                    nodes.append(node)
+            else:
+                nodes.append(_FileNode(entry.name, rel, "file"))
+        return nodes
+
+    def list_directory(self, session_id: str) -> list[_FileNode]:
+        validate_session_id(session_id)
+        root = self.session_root(session_id, create=False)
+        if not root.exists():
+            return []
+        return self._scan_dir(root, root)
+
+    def delete_file(self, session_id: str, path: str) -> bool:
+        validate_session_id(session_id)
+        resolved = self.safe_resolve(session_id, path)
+        if not resolved.exists():
+            return False
+        if resolved.is_dir():
+            shutil.rmtree(resolved, ignore_errors=True)
+        else:
+            resolved.unlink(missing_ok=True)
+        logger.info(f"已删除 session 工作区文件: {resolved}")
+        return True
 
     def remove(self, session_id: str) -> bool:
         """删除整个会话工作区目录。不存在时返回 False。"""

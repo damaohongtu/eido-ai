@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     WORKSPACE_ROOT: str = str(_WORKSPACE_ROOT)
 
     # CAS / Session
-    AUTH_DISABLED: bool = True
+    AUTH_DISABLED: bool = False
     DEFAULT_DEV_USER_ID: str = "dev-local"
     # 须含 /cas 路径；末尾必须有 /，否则 python-cas 用 urljoin 会错误拼成 http://host/login
     CAS_SERVER_URL: str = "http://localhost:3331/cas/"

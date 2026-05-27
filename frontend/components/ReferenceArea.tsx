@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Reference } from '../types';
+import { api, getWorkspaceFileUrl, WorkspaceFileNode } from '../services/api';
 
 interface ReferenceAreaProps {
   references: Reference[];
   thinkingLog?: string[];
+  sessionId?: string;
   onClose: () => void;
   isFetching?: boolean;
 }
@@ -75,11 +77,21 @@ function getSourceIcon(source: string) {
 const ReferenceArea: React.FC<ReferenceAreaProps> = ({
   references,
   thinkingLog = [],
+  sessionId,
   onClose,
   isFetching,
 }) => {
-  const [tab, setTab] = useState<'process' | 'refs'>('process');
+  const [tab, setTab] = useState<'process' | 'refs' | 'files'>('process');
   const logBottomRef = useRef<HTMLDivElement>(null);
+  const [fileTree, setFileTree] = useState<WorkspaceFileNode[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
+
+  const loadFileTree = () => {
+    if (!sessionId) return;
+    setFilesLoading(true);
+    api.listWorkspaceFiles(sessionId).then(setFileTree).catch(() => setFileTree([])).finally(() => setFilesLoading(false));
+  };
 
   // 切换到"执行过程"标签并在有数据时自动选中
   useEffect(() => {
@@ -92,6 +104,13 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
       logBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [thinkingLog.length, isFetching]);
+
+  // 切换到文件标签时加载文件树
+  useEffect(() => {
+    if (tab === 'files' && sessionId) {
+      loadFileTree();
+    }
+  }, [tab, sessionId]);
 
   return (
     <aside className="w-96 border-l border-gray-200 flex flex-col h-full animate-in slide-in-from-right duration-500 shadow-lg z-20 bg-white">
@@ -136,6 +155,16 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
           )}
         </button>
         <button
+          onClick={() => setTab('files')}
+          className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-colors ${
+            tab === 'files'
+              ? 'text-gray-800 border-b-2 border-gray-500'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          会话文件
+        </button>
+        <button
           onClick={() => setTab('refs')}
           className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-colors ${
             tab === 'refs'
@@ -150,6 +179,7 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
             </span>
           )}
         </button>
+
       </div>
 
       {/* Content */}
@@ -268,6 +298,55 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
             )}
           </div>
         )}
+
+        {/* ── 会话文件 ── */}
+        {tab === 'files' && (
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">文件目录</span>
+              <button
+                onClick={loadFileTree}
+                disabled={filesLoading}
+                className="p-1.5 hover:bg-gray-200 rounded-lg text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+                title="刷新文件列表"
+              >
+                <svg className={`w-3.5 h-3.5 ${filesLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
+            {filesLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <span className="text-xs text-gray-400">加载中...</span>
+              </div>
+            ) : fileTree.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-48 text-center px-6 space-y-4">
+                <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-gray-200 flex items-center justify-center text-2xl">📁</div>
+                <div>
+                  <p className="text-sm font-bold text-gray-700">暂无文件</p>
+                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                    会话工作区中暂无文件输出
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <FileTreeView
+                nodes={fileTree}
+                sessionId={sessionId!}
+                expanded={expandedDirs}
+                onToggleExpand={(path) => {
+                  setExpandedDirs(prev => {
+                    const next = new Set(prev);
+                    if (next.has(path)) next.delete(path);
+                    else next.add(path);
+                    return next;
+                  });
+                }}
+                onRefresh={loadFileTree}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Footer（仅引用来源标签页有内容时显示） */}
@@ -283,6 +362,113 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
       )}
     </aside>
   );
+};
+
+// ── 文件树组件 ──────────────────────────────────────────────────────────── //
+
+interface FileTreeViewProps {
+  nodes: WorkspaceFileNode[];
+  sessionId: string;
+  expanded: Set<string>;
+  onToggleExpand: (path: string) => void;
+  onRefresh: () => void;
+}
+
+function getFileIcon(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() || '';
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext)) return '🖼️';
+  if (['py', 'js', 'ts', 'jsx', 'tsx', 'go', 'rs', 'java', 'c', 'cpp'].includes(ext)) return '📄';
+  if (['md', 'txt', 'log'].includes(ext)) return '📝';
+  if (['json', 'yaml', 'yml', 'toml'].includes(ext)) return '⚙️';
+  if (['html', 'htm'].includes(ext)) return '🌐';
+  if (['css', 'scss', 'less'].includes(ext)) return '🎨';
+  if (['csv', 'xlsx', 'xls'].includes(ext)) return '📊';
+  if (['pdf'].includes(ext)) return '📕';
+  if (['zip', 'tar', 'gz', 'rar'].includes(ext)) return '📦';
+  return '📄';
+}
+
+const FileTreeView: React.FC<FileTreeViewProps> = ({ nodes, sessionId, expanded, onToggleExpand, onRefresh }) => {
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const handleDelete = async (path: string) => {
+    setDeleting(path);
+    try {
+      await api.deleteWorkspaceFile(sessionId, path);
+      onRefresh();
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const renderNode = (node: WorkspaceFileNode, depth: number) => {
+    const isDir = node.type === 'directory';
+    const isExpanded = expanded.has(node.path);
+    const isDeleting = deleting === node.path;
+
+    return (
+      <div key={node.path}>
+        <div
+          className={`flex items-center gap-1.5 py-1.5 px-2 rounded-lg group hover:bg-gray-100 transition-colors cursor-pointer ${
+            isDir && isExpanded ? 'bg-gray-50' : ''
+          }`}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          onClick={() => isDir && onToggleExpand(node.path)}
+          title={node.name}
+        >
+          <span className="text-xs shrink-0">{isDir ? (isExpanded ? '📂' : '📁') : getFileIcon(node.name)}</span>
+          <span className="text-[11px] font-medium text-gray-700 truncate flex-1">{node.name}</span>
+
+          {!isDir && !isDeleting && (
+            <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+              <a
+                href={getWorkspaceFileUrl(node.path, { sessionId })}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="p-1 hover:bg-gray-200 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
+                title="预览"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </a>
+              <a
+                href={getWorkspaceFileUrl(node.path, { download: true, filename: node.name, sessionId })}
+                onClick={(e) => e.stopPropagation()}
+                className="p-1 hover:bg-gray-200 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
+                title="下载"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </a>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(node.path); }}
+                className="p-1 hover:bg-red-100 rounded-md text-gray-400 hover:text-red-500 transition-colors"
+                title="删除"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {isDeleting && (
+            <span className="text-[9px] text-gray-400 shrink-0">删除中...</span>
+          )}
+        </div>
+
+        {isDir && isExpanded && node.children?.map(child => renderNode(child, depth + 1))}
+      </div>
+    );
+  };
+
+  return <div className="space-y-0.5">{nodes.map(node => renderNode(node, 0))}</div>;
 };
 
 export default ReferenceArea;

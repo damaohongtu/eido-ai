@@ -80,6 +80,18 @@ async def proxy_workspace_file(request: Request, user_id: str = Depends(resolve_
     return await proxy_request(request, handle, upstream_path="/api/v1/workspace/file")
 
 
+@router.get("/workspace/files")
+async def proxy_workspace_files(request: Request, user_id: str = Depends(resolve_user_id)):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path="/api/v1/workspace/files")
+
+
+@router.delete("/workspace/file")
+async def proxy_workspace_file_delete(request: Request, user_id: str = Depends(resolve_user_id)):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path="/api/v1/workspace/file")
+
+
 # --------------------------- sandbox warmup --------------------------- #
 
 @router.post("/sandbox/warmup")

@@ -1,5 +1,6 @@
 # Frontend static files must be built locally before building this image:
 #   cd frontend && npm run build
+#   cd frontend-mobile && npm run build   # 移动端 H5
 
 # ARG REGISTRY allows overriding the base image registry
 # Default uses a Chinese mirror; international: --build-arg REGISTRY=
@@ -36,6 +37,8 @@ COPY backend/ .
 # Copy pre-built frontend static files
 # Must be at /var/www/ai-eido/ so nginx root /var/www works correctly
 COPY frontend/dist /var/www/ai-eido
+# 移动端 H5 静态资源（base=/ai-eido/m/），需在 PC 端 COPY 之后，避免被覆盖
+COPY frontend-mobile/dist /var/www/ai-eido/m
 
 # nginx & supervisor config
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

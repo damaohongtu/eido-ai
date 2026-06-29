@@ -3,8 +3,11 @@
 # 构建并推送镜像
 # =============================================================================
 
-# 构建前端
+# 构建前端（PC）
 cd /Users/mao/workspace/Eido/frontend && npm run build
+
+# 构建移动端 H5
+cd /Users/mao/workspace/Eido/frontend-mobile && npm run build
 
 # 构建镜像
 cd /Users/mao/workspace/Eido

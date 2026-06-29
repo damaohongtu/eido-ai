@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --eido-safe-top: env(safe-area-inset-top, 0px);
+  --eido-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --adm-color-primary: #4b5563;
+  /* 抽屉(Popup)正文 z-index 为 1010，Dialog 默认 1000 会被抽屉盖住导致按钮点不到，故抬高 Dialog */
+  --adm-dialog-z-index: 1100;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #f5f5f5;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 细滚动条（桌面预览用，移动端默认隐藏） */
+.thin-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 10px;
+}
+
+/* ---------------- Markdown 渲染（移动端紧凑版） ---------------- */
+.markdown-body {
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.markdown-body h1 { @apply text-xl font-bold mb-3 mt-4; }
+.markdown-body h2 { @apply text-lg font-bold mb-2 mt-4; }
+.markdown-body h3 { @apply text-base font-bold mb-2 mt-3; }
+.markdown-body p { @apply mb-3 leading-relaxed; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body ul { @apply list-disc pl-5 mb-3; }
+.markdown-body ol { @apply list-decimal pl-5 mb-3; }
+.markdown-body li { @apply mb-1; }
+.markdown-body a { @apply text-blue-600 underline underline-offset-2; }
+.markdown-body blockquote {
+  @apply border-l-4 border-gray-300 pl-3 italic text-gray-600 my-3;
+}
+.markdown-body pre {
+  @apply bg-gray-900 text-gray-100 rounded-xl p-3 my-3 overflow-x-auto text-[13px];
+}
+.markdown-body :not(pre) > code {
+  @apply bg-gray-100 text-gray-800 rounded px-1.5 py-0.5 text-[13px];
+}
+.markdown-body table {
+  @apply w-full border-collapse my-3 text-[13px];
+  display: block;
+  overflow-x: auto;
+}
+.markdown-body th,
+.markdown-body td {
+  @apply border border-gray-200 px-2 py-1.5 text-left;
+}
+.markdown-body th { @apply bg-gray-50 font-bold; }
+.markdown-body img { @apply max-w-full rounded-lg my-2; }
+.markdown-body hr { @apply my-4 border-gray-200; }
+
+/* 用户气泡内反色链接 */
+.markdown-body.on-dark,
+.markdown-body.on-dark p,
+.markdown-body.on-dark li { color: #fff; }
+.markdown-body.on-dark a { color: #dbeafe; }
+.markdown-body.on-dark :not(pre) > code {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}

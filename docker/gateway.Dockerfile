@@ -29,6 +29,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY backend/ .
 
 COPY frontend/dist /var/www/ai-eido
+# 移动端 H5 静态资源（base=/ai-eido/m/），需在 PC 端 COPY 之后，避免被覆盖
+COPY frontend-mobile/dist /var/www/ai-eido/m
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default

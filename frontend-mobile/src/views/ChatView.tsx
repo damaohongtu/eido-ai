@@ -19,7 +19,8 @@ const FolderIcon: React.FC = () => (
 );
 
 const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ store, onOpenMenu }) => {
-  const { activeSession, allSkills, harness, addMessage, updateMessage, createNewSession } = store;
+  const { activeSession, allSkills, harness, addMessage, updateMessage, createNewSession, currentUser } = store;
+  const userName = currentUser?.username?.trim() || currentUser?.user_id;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [filesOpen, setFilesOpen] = useState(false);
 
@@ -99,6 +100,7 @@ const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ stor
             sessionId={activeSession.id}
             isLast={idx === activeSession.messages.length - 1}
             isTyping={isTyping}
+            userName={userName}
           />
         ))}
       </div>

@@ -14,7 +14,24 @@ interface MessageItemProps {
   sessionId: string | null;
   isLast: boolean;
   isTyping: boolean;
+  userName?: string;
 }
+
+const Avatar: React.FC<{ isUser: boolean; userName?: string }> = ({ isUser, userName }) => {
+  if (isUser) {
+    const initial = userName ? [...userName.trim()][0]?.toUpperCase() : '';
+    return (
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-black text-gray-600">
+        {initial || '我'}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-700 text-sm font-black text-white shadow-sm">
+      E
+    </div>
+  );
+};
 
 const ThinkTrace: React.FC<{ message: Message }> = ({ message }) => {
   const [open, setOpen] = useState(false);
@@ -78,7 +95,7 @@ const ThinkTrace: React.FC<{ message: Message }> = ({ message }) => {
   );
 };
 
-const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, isTyping }) => {
+const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, isTyping, userName }) => {
   const isUser = message.role === 'user';
   const generatedFiles = message.role === 'assistant' ? extractGeneratedFiles(message) : [];
 
@@ -117,8 +134,9 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, i
   };
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[86%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+    <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+      <Avatar isUser={isUser} userName={userName} />
+      <div className={`max-w-[80%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
         {message.role === 'assistant' && <ThinkTrace message={message} />}
 
         <div

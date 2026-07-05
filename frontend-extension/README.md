@@ -1,6 +1,6 @@
 # Eido Chrome Extension
 
-Chrome Manifest V3 插件版前端，复用 `../frontend` 的 React 组件和 API 层。
+Chrome Manifest V3 插件版前端，复用 `../frontend-mobile` 的窄屏 React 界面，并共享 `../frontend` 的 API、类型和常量。
 
 ## 功能
 
@@ -46,7 +46,7 @@ VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
 现在有三种调试入口：
 
 1. 右键 Chrome 工具栏里的 Eido 扩展图标，点击“打开 Eido 插件调试控制台”。
-2. 如果侧边栏能打开，点击右上角“网页上下文”，再点“调试控制台”。
+2. 如果侧边栏能打开，进入“我的设置”，打开“插件调试控制台”。
 3. 打开 `chrome://extensions`，进入本扩展详情页，在 “Inspect views / 检查视图” 里打开 Side Panel 的原生 DevTools。
 
 调试控制台会展示 `console.warn/error`、`window.onerror` 和 `unhandledrejection`。如果看到 `Eido extension auth required`，说明插件本身已正常加载，只是需要先在新标签页完成 Eido 登录。

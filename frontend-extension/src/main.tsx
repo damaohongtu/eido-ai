@@ -94,6 +94,7 @@ function buildBrowserContext(pages: CapturedPage[]): string {
 }
 
 const BrowserContextPanel: React.FC<{
+  open: boolean;
   pages: CapturedPage[];
   tabs: BrowserTab[];
   loading: boolean;
@@ -103,8 +104,9 @@ const BrowserContextPanel: React.FC<{
   onRemovePage: (url: string) => void;
   onClearPages: () => void;
   onRefreshTabs: () => void;
-  onOpenDebug: () => void;
+  onClose: () => void;
 }> = ({
+  open,
   pages,
   tabs,
   loading,
@@ -114,36 +116,24 @@ const BrowserContextPanel: React.FC<{
   onRemovePage,
   onClearPages,
   onRefreshTabs,
-  onOpenDebug,
+  onClose,
 }) => {
-  const [open, setOpen] = useState(false);
-
+  if (!open) return null;
   return (
     <div className="eido-extension-context">
-      <button
-        type="button"
-        className="eido-extension-context__toggle"
-        onClick={() => setOpen((value) => !value)}
-        title="网页上下文"
-      >
-        网页上下文 {pages.length ? `(${pages.length})` : ''}
-      </button>
-
-      {open ? (
         <section className="eido-extension-context__panel">
           <header className="eido-extension-context__header">
             <div>
               <h2>网页上下文</h2>
               <p>选择当前页或其他标签页，发送消息时会自动附加给 Eido。</p>
             </div>
-            <button type="button" onClick={() => setOpen(false)} aria-label="关闭">×</button>
+            <button type="button" onClick={onClose} aria-label="关闭">×</button>
           </header>
 
           <div className="eido-extension-context__actions">
             <button type="button" onClick={onCaptureActive} disabled={loading}>读取当前页</button>
             <button type="button" onClick={onRefreshTabs} disabled={loading}>刷新标签</button>
             <button type="button" onClick={onClearPages} disabled={!pages.length}>清空</button>
-            <button type="button" onClick={onOpenDebug}>调试控制台</button>
           </div>
 
           {error ? <div className="eido-extension-context__error">{error}</div> : null}
@@ -186,16 +176,63 @@ const BrowserContextPanel: React.FC<{
             </div>
           </div>
         </section>
-      ) : null}
     </div>
   );
 };
+
+const BrowserContextButton: React.FC<{
+  count: number;
+  loading: boolean;
+  onClick: () => void;
+}> = ({ count, loading, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={loading}
+    className="eido-extension-context-inline-button eido-mobile-icon-button mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 active:bg-gray-100 disabled:opacity-40"
+    aria-label="网页上下文"
+    title="网页上下文"
+  >
+    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M12 3a9 9 0 100 18 9 9 0 000-18z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M3.6 9h16.8M3.6 15h16.8M12 3c2 2.4 3 5.4 3 9s-1 6.6-3 9M12 3c-2 2.4-3 5.4-3 9s1 6.6 3 9"
+      />
+    </svg>
+    {count > 0 ? <span className="eido-extension-context-inline-badge">{count}</span> : null}
+  </button>
+);
+
+const DebugSettingsItem: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex w-full items-center justify-between px-5 py-4 text-left active:bg-gray-50"
+  >
+    <div>
+      <div className="text-[15px] font-semibold text-gray-800">插件调试控制台</div>
+      <div className="text-xs text-gray-400">查看插件运行日志和错误信息</div>
+    </div>
+    <svg className="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+    </svg>
+  </button>
+);
 
 const ExtensionApp: React.FC = () => {
   const [tabs, setTabs] = useState<BrowserTab[]>([]);
   const [pages, setPages] = useState<CapturedPage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contextPanelOpen, setContextPanelOpen] = useState(false);
 
   const refreshTabs = async () => {
     try {
@@ -255,12 +292,21 @@ const ExtensionApp: React.FC = () => {
     <div className="eido-extension-shell">
       <App
         browserContext={browserContext}
+        browserContextControl={
+          <BrowserContextButton
+            count={pages.length}
+            loading={loading}
+            onClick={() => setContextPanelOpen(true)}
+          />
+        }
+        debugControl={<DebugSettingsItem onClick={openDebug} />}
         extensionMode
         onAuthRequired={(loginUrl) => {
           console.warn('Eido extension auth required', { loginUrl });
         }}
       />
       <BrowserContextPanel
+        open={contextPanelOpen}
         pages={pages}
         tabs={tabs}
         loading={loading}
@@ -270,7 +316,7 @@ const ExtensionApp: React.FC = () => {
         onRemovePage={(url) => setPages((prev) => prev.filter((page) => page.url !== url))}
         onClearPages={() => setPages([])}
         onRefreshTabs={refreshTabs}
-        onOpenDebug={openDebug}
+        onClose={() => setContextPanelOpen(false)}
       />
     </div>
   );

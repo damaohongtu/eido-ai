@@ -9,11 +9,19 @@ import MeView from './views/MeView';
 
 interface AppProps {
   browserContext?: string;
+  browserContextControl?: React.ReactNode;
+  debugControl?: React.ReactNode;
   extensionMode?: boolean;
   onAuthRequired?: (loginUrl: string) => void;
 }
 
-const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuthRequired }) => {
+const App: React.FC<AppProps> = ({
+  browserContext,
+  browserContextControl,
+  debugControl,
+  extensionMode = false,
+  onAuthRequired,
+}) => {
   const store = useEidoStore({ extensionMode, onAuthRequired });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const openMenu = () => setDrawerOpen(true);
@@ -67,10 +75,17 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
       case 'skills':
         return <SkillsView store={store} onOpenMenu={openMenu} />;
       case 'me':
-        return <MeView store={store} onOpenMenu={openMenu} />;
+        return <MeView store={store} onOpenMenu={openMenu} debugControl={debugControl} />;
       case 'chat':
       default:
-        return <ChatView store={store} onOpenMenu={openMenu} browserContext={browserContext} />;
+        return (
+          <ChatView
+            store={store}
+            onOpenMenu={openMenu}
+            browserContext={browserContext}
+            browserContextControl={browserContextControl}
+          />
+        );
     }
   };
 

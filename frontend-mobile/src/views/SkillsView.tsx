@@ -9,7 +9,7 @@ const SkillCard: React.FC<{
   onUse: () => void;
   onDetail: () => void;
 }> = ({ skill, onUse, onDetail }) => (
-  <div className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3.5 shadow-sm">
+  <div className="eido-mobile-skill-card flex items-center gap-3 rounded-2xl border border-gray-200 bg-white p-3.5 shadow-sm">
     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-2xl">
       {skill.icon || '🧩'}
     </span>
@@ -59,10 +59,10 @@ const SkillsView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ st
 
   return (
     <div className="flex h-full flex-col">
-      <NavBar backArrow={<MenuIcon />} onBack={onOpenMenu} className="border-b border-gray-100 bg-white">
+      <NavBar backArrow={<MenuIcon />} onBack={onOpenMenu} className="eido-mobile-nav border-b border-gray-100 bg-white">
         技能广场
       </NavBar>
-      <div className="bg-white px-3 pb-2 pt-1">
+      <div className="eido-mobile-search-block bg-white px-3 pb-2 pt-1">
         <SearchBar placeholder="搜索技能" value={keyword} onChange={setKeyword} />
       </div>
       <Tabs activeKey={tab} onChange={setTab} className="bg-white">
@@ -70,7 +70,7 @@ const SkillsView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ st
         <Tabs.Tab title={`我的技能 ${userSkills.length}`} key="user" />
       </Tabs>
 
-      <div className="thin-scrollbar flex-1 space-y-3 overflow-y-auto bg-[#f5f5f5] p-3">
+      <div className="eido-mobile-skill-list thin-scrollbar flex-1 space-y-3 overflow-y-auto bg-[#f5f5f5] p-3">
         {filtered.length === 0 ? (
           <div className="pt-20 text-center text-sm text-gray-400">没有匹配的技能</div>
         ) : (

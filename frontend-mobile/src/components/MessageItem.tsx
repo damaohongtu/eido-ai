@@ -21,13 +21,13 @@ const Avatar: React.FC<{ isUser: boolean; userName?: string }> = ({ isUser, user
   if (isUser) {
     const initial = userName ? [...userName.trim()][0]?.toUpperCase() : '';
     return (
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-black text-gray-600">
+      <div className="eido-mobile-avatar mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-black text-gray-600">
         {initial || '我'}
       </div>
     );
   }
   return (
-    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-700 text-sm font-black text-white shadow-sm">
+    <div className="eido-mobile-avatar mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-700 text-sm font-black text-white shadow-sm">
       E
     </div>
   );
@@ -40,7 +40,7 @@ const ThinkTrace: React.FC<{ message: Message }> = ({ message }) => {
   if (!hasTrace) return null;
 
   return (
-    <div className="mb-2 rounded-2xl border border-gray-200 bg-gray-50/80 overflow-hidden">
+    <div className="eido-mobile-think-trace mb-2 rounded-2xl border border-gray-200 bg-gray-50/80 overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between px-3 py-2"
@@ -134,13 +134,13 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, i
   };
 
   return (
-    <div className={`flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+    <div className={`eido-mobile-message-row flex gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       <Avatar isUser={isUser} userName={userName} />
-      <div className={`max-w-[80%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+      <div className={`eido-mobile-message-stack max-w-[80%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
         {message.role === 'assistant' && <ThinkTrace message={message} />}
 
         <div
-          className={`inline-block rounded-2xl px-3.5 py-2.5 text-[15px] shadow-sm ${
+          className={`eido-mobile-message-bubble inline-block rounded-2xl px-3.5 py-2.5 text-[15px] shadow-sm ${
             isUser ? 'bg-gray-700 text-white' : 'border border-gray-200 bg-white text-gray-800'
           }`}
         >
@@ -152,7 +152,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, i
         </div>
 
         {generatedFiles.length > 0 && (
-          <div className="mt-2 w-full space-y-2 rounded-2xl border border-gray-200 bg-white p-3">
+          <div className="eido-mobile-generated-files mt-2 w-full space-y-2 rounded-2xl border border-gray-200 bg-white p-3">
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">生成文件</div>
             {generatedFiles.map((file) => (
               <div key={file.path} className="rounded-xl bg-gray-50 p-2.5">

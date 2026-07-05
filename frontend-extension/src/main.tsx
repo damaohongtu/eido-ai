@@ -1,8 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import App from '../../frontend/App';
-import '../../frontend/index.css';
+import { createRoot } from 'react-dom/client';
+import { unstableSetRender } from 'antd-mobile';
+import App from '../../frontend-mobile/src/App';
+import '../../frontend-mobile/src/index.css';
 import './extension.css';
+
+unstableSetRender((node, container) => {
+  const target = container as Element & { _reactRoot?: ReturnType<typeof createRoot> };
+  target._reactRoot ||= createRoot(target);
+  const root = target._reactRoot;
+  root.render(node);
+  return async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    root.unmount();
+  };
+});
 
 interface BrowserTab {
   id: number;

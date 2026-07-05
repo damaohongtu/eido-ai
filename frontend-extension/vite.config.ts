@@ -11,14 +11,14 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
     alias: {
       '@': path.resolve(__dirname, '../frontend'),
+      '@shared': path.resolve(__dirname, '../frontend'),
       react: path.join(extensionNodeModules, 'react'),
       'react-dom': path.join(extensionNodeModules, 'react-dom'),
       'react/jsx-runtime': path.join(extensionNodeModules, 'react/jsx-runtime.js'),
-      antd: path.join(extensionNodeModules, 'antd'),
-      '@ant-design/icons': path.join(extensionNodeModules, '@ant-design/icons'),
+      'antd-mobile': path.join(extensionNodeModules, 'antd-mobile'),
+      'antd-mobile-icons': path.join(extensionNodeModules, 'antd-mobile-icons'),
       'react-markdown': path.join(extensionNodeModules, 'react-markdown'),
       'remark-gfm': path.join(extensionNodeModules, 'remark-gfm'),
-      mermaid: path.join(extensionNodeModules, 'mermaid'),
     },
   },
   build: {

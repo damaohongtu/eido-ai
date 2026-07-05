@@ -18,7 +18,11 @@ const FolderIcon: React.FC = () => (
   </svg>
 );
 
-const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ store, onOpenMenu }) => {
+const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void; browserContext?: string }> = ({
+  store,
+  onOpenMenu,
+  browserContext,
+}) => {
   const { activeSession, allSkills, harness, addMessage, updateMessage, createNewSession, currentUser } = store;
   const userName = currentUser?.username?.trim() || currentUser?.user_id;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -30,6 +34,7 @@ const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ stor
     harness,
     addMessage,
     updateMessage,
+    browserContext,
   });
 
   const activeSkill = useMemo(

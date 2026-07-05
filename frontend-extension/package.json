@@ -9,10 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ant-design/icons": "6.1.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "antd": "6.2.0",
-    "mermaid": "11.12.2",
+    "antd-mobile": "5.42.3",
+    "antd-mobile-icons": "0.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-markdown": "9.1.0",

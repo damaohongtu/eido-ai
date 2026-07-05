@@ -20,6 +20,7 @@ interface UseChatSendArgs {
   harness: string;
   addMessage: (msg: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
+  browserContext?: string;
 }
 
 /**
@@ -27,7 +28,7 @@ interface UseChatSendArgs {
  * - 单 @技能 / 无技能：交由后端自动规划，单次流式执行
  * - 多 @技能：串行流水线，前一步输出作为下一步 context
  */
-export function useChatSend({ session, skills, harness, addMessage, updateMessage }: UseChatSendArgs) {
+export function useChatSend({ session, skills, harness, addMessage, updateMessage, browserContext }: UseChatSendArgs) {
   const [isTyping, setIsTyping] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const thinkingLogsRef = useRef<Record<string, string[]>>({});
@@ -71,7 +72,7 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
           makeUpdater(assistantId),
           session.id,
           assistantId,
-          undefined,
+          browserContext || undefined,
           undefined,
           abortRef.current.signal,
           harness
@@ -80,7 +81,7 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
         delete thinkingLogsRef.current[assistantId];
       }
     },
-    [session, harness, makeUpdater]
+    [session, harness, makeUpdater, browserContext]
   );
 
   const runPipeline = useCallback(
@@ -114,7 +115,7 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
             },
             session.id,
             assistantId,
-            previousOutput || undefined,
+            [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
             skill.id,
             abortRef.current?.signal,
             harness
@@ -128,7 +129,7 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
         contextMessages = [...contextMessages, { ...placeholder, content: finalContent }];
       }
     },
-    [session, harness, addMessage, makeUpdater]
+    [session, harness, addMessage, makeUpdater, browserContext]
   );
 
   const buildContentWithAttachments = (text: string, attachments: Attachment[]): string => {

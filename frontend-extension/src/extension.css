@@ -1,0 +1,467 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  overflow: hidden;
+}
+
+.eido-extension-shell {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+
+.eido-extension-shell .adm-nav-bar {
+  min-height: 46px;
+  padding: 0 8px;
+}
+
+.eido-extension-shell .adm-nav-bar-title {
+  min-width: 0;
+  padding: 0 6px;
+  line-height: 1.2;
+}
+
+.eido-extension-shell .adm-nav-bar-back {
+  padding: 6px;
+}
+
+.eido-extension-shell .adm-tabs-header {
+  border-bottom-color: #f3f4f6;
+}
+
+.eido-extension-shell .adm-tabs-tab {
+  padding: 9px 0 8px;
+  font-size: 12px;
+}
+
+.eido-extension-shell .adm-search-bar {
+  --height: 34px;
+}
+
+.eido-extension-shell .eido-mobile-message-list {
+  padding: 10px 10px 12px !important;
+}
+
+.eido-extension-shell .eido-mobile-message-list > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: 12px !important;
+  margin-bottom: 0 !important;
+}
+
+.eido-extension-shell .eido-mobile-message-row {
+  gap: 6px !important;
+}
+
+.eido-extension-shell .eido-mobile-avatar {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 12px !important;
+}
+
+.eido-extension-shell .eido-mobile-message-stack {
+  max-width: calc(100% - 38px) !important;
+}
+
+.eido-extension-shell .eido-mobile-message-bubble {
+  border-radius: 14px !important;
+  padding: 8px 10px !important;
+  font-size: 14px !important;
+}
+
+.eido-extension-shell .markdown-body {
+  font-size: 14px;
+  line-height: 1.58;
+}
+
+.eido-extension-shell .markdown-body p {
+  margin-bottom: 8px;
+}
+
+.eido-extension-shell .markdown-body ul,
+.eido-extension-shell .markdown-body ol {
+  margin-bottom: 8px;
+  padding-left: 18px;
+}
+
+.eido-extension-shell .markdown-body pre {
+  margin: 8px 0;
+  padding: 10px;
+}
+
+.eido-extension-shell .eido-mobile-think-trace {
+  margin-bottom: 6px !important;
+  border-radius: 12px !important;
+}
+
+.eido-extension-shell .eido-mobile-think-trace button {
+  padding: 7px 10px !important;
+}
+
+.eido-extension-shell .eido-mobile-generated-files {
+  margin-top: 7px !important;
+  border-radius: 14px !important;
+  padding: 9px !important;
+}
+
+.eido-extension-shell .eido-mobile-composer {
+  padding: 6px 10px 0 !important;
+}
+
+.eido-extension-shell .eido-mobile-composer-row {
+  gap: 6px !important;
+}
+
+.eido-extension-shell .eido-mobile-icon-button {
+  width: 34px !important;
+  height: 34px !important;
+}
+
+.eido-extension-shell .eido-mobile-composer-input {
+  min-height: 36px !important;
+  border-radius: 14px !important;
+  padding: 8px 11px !important;
+  font-size: 14px !important;
+  line-height: 1.35 !important;
+}
+
+.eido-extension-shell .eido-mobile-attachments {
+  margin-bottom: 6px !important;
+  gap: 6px !important;
+}
+
+.eido-extension-shell .eido-mobile-search-block {
+  padding: 6px 10px 8px !important;
+}
+
+.eido-extension-shell .eido-mobile-skill-list {
+  padding: 10px !important;
+}
+
+.eido-extension-shell .eido-mobile-skill-list > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: 8px !important;
+  margin-bottom: 0 !important;
+}
+
+.eido-extension-shell .eido-mobile-skill-card {
+  gap: 10px !important;
+  border-radius: 14px !important;
+  padding: 10px !important;
+}
+
+.eido-extension-shell .eido-mobile-drawer-user {
+  padding: 12px 14px !important;
+}
+
+.eido-extension-shell .eido-mobile-user-avatar {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  border-radius: 9999px !important;
+  line-height: 1 !important;
+}
+
+.eido-extension-shell .eido-mobile-drawer-new {
+  padding: 10px 10px 0 !important;
+}
+
+.eido-extension-shell .eido-mobile-drawer-nav {
+  padding: 8px 10px !important;
+  gap: 3px !important;
+}
+
+.eido-extension-shell .eido-mobile-drawer-nav button {
+  padding: 8px 10px !important;
+}
+
+.eido-extension-shell .eido-mobile-drawer-label {
+  padding: 7px 14px 4px !important;
+}
+
+.eido-extension-shell .eido-mobile-session-item {
+  padding: 10px 14px !important;
+}
+
+.eido-extension-context {
+  position: fixed;
+  bottom: 64px;
+  right: 10px;
+  z-index: 200;
+  max-width: calc(100vw - 20px);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.eido-extension-context__toggle {
+  border: 1px solid #d1d5db;
+  background: rgba(255, 255, 255, 0.95);
+  color: #111827;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.eido-extension-context-inline-button {
+  position: relative;
+}
+
+.eido-extension-context-inline-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: #374151;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 15px;
+  text-align: center;
+  transform: translate(20%, -20%);
+}
+
+.eido-extension-context__panel {
+  width: min(360px, calc(100vw - 20px));
+  max-height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+}
+
+.eido-extension-context__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.eido-extension-context__header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.eido-extension-context__header p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.eido-extension-context__header button,
+.eido-extension-context__item button {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.eido-extension-context__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.eido-extension-context__actions button,
+.eido-extension-context__tab {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+}
+
+.eido-extension-context__actions button {
+  min-height: 30px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.eido-extension-context__actions button:hover,
+.eido-extension-context__tab:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.eido-extension-context__actions button:disabled,
+.eido-extension-context__tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.eido-extension-context__error {
+  margin: 10px 14px 0;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.eido-extension-context__section {
+  padding: 12px 14px;
+  min-height: 0;
+}
+
+.eido-extension-context__section + .eido-extension-context__section {
+  border-top: 1px solid #f3f4f6;
+}
+
+.eido-extension-context__label {
+  margin-bottom: 8px;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.eido-extension-context__empty {
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 14px;
+  color: #9ca3af;
+  font-size: 12px;
+  text-align: center;
+}
+
+.eido-extension-context__list,
+.eido-extension-context__tab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.eido-extension-context__list {
+  max-height: 160px;
+}
+
+.eido-extension-context__tab-list {
+  max-height: 260px;
+}
+
+.eido-extension-context__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.eido-extension-context__item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.eido-extension-context__item-main strong,
+.eido-extension-context__item-main span,
+.eido-extension-context__tab strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eido-extension-context__item-main strong {
+  color: #111827;
+  font-size: 12px;
+}
+
+.eido-extension-context__item-main span {
+  margin-top: 2px;
+  color: #6b7280;
+  font-size: 10px;
+}
+
+.eido-extension-context__tab {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.eido-extension-context__tab span {
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.eido-extension-context__tab strong {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.eido-extension-fatal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+  background: #fff;
+}
+
+.eido-extension-fatal > div {
+  width: min(360px, 100%);
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  padding: 18px;
+  text-align: center;
+}
+
+.eido-extension-fatal h1 {
+  margin: 0;
+  color: #991b1b;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.eido-extension-fatal p {
+  margin: 10px 0 16px;
+  color: #7f1d1d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.eido-extension-fatal button {
+  border: 1px solid #991b1b;
+  border-radius: 8px;
+  background: #991b1b;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 12px;
+}

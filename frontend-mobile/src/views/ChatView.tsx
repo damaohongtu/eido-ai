@@ -18,7 +18,17 @@ const FolderIcon: React.FC = () => (
   </svg>
 );
 
-const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ store, onOpenMenu }) => {
+const ChatView: React.FC<{
+  store: EidoStore;
+  onOpenMenu: () => void;
+  browserContext?: string;
+  browserContextControl?: React.ReactNode;
+}> = ({
+  store,
+  onOpenMenu,
+  browserContext,
+  browserContextControl,
+}) => {
   const { activeSession, allSkills, harness, addMessage, updateMessage, createNewSession, currentUser } = store;
   const userName = currentUser?.username?.trim() || currentUser?.user_id;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -30,6 +40,7 @@ const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ stor
     harness,
     addMessage,
     updateMessage,
+    browserContext,
   });
 
   const activeSkill = useMemo(
@@ -43,11 +54,11 @@ const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ stor
 
   if (!activeSession) {
     return (
-      <div className="flex h-full flex-col">
-        <NavBar backArrow={<MenuIcon />} onBack={onOpenMenu} className="border-b border-gray-100 bg-white">
+      <div className="eido-mobile-chat-view flex h-full flex-col">
+        <NavBar backArrow={<MenuIcon />} onBack={onOpenMenu} className="eido-mobile-nav border-b border-gray-100 bg-white">
           Eido
         </NavBar>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+        <div className="eido-mobile-empty flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
           <p className="text-gray-500">还没有进行中的会话</p>
           <button
             onClick={() => createNewSession()}
@@ -64,9 +75,9 @@ const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ stor
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="eido-mobile-chat-view flex h-full flex-col">
       <NavBar
-        className="border-b border-gray-100 bg-white"
+        className="eido-mobile-nav border-b border-gray-100 bg-white"
         backArrow={<MenuIcon />}
         onBack={onOpenMenu}
         right={
@@ -92,7 +103,7 @@ const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ stor
         )}
       </NavBar>
 
-      <div ref={scrollRef} className="thin-scrollbar flex-1 space-y-5 overflow-y-auto bg-[#f5f5f5] px-3 py-4">
+      <div ref={scrollRef} className="eido-mobile-message-list thin-scrollbar flex-1 space-y-5 overflow-y-auto bg-[#f5f5f5] px-3 py-4">
         {activeSession.messages.map((m, idx) => (
           <MessageItem
             key={m.id}
@@ -111,6 +122,7 @@ const ChatView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ stor
         isTyping={isTyping}
         onSend={send}
         onStop={stop}
+        browserContextControl={browserContextControl}
       />
 
       <FilesPanel sessionId={activeSession.id} visible={filesOpen} onClose={() => setFilesOpen(false)} />

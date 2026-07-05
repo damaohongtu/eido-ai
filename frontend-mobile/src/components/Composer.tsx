@@ -12,9 +12,17 @@ interface ComposerProps {
   isTyping: boolean;
   onSend: (text: string, attachments: Attachment[]) => void;
   onStop: () => void;
+  browserContextControl?: React.ReactNode;
 }
 
-const Composer: React.FC<ComposerProps> = ({ sessionId, skills, isTyping, onSend, onStop }) => {
+const Composer: React.FC<ComposerProps> = ({
+  sessionId,
+  skills,
+  isTyping,
+  onSend,
+  onStop,
+  browserContextControl,
+}) => {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -85,11 +93,11 @@ const Composer: React.FC<ComposerProps> = ({ sessionId, skills, isTyping, onSend
 
   return (
     <div
-      className="border-t border-gray-200 bg-white px-3 pt-2"
+      className="eido-mobile-composer border-t border-gray-200 bg-white px-3 pt-2"
       style={{ paddingBottom: 'calc(8px + var(--eido-safe-bottom))' }}
     >
       {attachments.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-2">
+        <div className="eido-mobile-attachments mb-2 flex flex-wrap gap-2">
           {attachments.map((a, i) => (
             <span
               key={i}
@@ -107,7 +115,7 @@ const Composer: React.FC<ComposerProps> = ({ sessionId, skills, isTyping, onSend
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className="eido-mobile-composer-row flex items-end gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -120,13 +128,14 @@ const Composer: React.FC<ComposerProps> = ({ sessionId, skills, isTyping, onSend
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={isTyping || uploading}
-          className="mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 active:bg-gray-100 disabled:opacity-40"
+          className="eido-mobile-icon-button mb-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 active:bg-gray-100 disabled:opacity-40"
           aria-label="上传文件"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
         </button>
+        {browserContextControl}
 
         <textarea
           ref={taRef}
@@ -134,14 +143,14 @@ const Composer: React.FC<ComposerProps> = ({ sessionId, skills, isTyping, onSend
           onChange={handleChange}
           rows={1}
           placeholder="发消息…（@ 可选技能）"
-          className="max-h-32 min-h-[40px] flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-3.5 py-2 text-[15px] outline-none focus:border-gray-400"
+          className="eido-mobile-composer-input max-h-32 min-h-[40px] flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-3.5 py-2 text-[15px] outline-none focus:border-gray-400"
           disabled={isTyping}
         />
 
         {isTyping ? (
           <button
             onClick={onStop}
-            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
+            className="eido-mobile-icon-button mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600"
             aria-label="停止"
           >
             <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -152,7 +161,7 @@ const Composer: React.FC<ComposerProps> = ({ sessionId, skills, isTyping, onSend
           <button
             onClick={submit}
             disabled={!input.trim() && attachments.length === 0}
-            className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+            className={`eido-mobile-icon-button mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
               input.trim() || attachments.length > 0 ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-400'
             }`}
             aria-label="发送"

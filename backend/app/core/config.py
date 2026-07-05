@@ -24,6 +24,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
     ]
+    # Chrome 插件侧边栏运行在 chrome-extension://<extension-id>，扩展 ID 安装后才稳定生成。
+    BACKEND_CORS_ORIGIN_REGEX: str | None = r"chrome-extension://.*"
 
     DEBUG: bool = False
 
@@ -143,4 +145,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-

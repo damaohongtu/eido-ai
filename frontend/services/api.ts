@@ -89,7 +89,15 @@ export class ApiService {
   private async _fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const response = await fetch(input, { ...init, credentials: 'include' });
     if (response.status === 401) {
-      window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+      const loginUrl = `${BACKEND_URL}/api/v1/auth/login`;
+      const isChromeExtension =
+        typeof window !== 'undefined' &&
+        window.location.protocol === 'chrome-extension:';
+      if (isChromeExtension) {
+        window.dispatchEvent(new CustomEvent('eido-auth-required', { detail: { loginUrl } }));
+        throw new Error('未登录，请在浏览器标签页完成登录后重试');
+      }
+      window.location.href = loginUrl;
       throw new Error('未登录，正在跳转登录页');
     }
     return response;

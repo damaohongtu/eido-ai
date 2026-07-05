@@ -3,7 +3,11 @@ import { NavBar, Dialog } from 'antd-mobile';
 import type { EidoStore } from '../hooks/useEidoStore';
 import MenuIcon from '../components/MenuIcon';
 
-const MeView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ store, onOpenMenu }) => {
+const MeView: React.FC<{
+  store: EidoStore;
+  onOpenMenu: () => void;
+  debugControl?: React.ReactNode;
+}> = ({ store, onOpenMenu, debugControl }) => {
   const { currentUser, harness, setHarness, logout } = store;
   const displayName = currentUser?.username?.trim() || currentUser?.user_id || '用户';
   const harnessActive = harness === 'open_harness';
@@ -59,6 +63,12 @@ const MeView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ store,
             </button>
           </div>
         </div>
+
+        {debugControl ? (
+          <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+            {debugControl}
+          </div>
+        ) : null}
 
         <button
           onClick={confirmLogout}

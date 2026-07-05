@@ -75,13 +75,13 @@ const AppDrawer: React.FC<AppDrawerProps> = ({ visible, onClose, store }) => {
       position="left"
       bodyStyle={{ width: '80vw', maxWidth: 360, height: '100vh', display: 'flex', flexDirection: 'column' }}
     >
-      <div className="flex h-full flex-col bg-white" style={{ paddingTop: 'var(--eido-safe-top)' }}>
+      <div className="eido-mobile-drawer flex h-full flex-col bg-white" style={{ paddingTop: 'var(--eido-safe-top)' }}>
         {/* 用户信息 */}
         <button
           onClick={() => navigate('me')}
-          className="flex items-center gap-3 border-b border-gray-100 px-4 py-4 text-left active:bg-gray-50"
+          className="eido-mobile-drawer-user flex items-center gap-3 border-b border-gray-100 px-4 py-4 text-left active:bg-gray-50"
         >
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-200 text-xl font-black text-gray-600">
+          <div className="eido-mobile-user-avatar flex h-11 w-11 items-center justify-center rounded-full bg-gray-200 text-xl font-black text-gray-600">
             {[...displayName][0]?.toUpperCase() || '?'}
           </div>
           <div className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ const AppDrawer: React.FC<AppDrawerProps> = ({ visible, onClose, store }) => {
         </button>
 
         {/* 新建对话 */}
-        <div className="px-3 pt-3">
+        <div className="eido-mobile-drawer-new px-3 pt-3">
           <button
             onClick={handleNewChat}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-700 py-2.5 text-sm font-bold text-white active:bg-gray-800"
@@ -102,23 +102,23 @@ const AppDrawer: React.FC<AppDrawerProps> = ({ visible, onClose, store }) => {
         </div>
 
         {/* 导航入口 */}
-        <nav className="grid grid-cols-3 gap-1 px-3 py-3">
+        <nav className="eido-mobile-drawer-nav flex flex-col gap-1 px-3 py-3">
           {navItems.map((item) => (
             <button
               key={item.key}
               onClick={() => navigate(item.key)}
-              className={`flex flex-col items-center gap-1 rounded-xl py-2 text-[11px] font-semibold transition-colors ${
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors ${
                 tab === item.key ? 'bg-gray-100 text-gray-900' : 'text-gray-500 active:bg-gray-50'
               }`}
             >
-              <span className="text-xl">{item.icon}</span>
+              <span className="text-lg">{item.icon}</span>
               <span>{item.label}</span>
             </button>
           ))}
         </nav>
 
         {/* 历史会话 */}
-        <div className="px-4 pb-1 pt-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+        <div className="eido-mobile-drawer-label px-4 pb-1 pt-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
           历史对话
         </div>
         <div className="thin-scrollbar min-h-0 flex-1 overflow-y-auto">
@@ -141,7 +141,7 @@ const AppDrawer: React.FC<AppDrawerProps> = ({ visible, onClose, store }) => {
                   ]}
                 >
                   <div
-                    className={`group flex w-full items-center gap-2 px-4 py-3 ${
+                    className={`eido-mobile-session-item group flex w-full items-center gap-2 px-4 py-3 ${
                       activeSessionId === s.id ? 'bg-gray-100' : 'bg-white'
                     }`}
                   >

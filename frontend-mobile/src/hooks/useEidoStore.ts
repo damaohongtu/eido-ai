@@ -62,6 +62,9 @@ function buildMessageExtra(msg: Message): Record<string, unknown> {
 
 export interface EidoStore {
   authChecked: boolean;
+  authRequired: boolean;
+  authChecking: boolean;
+  checkAuthState: () => Promise<boolean>;
   currentUser: { user_id: string; username: string } | null;
 
   tab: MobileTab;
@@ -91,8 +94,16 @@ export interface EidoStore {
   logout: () => void;
 }
 
-export function useEidoStore(): EidoStore {
+interface UseEidoStoreOptions {
+  extensionMode?: boolean;
+  onAuthRequired?: (loginUrl: string) => void;
+}
+
+export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
+  const { extensionMode = false, onAuthRequired } = options;
   const [authChecked, setAuthChecked] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authChecking, setAuthChecking] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ user_id: string; username: string } | null>(null);
   const [tab, setTab] = useState<MobileTab>('chat');
 
@@ -114,6 +125,31 @@ export function useEidoStore(): EidoStore {
     writeStorage(HARNESS_KEY, h);
   }, []);
 
+  const checkAuthState = useCallback(async () => {
+    setAuthChecking(true);
+    try {
+      const user = await api.checkAuth();
+      if (!user) {
+        const loginUrl = `${BACKEND_URL}/api/v1/auth/login`;
+        if (extensionMode) {
+          setAuthRequired(true);
+          setAuthChecked(true);
+          onAuthRequired?.(loginUrl);
+          return false;
+        }
+        window.location.href = loginUrl;
+        return false;
+      }
+      setAuthRequired(false);
+      setCurrentUser(user);
+      setAuthChecked(true);
+      api.warmupSandbox().catch(() => undefined);
+      return true;
+    } finally {
+      setAuthChecking(false);
+    }
+  }, [extensionMode, onAuthRequired]);
+
   // 鉴权（登录态来自 /api/v1/auth/me；未登录跳后端登录）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -122,16 +158,23 @@ export function useEidoStore(): EidoStore {
       const clean = params.toString();
       window.history.replaceState({}, '', window.location.pathname + (clean ? `?${clean}` : ''));
     }
-    api.checkAuth().then((user) => {
-      if (!user) {
-        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
-        return;
-      }
-      setCurrentUser(user);
-      setAuthChecked(true);
-      api.warmupSandbox().catch(() => undefined);
-    });
-  }, []);
+    checkAuthState();
+  }, [checkAuthState]);
+
+  useEffect(() => {
+    if (!extensionMode || !authRequired) return;
+    const id = window.setInterval(() => {
+      checkAuthState();
+    }, 2500);
+    const onFocus = () => checkAuthState();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [authRequired, checkAuthState, extensionMode]);
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
@@ -141,7 +184,7 @@ export function useEidoStore(): EidoStore {
 
   // 拉取会话列表 + 落地即进入聊天（恢复上次会话 / 打开最近会话 / 无则自动新建）
   useEffect(() => {
-    if (!authChecked || bootstrappedRef.current) return;
+    if (!authChecked || authRequired || bootstrappedRef.current) return;
     bootstrappedRef.current = true;
     (async () => {
       try {
@@ -175,7 +218,7 @@ export function useEidoStore(): EidoStore {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked]);
+  }, [authChecked, authRequired]);
 
   // 加载技能
   const refreshSkills = useCallback(async () => {
@@ -192,10 +235,10 @@ export function useEidoStore(): EidoStore {
   }, []);
 
   useEffect(() => {
-    if (!authChecked) return;
+    if (!authChecked || authRequired) return;
     setSkillsLoading(true);
     refreshSkills().finally(() => setSkillsLoading(false));
-  }, [authChecked, refreshSkills]);
+  }, [authChecked, authRequired, refreshSkills]);
 
   const activeSession = useMemo(
     () => sessions.find((s) => s.id === activeSessionId) || null,
@@ -357,6 +400,9 @@ export function useEidoStore(): EidoStore {
 
   return {
     authChecked,
+    authRequired,
+    authChecking,
+    checkAuthState,
     currentUser,
     tab,
     setTab,

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eido 插件调试控制台</title>
+    <style>
+      body {
+        margin: 0;
+        background: #f3f4f6;
+        color: #111827;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border-bottom: 1px solid #d1d5db;
+        background: rgba(255, 255, 255, 0.94);
+        padding: 16px 20px;
+        backdrop-filter: blur(12px);
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      p {
+        margin: 4px 0 0;
+        color: #6b7280;
+        font-size: 13px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      button {
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #fff;
+        color: #374151;
+        cursor: pointer;
+        font-weight: 800;
+        padding: 8px 12px;
+      }
+      button:hover {
+        background: #f9fafb;
+        border-color: #9ca3af;
+      }
+      main {
+        padding: 18px 20px;
+      }
+      .hint {
+        margin-bottom: 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #fff;
+        padding: 12px 14px;
+        color: #4b5563;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .log {
+        margin-bottom: 10px;
+        overflow: hidden;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #fff;
+      }
+      .log-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .level-error .log-header {
+        color: #b91c1c;
+        background: #fef2f2;
+      }
+      .level-warn .log-header {
+        color: #92400e;
+        background: #fffbeb;
+      }
+      .level-log .log-header {
+        color: #374151;
+        background: #f9fafb;
+      }
+      pre {
+        margin: 0;
+        overflow: auto;
+        max-height: 320px;
+        padding: 12px;
+        color: #111827;
+        font-size: 12px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .empty {
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        padding: 40px;
+        color: #64748b;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Eido 插件调试控制台</h1>
+        <p id="meta">读取插件运行日志中...</p>
+      </div>
+      <div class="actions">
+        <button id="refresh">刷新</button>
+        <button id="copy">复制日志</button>
+        <button id="clear">清空</button>
+        <button id="open-extensions">扩展管理页</button>
+      </div>
+    </header>
+    <main>
+      <div class="hint">
+        如果插件侧边栏空白，优先看这里的 <strong>error</strong> 和 <strong>Unhandled promise rejection</strong>。
+        浏览器原生 DevTools 也可以从 <code>chrome://extensions</code> 进入本扩展详情页，在 “Inspect views / 检查视图” 中打开 Side Panel 控制台。
+      </div>
+      <div id="logs"></div>
+    </main>
+    <script src="debug.js"></script>
+  </body>
+</html>

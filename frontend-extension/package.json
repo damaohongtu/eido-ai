@@ -1,0 +1,30 @@
+{
+  "name": "eido-chrome-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons": "6.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "antd": "6.2.0",
+    "mermaid": "11.12.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-markdown": "9.1.0",
+    "remark-gfm": "4.0.1",
+    "vite": "^6.2.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.322",
+    "@types/node": "^22.14.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "~5.8.2"
+  }
+}

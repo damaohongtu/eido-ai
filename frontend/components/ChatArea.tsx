@@ -89,6 +89,7 @@ interface ChatAreaProps {
   onExecuteAction: (action: SkillAction) => void;
   onUpdateSessionSkill?: (skillId: string) => void;
   harness: string;
+  browserContext?: string;
 }
 
 const ChatArea: React.FC<ChatAreaProps> = ({
@@ -101,6 +102,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onExecuteAction,
   onUpdateSessionSkill,
   harness,
+  browserContext,
 }) => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -300,7 +302,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           },
           session.id,
           assistantId,
-          previousOutput || undefined,
+          [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
           skill.id,
           abortControllerRef.current?.signal,
           harness
@@ -401,7 +403,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           timestamp: Date.now(),
           references: []
         });
-        await runSingleSkill(baseMessages, assistantId);
+        await runSingleSkill(baseMessages, assistantId, browserContext || undefined);
       }
     } catch (err) {
       console.error('执行失败:', err);
@@ -448,7 +450,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         
         setIsTyping(true);
         try {
-          await runSingleSkill(updatedMessages, messageId);
+          await runSingleSkill(updatedMessages, messageId, browserContext || undefined);
         } finally {
           setIsTyping(false);
         }

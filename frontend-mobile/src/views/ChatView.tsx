@@ -6,6 +6,7 @@ import MessageItem from '../components/MessageItem';
 import Composer from '../components/Composer';
 import MenuIcon from '../components/MenuIcon';
 import FilesPanel from '../components/FilesPanel';
+import type { AgentRuntime } from '../runtime/types';
 
 const FolderIcon: React.FC = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,24 +24,27 @@ const ChatView: React.FC<{
   onOpenMenu: () => void;
   browserContext?: string;
   browserContextControl?: React.ReactNode;
+  agentRuntime: AgentRuntime;
 }> = ({
   store,
   onOpenMenu,
   browserContext,
   browserContextControl,
+  agentRuntime,
 }) => {
   const { activeSession, allSkills, harness, addMessage, updateMessage, createNewSession, currentUser } = store;
   const userName = currentUser?.username?.trim() || currentUser?.user_id;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [filesOpen, setFilesOpen] = useState(false);
 
-  const { isTyping, send, stop } = useChatSend({
+  const { isTyping, send, stop, respondToConfirmation } = useChatSend({
     session: activeSession,
     skills: allSkills,
     harness,
     addMessage,
     updateMessage,
     browserContext,
+    agentRuntime,
   });
 
   const activeSkill = useMemo(
@@ -96,11 +100,13 @@ const ChatView: React.FC<{
         }
       >
         <span className="block max-w-[60vw] truncate text-base font-bold">{activeSession.title}</span>
-        {activeSkill && (
+        {agentRuntime.isLocal ? (
+          <span className="block text-[11px] font-medium text-gray-400">本机 · OpenCode</span>
+        ) : activeSkill ? (
           <span className="block text-[11px] font-medium text-gray-400">
             {activeSkill.icon} {activeSkill.name}
           </span>
-        )}
+        ) : null}
       </NavBar>
 
       <div ref={scrollRef} className="eido-mobile-message-list thin-scrollbar flex-1 space-y-5 overflow-y-auto bg-[#f5f5f5] px-3 py-4">
@@ -112,6 +118,8 @@ const ChatView: React.FC<{
             isLast={idx === activeSession.messages.length - 1}
             isTyping={isTyping}
             userName={userName}
+            agentRuntime={agentRuntime}
+            onConfirm={(approved) => respondToConfirmation(m.id, approved)}
           />
         ))}
       </div>
@@ -123,9 +131,15 @@ const ChatView: React.FC<{
         onSend={send}
         onStop={stop}
         browserContextControl={browserContextControl}
+        agentRuntime={agentRuntime}
       />
 
-      <FilesPanel sessionId={activeSession.id} visible={filesOpen} onClose={() => setFilesOpen(false)} />
+      <FilesPanel
+        sessionId={activeSession.id}
+        visible={filesOpen}
+        onClose={() => setFilesOpen(false)}
+        agentRuntime={agentRuntime}
+      />
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Popup, Dialog, SpinLoading, Empty, Toast } from 'antd-mobile';
-import { api, getWorkspaceFileUrl } from '../shared';
 import type { WorkspaceFileNode } from '../shared';
+import type { AgentRuntime } from '../runtime/types';
 
 function getFileIcon(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase() || '';
@@ -21,9 +21,10 @@ interface FilesPanelProps {
   sessionId: string;
   visible: boolean;
   onClose: () => void;
+  agentRuntime: AgentRuntime;
 }
 
-const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose }) => {
+const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, agentRuntime }) => {
   const [tree, setTree] = useState<WorkspaceFileNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -32,12 +33,12 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose }) 
   const load = useCallback(() => {
     if (!sessionId) return;
     setLoading(true);
-    api
+    agentRuntime
       .listWorkspaceFiles(sessionId)
       .then(setTree)
       .catch(() => setTree([]))
       .finally(() => setLoading(false));
-  }, [sessionId]);
+  }, [agentRuntime, sessionId]);
 
   useEffect(() => {
     if (visible) load();
@@ -61,12 +62,25 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose }) 
     if (!ok) return;
     setDeleting(node.path);
     try {
-      await api.deleteWorkspaceFile(sessionId, node.path);
+      await agentRuntime.deleteWorkspaceFile(sessionId, node.path);
       load();
     } catch {
       Toast.show('删除失败');
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleOpen = async (node: WorkspaceFileNode, download = false) => {
+    if (!agentRuntime.openWorkspaceFile) return;
+    try {
+      await agentRuntime.openWorkspaceFile(node.path, {
+        download,
+        filename: node.name,
+        sessionId,
+      });
+    } catch (error) {
+      Toast.show({ content: error instanceof Error ? error.message : '读取文件失败' });
     }
   };
 
@@ -95,31 +109,52 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose }) 
           ) : (
             !isDir && (
               <div className="flex shrink-0 items-center gap-1">
-                <a
-                  href={getWorkspaceFileUrl(node.path, { sessionId })}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
-                >
-                  预览
-                </a>
-                <a
-                  href={getWorkspaceFileUrl(node.path, { download: true, filename: node.name, sessionId })}
-                  onClick={(e) => e.stopPropagation()}
-                  className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
-                >
-                  下载
-                </a>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(node);
-                  }}
-                  className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-red-500 active:bg-red-50"
-                >
-                  删除
-                </button>
+                {agentRuntime.openWorkspaceFile ? (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleOpen(node); }}
+                      className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
+                    >
+                      预览
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleOpen(node, true); }}
+                      className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
+                    >
+                      下载
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <a
+                      href={agentRuntime.getWorkspaceFileUrl(node.path, { sessionId })}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
+                    >
+                      预览
+                    </a>
+                    <a
+                      href={agentRuntime.getWorkspaceFileUrl(node.path, { download: true, filename: node.name, sessionId })}
+                      onClick={(e) => e.stopPropagation()}
+                      className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
+                    >
+                      下载
+                    </a>
+                  </>
+                )}
+                {agentRuntime.canDeleteWorkspaceFiles !== false ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(node);
+                    }}
+                    className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-red-500 active:bg-red-50"
+                  >
+                    删除
+                  </button>
+                ) : null}
               </div>
             )
           )}

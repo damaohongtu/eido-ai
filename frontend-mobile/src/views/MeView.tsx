@@ -7,7 +7,9 @@ const MeView: React.FC<{
   store: EidoStore;
   onOpenMenu: () => void;
   debugControl?: React.ReactNode;
-}> = ({ store, onOpenMenu, debugControl }) => {
+  runtimeControl?: React.ReactNode;
+  cloudRuntimeActive?: boolean;
+}> = ({ store, onOpenMenu, debugControl, runtimeControl, cloudRuntimeActive = true }) => {
   const { currentUser, harness, setHarness, logout } = store;
   const displayName = currentUser?.username?.trim() || currentUser?.user_id || '用户';
   const harnessActive = harness === 'open_harness';
@@ -34,7 +36,13 @@ const MeView: React.FC<{
           </div>
         </div>
 
-        <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+        {runtimeControl ? (
+          <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
+            {runtimeControl}
+          </div>
+        ) : null}
+
+        <div className={`mb-4 overflow-hidden rounded-2xl bg-white shadow-sm ${cloudRuntimeActive ? '' : 'opacity-50'}`}>
           <div className="flex items-center justify-between px-5 py-4">
             <div>
               <div className="text-[15px] font-semibold text-gray-800">AI 后端</div>
@@ -44,6 +52,7 @@ const MeView: React.FC<{
             </div>
             <button
               onClick={() => setHarness(harnessActive ? 'claude_code' : 'open_harness')}
+              disabled={!cloudRuntimeActive}
               className="inline-flex items-center gap-1 rounded-full bg-gray-100 p-1"
             >
               <span

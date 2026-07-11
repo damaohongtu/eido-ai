@@ -3,8 +3,16 @@ import ReactDOM from 'react-dom/client';
 import { createRoot } from 'react-dom/client';
 import { unstableSetRender } from 'antd-mobile';
 import App from '../../frontend-mobile/src/App';
+import { eidoCloudRuntime } from '../../frontend-mobile/src/runtime/eidoCloudRuntime';
 import '../../frontend-mobile/src/index.css';
 import './extension.css';
+import LocalAgentSettingsControl from './LocalAgentSettingsControl';
+import {
+  DEFAULT_LOCAL_AGENT_SETTINGS,
+  loadLocalAgentSettings,
+  OpenCodeLocalRuntime,
+} from './localAgentRuntime';
+import type { LocalAgentSettings } from './localAgentRuntime';
 
 unstableSetRender((node, container) => {
   const target = container as Element & { _reactRoot?: ReturnType<typeof createRoot> };
@@ -125,7 +133,7 @@ const BrowserContextPanel: React.FC<{
           <header className="eido-extension-context__header">
             <div>
               <h2>网页上下文</h2>
-              <p>选择当前页或其他标签页，发送消息时会自动附加给 Eido。</p>
+              <p>选择当前页或其他标签页，发送消息时会自动附加给当前 Agent。</p>
             </div>
             <button type="button" onClick={onClose} aria-label="关闭">×</button>
           </header>
@@ -233,6 +241,16 @@ const ExtensionApp: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contextPanelOpen, setContextPanelOpen] = useState(false);
+  const [localAgentSettings, setLocalAgentSettings] = useState<LocalAgentSettings | null>(null);
+
+  useEffect(() => {
+    loadLocalAgentSettings()
+      .then(setLocalAgentSettings)
+      .catch((err) => {
+        console.error('读取本地 Agent 设置失败', err);
+        setLocalAgentSettings(DEFAULT_LOCAL_AGENT_SETTINGS);
+      });
+  }, []);
 
   const refreshTabs = async () => {
     try {
@@ -281,12 +299,34 @@ const ExtensionApp: React.FC = () => {
   }, []);
 
   const browserContext = useMemo(() => buildBrowserContext(pages), [pages]);
+  const agentRuntime = useMemo(() => {
+    if (!localAgentSettings || localAgentSettings.mode !== 'local') return eidoCloudRuntime;
+    try {
+      return new OpenCodeLocalRuntime(localAgentSettings);
+    } catch (err) {
+      console.error('初始化本地 Agent Runtime 失败', err);
+      return new OpenCodeLocalRuntime({
+        ...DEFAULT_LOCAL_AGENT_SETTINGS,
+        mode: 'local',
+        username: localAgentSettings.username,
+        password: localAgentSettings.password,
+      });
+    }
+  }, [localAgentSettings]);
 
   const openDebug = () => {
     sendRuntimeMessage<{ ok: boolean }>({ type: 'EIDO_OPEN_DEBUG_PAGE' }).catch((err) => {
       console.error('打开调试控制台失败', err);
     });
   };
+
+  if (!localAgentSettings) {
+    return (
+      <div className="flex h-full items-center justify-center bg-white text-sm text-gray-400">
+        正在加载插件设置...
+      </div>
+    );
+  }
 
   return (
     <div className="eido-extension-shell">
@@ -300,6 +340,8 @@ const ExtensionApp: React.FC = () => {
           />
         }
         debugControl={<DebugSettingsItem onClick={openDebug} />}
+        runtimeControl={<LocalAgentSettingsControl settings={localAgentSettings} />}
+        agentRuntime={agentRuntime}
         extensionMode
         onAuthRequired={(loginUrl) => {
           console.warn('Eido extension auth required', { loginUrl });

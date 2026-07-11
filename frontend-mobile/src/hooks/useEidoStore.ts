@@ -7,10 +7,13 @@ import {
   INITIAL_CHAT_STATE,
 } from '../shared';
 import type { ChatSession, Message, Skill } from '../shared';
+import type { AgentRuntime } from '../runtime/types';
 
 export type MobileTab = 'chat' | 'skills' | 'me';
 
 const ACTIVE_SESSION_KEY = 'eido_m_active_session_id';
+const LOCAL_ACTIVE_SESSION_KEY = 'eido_local_active_session_id';
+const LOCAL_SESSIONS_PREFIX = 'eido_local_sessions_';
 const HARNESS_KEY = 'eido_m_harness';
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -97,10 +100,12 @@ export interface EidoStore {
 interface UseEidoStoreOptions {
   extensionMode?: boolean;
   onAuthRequired?: (loginUrl: string) => void;
+  localMode?: boolean;
+  agentRuntime?: AgentRuntime;
 }
 
 export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
-  const { extensionMode = false, onAuthRequired } = options;
+  const { extensionMode = false, onAuthRequired, localMode = false, agentRuntime } = options;
   const [authChecked, setAuthChecked] = useState(false);
   const [authRequired, setAuthRequired] = useState(false);
   const [authChecking, setAuthChecking] = useState(false);
@@ -113,6 +118,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
   const activeSessionIdRef = useRef<string | null>(null);
   // 落地初始化只执行一次（避免 StrictMode 双调导致重复创建空会话）
   const bootstrappedRef = useRef(false);
+  const localStoreReadyRef = useRef(false);
 
   const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
   const [userSkills, setUserSkills] = useState<Skill[]>([]);
@@ -143,12 +149,14 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
       setAuthRequired(false);
       setCurrentUser(user);
       setAuthChecked(true);
-      api.warmupSandbox().catch(() => undefined);
+      if (!localMode) {
+        api.warmupSandbox().catch(() => undefined);
+      }
       return true;
     } finally {
       setAuthChecking(false);
     }
-  }, [extensionMode, onAuthRequired]);
+  }, [extensionMode, localMode, onAuthRequired]);
 
   // 鉴权（登录态来自 /api/v1/auth/me；未登录跳后端登录）
   useEffect(() => {
@@ -178,9 +186,24 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
 
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
-    if (activeSessionId) writeStorage(ACTIVE_SESSION_KEY, activeSessionId);
-    else removeStorage(ACTIVE_SESSION_KEY);
-  }, [activeSessionId]);
+    const key = localMode ? LOCAL_ACTIVE_SESSION_KEY : ACTIVE_SESSION_KEY;
+    if (activeSessionId) writeStorage(key, activeSessionId);
+    else removeStorage(key);
+  }, [activeSessionId, localMode]);
+
+  const localSessionsKey = useMemo(
+    () => `${LOCAL_SESSIONS_PREFIX}${currentUser?.user_id || 'anonymous'}`,
+    [currentUser?.user_id]
+  );
+
+  useEffect(() => {
+    if (!localMode || !localStoreReadyRef.current) return;
+    try {
+      localStorage.setItem(localSessionsKey, JSON.stringify(sessions));
+    } catch (err) {
+      console.warn('保存本地会话失败:', err);
+    }
+  }, [localMode, localSessionsKey, sessions]);
 
   // 拉取会话列表 + 落地即进入聊天（恢复上次会话 / 打开最近会话 / 无则自动新建）
   useEffect(() => {
@@ -188,6 +211,26 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     bootstrappedRef.current = true;
     (async () => {
       try {
+        if (localMode) {
+          const raw = localStorage.getItem(localSessionsKey);
+          const localSessions = raw ? (JSON.parse(raw) as ChatSession[]).map(fixStaleRunningSteps) : [];
+          setSessions(localSessions);
+          localStoreReadyRef.current = true;
+
+          const cachedId = readStorage<string | null>(LOCAL_ACTIVE_SESSION_KEY, null);
+          const targetId =
+            cachedId && localSessions.some((session) => session.id === cachedId)
+              ? cachedId
+              : localSessions[0]?.id ?? null;
+          if (targetId) {
+            activeSessionIdRef.current = targetId;
+            setActiveSessionId(targetId);
+          } else {
+            await createNewSession();
+          }
+          return;
+        }
+
         const list = await api.listSessions();
         const summaries = list.map(summaryToSession);
         setSessions(summaries);
@@ -218,11 +261,17 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authChecked, authRequired]);
+  }, [authChecked, authRequired, localMode, localSessionsKey]);
 
   // 加载技能
   const refreshSkills = useCallback(async () => {
     try {
+      if (localMode) {
+        const localSkills = agentRuntime?.listSkills ? await agentRuntime.listSkills() : [];
+        setSystemSkills(localSkills);
+        setUserSkills([]);
+        return;
+      }
       const [systemResult, userResult] = await Promise.all([
         api.getSkills({ is_system: true, limit: 100 }),
         api.getSkills({ is_system: false, limit: 100 }),
@@ -232,7 +281,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     } catch (error) {
       console.error('加载技能失败:', error);
     }
-  }, []);
+  }, [agentRuntime, localMode]);
 
   useEffect(() => {
     if (!authChecked || authRequired) return;
@@ -248,6 +297,11 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
 
   const refreshSessions = useCallback(async () => {
     try {
+      if (localMode) {
+        const raw = localStorage.getItem(localSessionsKey);
+        if (raw) setSessions((JSON.parse(raw) as ChatSession[]).map(fixStaleRunningSteps));
+        return;
+      }
       const list = await api.listSessions();
       const summaries = list.map(summaryToSession);
       setSessions((prev) =>
@@ -260,12 +314,12 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     } catch (err) {
       console.error('刷新会话列表失败:', err);
     }
-  }, []);
+  }, [localMode, localSessionsKey]);
 
   const selectSession = useCallback(
     async (id: string) => {
       const target = sessions.find((s) => s.id === id);
-      if (target && target.messages.length === 0) {
+      if (!localMode && target && target.messages.length === 0) {
         try {
           const detail = await api.getSession(id);
           const hydrated = fixStaleRunningSteps(hydrateSession(detail));
@@ -278,7 +332,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
       activeSessionIdRef.current = id;
       setActiveSessionId(id);
     },
-    [sessions]
+    [localMode, sessions]
   );
 
   const openChat = useCallback(
@@ -291,6 +345,29 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
 
   const createNewSession = useCallback(async (skillId?: string) => {
     try {
+      if (localMode) {
+        const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+          : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.slice(0, 12);
+        const initialMessages: Message[] = INITIAL_CHAT_STATE.map((message, index) => ({
+          ...message,
+          id: `${id}-init-${index}`,
+          timestamp: Date.now(),
+        }));
+        const localSession: ChatSession = {
+          id,
+          title: '新建会话',
+          skillId,
+          messages: initialMessages,
+          updatedAt: Date.now(),
+        };
+        setSessions((prev) => [localSession, ...prev]);
+        activeSessionIdRef.current = id;
+        setActiveSessionId(id);
+        setTab('chat');
+        return;
+      }
+
       const created = await api.createSession({ skill_id: skillId ?? null });
       const initialMessages: Message[] = INITIAL_CHAT_STATE.map((m, i) => ({
         ...m,
@@ -311,15 +388,19 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     } catch (err) {
       console.error('创建会话失败:', err);
     }
-  }, []);
+  }, [localMode]);
 
   const deleteSession = useCallback(
     async (id: string) => {
-      try {
-        await api.deleteSession(id);
-      } catch (err) {
-        console.error('删除会话失败:', err);
-        return;
+      if (localMode) {
+        agentRuntime?.deleteSession?.(id).catch((err) => console.warn('删除本地 Agent 会话失败:', err));
+      } else {
+        try {
+          await api.deleteSession(id);
+        } catch (err) {
+          console.error('删除会话失败:', err);
+          return;
+        }
       }
       const remaining = sessions.filter((s) => s.id !== id);
       setSessions(remaining);
@@ -334,7 +415,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         }
       }
     },
-    [sessions, openChat]
+    [agentRuntime, localMode, sessions, openChat]
   );
 
   const addMessage = useCallback((msg: Message) => {
@@ -359,10 +440,10 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         return { ...s, messages, title, updatedAt: Date.now() };
       })
     );
-    if (titleToPatch) {
+    if (titleToPatch && !localMode) {
       api.patchSession(curId, { title: titleToPatch }).catch((err) => console.warn('更新标题失败:', err));
     }
-    if (msg.role === 'system') {
+    if (msg.role === 'system' && !localMode) {
       api
         .appendMessage(curId, {
           id: msg.id,
@@ -372,7 +453,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         })
         .catch((err) => console.warn('追加消息失败:', err));
     }
-  }, []);
+  }, [localMode]);
 
   const updateMessage = useCallback((id: string, updates: Partial<Message>) => {
     const curId = activeSessionIdRef.current;
@@ -390,8 +471,10 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     const curId = activeSessionIdRef.current;
     if (!curId) return;
     setSessions((prev) => prev.map((s) => (s.id === curId ? { ...s, skillId, updatedAt: Date.now() } : s)));
-    api.patchSession(curId, { skill_id: skillId }).catch((err) => console.warn('更新 skill_id 失败:', err));
-  }, []);
+    if (!localMode) {
+      api.patchSession(curId, { skill_id: skillId }).catch((err) => console.warn('更新 skill_id 失败:', err));
+    }
+  }, [localMode]);
 
   const logout = useCallback(() => {
     removeStorage(ACTIVE_SESSION_KEY);

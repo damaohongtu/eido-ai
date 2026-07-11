@@ -12,6 +12,7 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 - **过程可观测**：流式返回模型思考、执行步骤、引用来源、工作流 Mermaid 图、待确认操作和最终回答，前端可逐步展示任务进展。
 - **会话工作区**：每个会话拥有独立 workspace，支持附件上传、结果文件查看/下载/删除，历史消息和文件上下文可持续复用。
 - **网页上下文分析**：Chrome 插件在当前浏览器右侧 Side Panel 打开，可读取当前页内容，也可选择用户已打开的其他标签页加入分析。
+- **本机 Agent 模式**：Chrome 插件可直接连接本机 OpenCode；除用户认证外，会话、网页上下文、附件和执行结果均保留在浏览器与本机，不经过 Eido 后端。
 - **定时任务**：支持技能、脚本和对话类任务的创建、编辑、手动运行和周期调度，用于日报、监控、摘要生成等自动化场景。
 - **多端体验**：桌面 Web 适合完整工作台，移动端 H5 和 Chrome 插件复用核心 API 与数据模型，针对窄屏做了独立布局。
 - **认证与隔离**：支持本地开发免登录、CAS 登录、管理员用户、系统/用户技能隔离，以及 gateway + per-user Docker 容器的多用户沙盒模式。
@@ -26,6 +27,7 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 | 桌面前端 | React 19, Vite 6, TypeScript, Ant Design 6, Tailwind CSS, Mermaid, react-markdown |
 | 移动端 H5 | React 19, Vite 6, antd-mobile, Tailwind CSS, 共享桌面端 API/type 层 |
 | Chrome 插件 | Manifest V3, Chrome Side Panel API, React 19, antd-mobile, content/background scripts |
+| 本机 Agent | OpenCode Server API, HTTP/SSE, loopback-only connection |
 | 部署 | Nginx, Supervisor, Docker Compose profiles, app/gateway/user 多镜像 |
 
 ## 架构概览
@@ -183,6 +185,16 @@ VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
 ```
 
 插件会在当前浏览器右侧 Side Panel 打开；调试控制台入口在“我的设置”中，也可以从扩展详情页的 Inspect views 打开原生 DevTools。
+
+### 6. 使用本机 OpenCode
+
+本机模式仅复用 Eido 用户认证，不调用 Eido 的聊天、会话、技能、文件、任务或沙盒接口：
+
+```bash
+opencode /path/to/project --hostname 127.0.0.1 --port 4096
+```
+
+进入插件“我的设置 -> 执行位置”，选择“本机”，保留默认地址 `http://127.0.0.1:4096`，测试连接后保存即可。插件会直接复用 OpenCode 当前打开的项目目录，无需另行安装或启动中间服务。若 OpenCode 配置了 `OPENCODE_SERVER_PASSWORD`，在插件中填写相同密码。
 
 ## Docker 部署
 

@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { api } from '../shared';
 import type { ChatSession, Message, Skill } from '../shared';
+import { eidoCloudRuntime } from '../runtime/eidoCloudRuntime';
+import type { AgentRuntime } from '../runtime/types';
 
 export function createMessageId(prefix = 'msg'): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -21,6 +22,7 @@ interface UseChatSendArgs {
   addMessage: (msg: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   browserContext?: string;
+  agentRuntime?: AgentRuntime;
 }
 
 /**
@@ -28,7 +30,15 @@ interface UseChatSendArgs {
  * - 单 @技能 / 无技能：交由后端自动规划，单次流式执行
  * - 多 @技能：串行流水线，前一步输出作为下一步 context
  */
-export function useChatSend({ session, skills, harness, addMessage, updateMessage, browserContext }: UseChatSendArgs) {
+export function useChatSend({
+  session,
+  skills,
+  harness,
+  addMessage,
+  updateMessage,
+  browserContext,
+  agentRuntime = eidoCloudRuntime,
+}: UseChatSendArgs) {
   const [isTyping, setIsTyping] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const thinkingLogsRef = useRef<Record<string, string[]>>({});
@@ -63,17 +73,17 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
   );
 
   const runSingle = useCallback(
-    async (msgs: Message[], assistantId: string) => {
+    async (msgs: Message[], assistantId: string, localAgentHint?: string) => {
       if (!session) return;
       abortRef.current = new AbortController();
       try {
-        await api.streamChat(
+        await agentRuntime.streamChat(
           msgs,
           makeUpdater(assistantId),
           session.id,
           assistantId,
           browserContext || undefined,
-          undefined,
+          agentRuntime.isLocal ? localAgentHint : undefined,
           abortRef.current.signal,
           harness
         );
@@ -81,7 +91,7 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
         delete thinkingLogsRef.current[assistantId];
       }
     },
-    [session, harness, makeUpdater, browserContext]
+    [session, harness, makeUpdater, browserContext, agentRuntime]
   );
 
   const runPipeline = useCallback(
@@ -107,7 +117,7 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
         let finalContent = '';
         const updater = makeUpdater(assistantId);
         try {
-          await api.streamChat(
+          await agentRuntime.streamChat(
             contextMessages,
             (content, thinking, steps, confirmation, references, mermaid) => {
               finalContent = content;
@@ -129,14 +139,19 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
         contextMessages = [...contextMessages, { ...placeholder, content: finalContent }];
       }
     },
-    [session, harness, addMessage, makeUpdater, browserContext]
+    [session, harness, addMessage, makeUpdater, browserContext, agentRuntime]
   );
 
   const buildContentWithAttachments = (text: string, attachments: Attachment[]): string => {
     if (attachments.length === 0) return text.trim();
     const parts: string[] = [text.trim()];
-    parts.push('\n\n---\n\n**用户上传的文件（已保存至服务端，可直接读取）:**\n');
-    for (const a of attachments) parts.push(`\n- ${a.name}: \`${a.path}\`\n`);
+    if (agentRuntime.isLocal) {
+      parts.push('\n\n---\n\n**用户随当前请求发送的本机附件:**\n');
+      for (const attachment of attachments) parts.push(`\n- ${attachment.name}\n`);
+    } else {
+      parts.push('\n\n---\n\n**用户上传的文件（已保存至服务端，可直接读取）:**\n');
+      for (const attachment of attachments) parts.push(`\n- ${attachment.name}: \`${attachment.path}\`\n`);
+    }
     return parts.join('');
   };
 
@@ -176,7 +191,7 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
             timestamp: Date.now(),
             references: [],
           });
-          await runSingle(baseMessages, assistantId);
+          await runSingle(baseMessages, assistantId, mentionedSkills[0]?.id || session.skillId);
         }
       } catch (err) {
         console.error('执行失败:', err);
@@ -184,12 +199,27 @@ export function useChatSend({ session, skills, harness, addMessage, updateMessag
         setIsTyping(false);
       }
     },
-    [isTyping, session, skills, addMessage, runPipeline, runSingle]
+    [isTyping, session, skills, addMessage, runPipeline, runSingle, agentRuntime]
   );
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
-  return { isTyping, send, stop };
+  const respondToConfirmation = useCallback(
+    async (messageId: string, approved: boolean) => {
+      if (!session || !agentRuntime.respondToConfirmation) return;
+      const message = session.messages.find((item) => item.id === messageId);
+      const confirmation = message?.pendingConfirmation;
+      if (!confirmation) return;
+      await agentRuntime.respondToConfirmation(session.id, confirmation.toolId, approved);
+      updateMessage(messageId, {
+        pendingConfirmation: undefined,
+        thinking: approved ? '已允许本次操作，继续执行...' : '已拒绝本次操作，等待 Agent 调整方案...',
+      });
+    },
+    [agentRuntime, session, updateMessage]
+  );
+
+  return { isTyping, send, stop, respondToConfirmation };
 }

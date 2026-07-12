@@ -79,7 +79,11 @@ const Sidebar: React.FC<SidebarProps> = ({
     </button>
   );
 
-  const harnessActive = harness === 'open_harness';
+  const harnessOptions = [
+    { value: 'claude_code', short: 'CC', label: 'Claude Code' },
+    { value: 'open_harness', short: 'OH', label: 'OpenHarness' },
+    { value: 'opencode', short: 'OC', label: 'OpenCode' },
+  ];
 
   return (
     <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
@@ -147,19 +151,23 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* ---- Harness toggle (shrink-0) ---- */}
       <div className="px-6 py-2 shrink-0">
-        <button
-          type="button"
-          onClick={() => onHarnessChange(harnessActive ? 'claude_code' : 'open_harness')}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
-          title={harnessActive ? '切换到 Claude Code' : '切换到 OpenHarness'}
-        >
+        <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-gray-500">
           <span>AI 后端</span>
-          <span className="inline-flex items-center gap-1">
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${!harnessActive ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>CC</span>
-            <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${harnessActive ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>OH</span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-gray-50 p-0.5">
+            {harnessOptions.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onHarnessChange(option.value)}
+                title={option.label}
+                aria-pressed={harness === option.value}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${harness === option.value ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                {option.short}
+              </button>
+            ))}
           </span>
-        </button>
+        </div>
       </div>
 
       {/* ---- Bottom: user section (shrink-0) ---- */}

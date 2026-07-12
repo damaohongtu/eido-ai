@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install claude CLI via npmmirror (Taobao)
-RUN npm install -g @anthropic-ai/claude-code --registry https://registry.npmmirror.com
+RUN npm install -g @anthropic-ai/claude-code opencode-ai --registry https://registry.npmmirror.com
 
 # Install Python dependencies via Aliyun PyPI mirror
 WORKDIR /app

@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code --registry https://registry.npmmirror.com
+RUN npm install -g @anthropic-ai/claude-code opencode-ai --registry https://registry.npmmirror.com
 
 WORKDIR /app
 COPY backend/requirements.txt .

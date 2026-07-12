@@ -6,7 +6,7 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 
 ## 核心亮点
 
-- **智能体执行内核**：后端通过 Claude Agent SDK / Claude Code harness 驱动流式对话、工具调用、文件产出和多轮执行，并保留 OpenHarness 兼容入口。
+- **智能体执行内核**：后端通过 Claude Agent SDK / Claude Code harness 驱动流式对话、工具调用、文件产出和多轮执行，并提供 OpenHarness 与 OpenCode 兼容入口。
 - **技能系统**：以 `SKILL.md` 描述技能能力、使用边界和工具约束，支持系统技能、用户私有技能、在线创建、上传、编辑、删除和文件级管理。
 - **多技能协作**：前端支持在对话中选择或 `@` 提及技能，后端可把多个技能串成任务上下文，适合投研、文档解析、邮件、搜索、文件处理等复合场景。
 - **过程可观测**：流式返回模型思考、执行步骤、引用来源、工作流 Mermaid 图、待确认操作和最终回答，前端可逐步展示任务进展。
@@ -23,7 +23,7 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 | 模块 | 主要技术 |
 | --- | --- |
 | 后端 | FastAPI, Pydantic v2, Uvicorn, SQLite, APScheduler, python-cas, Docker SDK |
-| Agent | claude-agent-sdk, Claude Code harness, OpenHarness 兼容层, LiteLLM 相关依赖 |
+| Agent | claude-agent-sdk, Claude Code harness, OpenHarness/OpenCode 兼容层, LiteLLM 相关依赖 |
 | 桌面前端 | React 19, Vite 6, TypeScript, Ant Design 6, Tailwind CSS, Mermaid, react-markdown |
 | 移动端 H5 | React 19, Vite 6, antd-mobile, Tailwind CSS, 共享桌面端 API/type 层 |
 | Chrome 插件 | Manifest V3, Chrome Side Panel API, React 19, antd-mobile, content/background scripts |
@@ -54,13 +54,13 @@ flowchart LR
 
   subgraph UserA["用户 A 沙盒容器"]
     ApiA["Eido API"]
-    AgentA["Agent Runtime<br/>Claude Code / OpenHarness"]
+    AgentA["Agent Runtime<br/>Claude Code / OpenHarness / OpenCode"]
     DataA["用户 A 数据<br/>会话 / 工作区 / 私有技能 / 定时任务"]
   end
 
   subgraph UserB["用户 B 沙盒容器"]
     ApiB["Eido API"]
-    AgentB["Agent Runtime<br/>Claude Code / OpenHarness"]
+    AgentB["Agent Runtime<br/>Claude Code / OpenHarness / OpenCode"]
     DataB["用户 B 数据<br/>会话 / 工作区 / 私有技能 / 定时任务"]
   end
 
@@ -251,7 +251,8 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | 模型服务密钥 |
 | `ANTHROPIC_MODEL` | 主模型名称 |
 | `ANTHROPIC_SMALL_FAST_MODEL` | 快速/小模型名称 |
-| `AGENT_HARNESS` | 默认 agent harness，例如 `claude_code` 或 `open_harness` |
+| `AGENT_HARNESS` | 默认 agent harness：`claude_code`、`open_harness` 或 `opencode` |
+| `OPENCODE_MODEL` | OpenCode 使用的可选模型，格式为 `provider/model`；留空时使用 OpenCode 自身默认配置 |
 | `AUTH_DISABLED` | 本地开发免登录开关 |
 | `SESSION_SECRET_KEY` | 登录 session 加密密钥，生产环境必须修改 |
 | `FRONTEND_URL` | 后端认证回跳与 CORS 使用的前端地址 |

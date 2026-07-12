@@ -12,7 +12,12 @@ const MeView: React.FC<{
 }> = ({ store, onOpenMenu, debugControl, runtimeControl, cloudRuntimeActive = true }) => {
   const { currentUser, harness, setHarness, logout } = store;
   const displayName = currentUser?.username?.trim() || currentUser?.user_id || '用户';
-  const harnessActive = harness === 'open_harness';
+  const harnessOptions = [
+    { value: 'claude_code', short: 'CC', label: 'Claude Code' },
+    { value: 'open_harness', short: 'OH', label: 'OpenHarness' },
+    { value: 'opencode', short: 'OC', label: 'OpenCode' },
+  ];
+  const harnessLabel = harnessOptions.find(option => option.value === harness)?.label || 'Claude Code';
 
   const confirmLogout = async () => {
     const ok = await Dialog.confirm({ content: '确认登出？', confirmText: '登出', cancelText: '取消' });
@@ -47,29 +52,24 @@ const MeView: React.FC<{
             <div>
               <div className="text-[15px] font-semibold text-gray-800">AI 后端</div>
               <div className="text-xs text-gray-400">
-                {harnessActive ? 'OpenHarness' : 'Claude Code'}
+                {harnessLabel}
               </div>
             </div>
-            <button
-              onClick={() => setHarness(harnessActive ? 'claude_code' : 'open_harness')}
-              disabled={!cloudRuntimeActive}
-              className="inline-flex items-center gap-1 rounded-full bg-gray-100 p-1"
-            >
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
-                  !harnessActive ? 'bg-white text-gray-800 shadow' : 'text-gray-400'
-                }`}
-              >
-                CC
-              </span>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${
-                  harnessActive ? 'bg-white text-gray-800 shadow' : 'text-gray-400'
-                }`}
-              >
-                OH
-              </span>
-            </button>
+            <div className="inline-flex items-center gap-1 rounded-full bg-gray-100 p-1">
+              {harnessOptions.map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setHarness(option.value)}
+                  disabled={!cloudRuntimeActive}
+                  aria-pressed={harness === option.value}
+                  className={`rounded-full px-2.5 py-1 text-xs font-bold transition-colors ${
+                    harness === option.value ? 'bg-white text-gray-800 shadow' : 'text-gray-400'
+                  }`}
+                >
+                  {option.short}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

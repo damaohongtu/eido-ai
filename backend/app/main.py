@@ -229,6 +229,16 @@ def create_application() -> FastAPI:
         except Exception as e:
             logger.error(f"✗ OpenHarnessService 初始化失败: {e}", exc_info=True)
 
+        # ---------- OpenCode CLI 服务（始终初始化，前端可按请求切换）---------- #
+        try:
+            from app.services.open_code_service import init_open_code_service
+            init_open_code_service(
+                Path(settings.SKILLS_DIR), Path(settings.WORKSPACE_ROOT)
+            )
+            logger.info("✓ OpenCodeService 初始化完成")
+        except Exception as e:
+            logger.error(f"✗ OpenCodeService 初始化失败: {e}", exc_info=True)
+
         # ---------- 会话工作区 / 会话存储（user 与 local 需要；gateway 不需要）---------- #
         if not is_gateway:
             try:

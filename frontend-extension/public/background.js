@@ -1,4 +1,17 @@
+import {
+  buildNativeLauncherRequest,
+  NATIVE_LAUNCHER_HOST,
+  normalizeNativeLauncherError,
+} from './native-launcher-protocol.js';
+
 const INVALID_TAB_URL = /^(chrome|edge|brave|vivaldi|about|devtools):/i;
+const NATIVE_MESSAGE_TYPES = new Set([
+  'EIDO_NATIVE_LAUNCHER_PING',
+  'EIDO_OPENCODE_DETECT',
+  'EIDO_OPENCODE_SELECT_DIRECTORY',
+  'EIDO_OPENCODE_LAUNCH',
+  'EIDO_OPENCODE_STATUS',
+]);
 
 chrome.runtime.onInstalled.addListener(() => {
   if (chrome.sidePanel?.setPanelBehavior) {
@@ -61,7 +74,41 @@ async function captureTab(tabId) {
   return chrome.tabs.sendMessage(tabId, { type: 'EIDO_EXTRACT_PAGE' });
 }
 
+function sendNativeLauncherMessage(message) {
+  return new Promise((resolve) => {
+    let request;
+    try {
+      request = buildNativeLauncherRequest(message);
+    } catch (error) {
+      resolve(normalizeNativeLauncherError(error));
+      return;
+    }
+
+    chrome.runtime.sendNativeMessage(NATIVE_LAUNCHER_HOST, request, (response) => {
+      const runtimeError = chrome.runtime.lastError;
+      if (runtimeError) {
+        resolve(normalizeNativeLauncherError(runtimeError));
+        return;
+      }
+      if (!response || typeof response !== 'object') {
+        resolve({ ok: false, code: 'NATIVE_HOST_ERROR', message: '本机启动组件未返回有效结果' });
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (NATIVE_MESSAGE_TYPES.has(message?.type)) {
+    if (sender.id !== chrome.runtime.id) {
+      sendResponse({ ok: false, code: 'NATIVE_HOST_FORBIDDEN', message: '不允许的调用来源' });
+      return false;
+    }
+    sendNativeLauncherMessage(message).then(sendResponse);
+    return true;
+  }
+
   if (message?.type === 'EIDO_LIST_TABS') {
     chrome.tabs.query({}).then((tabs) => {
       sendResponse({

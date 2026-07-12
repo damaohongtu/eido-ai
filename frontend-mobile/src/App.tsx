@@ -6,11 +6,15 @@ import AppDrawer from './components/AppDrawer';
 import ChatView from './views/ChatView';
 import SkillsView from './views/SkillsView';
 import MeView from './views/MeView';
+import { eidoCloudRuntime } from './runtime/eidoCloudRuntime';
+import type { AgentRuntime } from './runtime/types';
 
 interface AppProps {
   browserContext?: string;
   browserContextControl?: React.ReactNode;
   debugControl?: React.ReactNode;
+  runtimeControl?: React.ReactNode;
+  agentRuntime?: AgentRuntime;
   extensionMode?: boolean;
   onAuthRequired?: (loginUrl: string) => void;
 }
@@ -19,10 +23,17 @@ const App: React.FC<AppProps> = ({
   browserContext,
   browserContextControl,
   debugControl,
+  runtimeControl,
+  agentRuntime = eidoCloudRuntime,
   extensionMode = false,
   onAuthRequired,
 }) => {
-  const store = useEidoStore({ extensionMode, onAuthRequired });
+  const store = useEidoStore({
+    extensionMode,
+    onAuthRequired,
+    localMode: agentRuntime.isLocal,
+    agentRuntime,
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const openMenu = () => setDrawerOpen(true);
 
@@ -75,7 +86,15 @@ const App: React.FC<AppProps> = ({
       case 'skills':
         return <SkillsView store={store} onOpenMenu={openMenu} />;
       case 'me':
-        return <MeView store={store} onOpenMenu={openMenu} debugControl={debugControl} />;
+        return (
+          <MeView
+            store={store}
+            onOpenMenu={openMenu}
+            debugControl={debugControl}
+            runtimeControl={runtimeControl}
+            cloudRuntimeActive={!agentRuntime.isLocal}
+          />
+        );
       case 'chat':
       default:
         return (
@@ -84,6 +103,7 @@ const App: React.FC<AppProps> = ({
             onOpenMenu={openMenu}
             browserContext={browserContext}
             browserContextControl={browserContextControl}
+            agentRuntime={agentRuntime}
           />
         );
     }

@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Popup, Toast } from 'antd-mobile';
-import { api } from '../shared';
 import type { Skill } from '../shared';
 import type { Attachment } from '../hooks/useChatSend';
+import type { AgentRuntime } from '../runtime/types';
 
 const ALLOWED_EXT = ['.md', '.pdf', '.csv', '.xls', '.xlsx'];
 
@@ -13,6 +13,7 @@ interface ComposerProps {
   onSend: (text: string, attachments: Attachment[]) => void;
   onStop: () => void;
   browserContextControl?: React.ReactNode;
+  agentRuntime: AgentRuntime;
 }
 
 const Composer: React.FC<ComposerProps> = ({
@@ -22,6 +23,7 @@ const Composer: React.FC<ComposerProps> = ({
   onSend,
   onStop,
   browserContextControl,
+  agentRuntime,
 }) => {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -72,7 +74,7 @@ const Composer: React.FC<ComposerProps> = ({
           Toast.show({ content: `不支持的格式: ${f.name}` });
           continue;
         }
-        const { path } = await api.uploadChatFile(f, sessionId);
+        const { path } = await agentRuntime.uploadChatFile(f, sessionId);
         setAttachments((prev) => [...prev, { name: f.name, path }]);
       }
     } catch (err) {

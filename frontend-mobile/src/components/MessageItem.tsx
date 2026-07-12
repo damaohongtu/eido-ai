@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getWorkspaceFileUrl } from '../shared';
 import type { Message } from '../shared';
+import type { AgentRuntime } from '../runtime/types';
 import {
   extractGeneratedFiles,
   isWorkspaceFileLink,
@@ -15,6 +15,8 @@ interface MessageItemProps {
   isLast: boolean;
   isTyping: boolean;
   userName?: string;
+  agentRuntime: AgentRuntime;
+  onConfirm?: (approved: boolean) => void;
 }
 
 const Avatar: React.FC<{ isUser: boolean; userName?: string }> = ({ isUser, userName }) => {
@@ -95,15 +97,46 @@ const ThinkTrace: React.FC<{ message: Message }> = ({ message }) => {
   );
 };
 
-const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, isTyping, userName }) => {
+const MessageItem: React.FC<MessageItemProps> = ({
+  message,
+  sessionId,
+  isLast,
+  isTyping,
+  userName,
+  agentRuntime,
+  onConfirm,
+}) => {
   const isUser = message.role === 'user';
   const generatedFiles = message.role === 'assistant' ? extractGeneratedFiles(message) : [];
+
+  const openLocalFile = (path: string, download = false, filename?: string) => {
+    agentRuntime.openWorkspaceFile?.(path, {
+      download,
+      filename,
+      sessionId: sessionId || undefined,
+    }).catch((error) => console.error('读取本机 OpenCode 文件失败', error));
+  };
 
   const markdownComponents = {
     img({ src, alt, ...props }: any) {
       const isExternal =
         src?.startsWith('http://') || src?.startsWith('https://') || src?.startsWith('data:');
-      const imgSrc = isExternal ? src : src ? getWorkspaceFileUrl(src, { sessionId: sessionId || undefined }) : src;
+      if (!isExternal && src && agentRuntime.openWorkspaceFile) {
+        return (
+          <button
+            type="button"
+            onClick={() => openLocalFile(src)}
+            className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
+          >
+            查看图片：{alt || src.split('/').pop() || '图片'}
+          </button>
+        );
+      }
+      const imgSrc = isExternal
+        ? src
+        : src
+          ? agentRuntime.getWorkspaceFileUrl(src, { sessionId: sessionId || undefined })
+          : src;
       if (!imgSrc) return null;
       return (
         <a href={imgSrc} target="_blank" rel="noopener noreferrer" className="block">
@@ -118,7 +151,11 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, i
         const filename = normalized.split('/').pop() || 'download';
         return (
           <a
-            href={getWorkspaceFileUrl(normalized, { download: true, filename, sessionId: sessionId || undefined })}
+            href={agentRuntime.openWorkspaceFile ? '#' : agentRuntime.getWorkspaceFileUrl(normalized, { download: true, filename, sessionId: sessionId || undefined })}
+            onClick={agentRuntime.openWorkspaceFile ? (event) => {
+              event.preventDefault();
+              openLocalFile(normalized, true, filename);
+            } : undefined}
             className="font-semibold text-blue-600 underline"
           >
             {children}
@@ -139,6 +176,31 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, i
       <div className={`eido-mobile-message-stack max-w-[80%] ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
         {message.role === 'assistant' && <ThinkTrace message={message} />}
 
+        {message.pendingConfirmation && onConfirm ? (
+          <div className="mb-2 w-full rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <div className="text-xs font-bold text-amber-900">{message.pendingConfirmation.label}</div>
+            <div className="mt-1 break-words text-[11px] leading-relaxed text-amber-700">
+              {message.pendingConfirmation.description}
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => onConfirm(false)}
+                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-800"
+              >
+                拒绝
+              </button>
+              <button
+                type="button"
+                onClick={() => onConfirm(true)}
+                className="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-bold text-white"
+              >
+                允许一次
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div
           className={`eido-mobile-message-bubble inline-block rounded-2xl px-3.5 py-2.5 text-[15px] shadow-sm ${
             isUser ? 'bg-gray-700 text-white' : 'border border-gray-200 bg-white text-gray-800'
@@ -156,15 +218,15 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, i
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">生成文件</div>
             {generatedFiles.map((file) => (
               <div key={file.path} className="rounded-xl bg-gray-50 p-2.5">
-                {file.isImage && (
+                {file.isImage && !agentRuntime.openWorkspaceFile && (
                   <a
-                    href={getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
+                    href={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mb-2 block overflow-hidden rounded-lg border border-gray-200 bg-white"
                   >
                     <img
-                      src={getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
+                      src={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
                       alt={file.name}
                       className="max-h-60 w-full object-contain"
                       loading="lazy"
@@ -176,20 +238,41 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, sessionId, isLast, i
                     <div className="truncate text-sm font-semibold text-gray-800">{file.name}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
-                    <a
-                      href={getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-600"
-                    >
-                      {file.isImage ? '查看' : '打开'}
-                    </a>
-                    <a
-                      href={getWorkspaceFileUrl(file.path, { download: true, filename: file.name, sessionId: sessionId || undefined })}
-                      className="rounded-lg bg-gray-700 px-2.5 py-1 text-xs font-bold text-white"
-                    >
-                      下载
-                    </a>
+                    {agentRuntime.openWorkspaceFile ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openLocalFile(file.path)}
+                          className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-600"
+                        >
+                          {file.isImage ? '查看' : '打开'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openLocalFile(file.path, true, file.name)}
+                          className="rounded-lg bg-gray-700 px-2.5 py-1 text-xs font-bold text-white"
+                        >
+                          下载
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <a
+                          href={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-600"
+                        >
+                          {file.isImage ? '查看' : '打开'}
+                        </a>
+                        <a
+                          href={agentRuntime.getWorkspaceFileUrl(file.path, { download: true, filename: file.name, sessionId: sessionId || undefined })}
+                          className="rounded-lg bg-gray-700 px-2.5 py-1 text-xs font-bold text-white"
+                        >
+                          下载
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

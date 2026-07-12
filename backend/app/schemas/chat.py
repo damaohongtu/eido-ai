@@ -18,7 +18,7 @@ class ChatRequest(BaseModel):
     context: Optional[str] = Field(None, description="Output from previous skill in a pipeline, injected into prompt")
     session_id: str = Field(..., description="会话 ID，agent 工作目录将切到该会话的 .eido/workspaces/<session_id>/")
     assistant_message_id: str = Field(..., description="前端 assistant 占位消息 ID；后端保存模型输出时使用")
-    harness: Optional[str] = Field(None, description="AI 后端选择: claude_code | open_harness（不传则使用 AGENT_HARNESS 配置）")
+    harness: Optional[str] = Field(None, description="AI 后端选择: claude_code | open_harness | opencode（不传则使用 AGENT_HARNESS 配置）")
 
 
 class ChatResponse(BaseModel):

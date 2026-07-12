@@ -29,6 +29,7 @@ _SCHEMA_SQL = [
         title TEXT NOT NULL DEFAULT '新建会话',
         skill_id TEXT,
         claude_session_id TEXT,
+        opencode_session_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     );
@@ -70,12 +71,17 @@ def _session_row_to_dict(row: sqlite3.Row) -> dict:
         claude_sid = row["claude_session_id"]
     except (IndexError, KeyError):
         claude_sid = None
+    try:
+        opencode_sid = row["opencode_session_id"]
+    except (IndexError, KeyError):
+        opencode_sid = None
     return {
         "id": row["id"],
         "user_id": row["user_id"],
         "title": row["title"],
         "skill_id": row["skill_id"],
         "claude_session_id": claude_sid,
+        "opencode_session_id": opencode_sid,
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -126,6 +132,9 @@ class ChatSessionStore:
         if "claude_session_id" not in cols:
             logger.info("迁移 chat_sessions：追加列 claude_session_id")
             self.conn.execute("ALTER TABLE chat_sessions ADD COLUMN claude_session_id TEXT")
+        if "opencode_session_id" not in cols:
+            logger.info("迁移 chat_sessions：追加列 opencode_session_id")
+            self.conn.execute("ALTER TABLE chat_sessions ADD COLUMN opencode_session_id TEXT")
 
     def close(self):
         if self._conn:
@@ -219,6 +228,28 @@ class ChatSessionStore:
             "UPDATE chat_sessions SET claude_session_id = ?, updated_at = ?"
             " WHERE id = ? AND user_id = ?",
             (claude_sid, _now_iso(), session_id, user_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def get_opencode_session_id(self, user_id: str, session_id: str) -> Optional[str]:
+        """读取该 Eido 会话对应的 OpenCode 原生 session ID。"""
+        row = self.conn.execute(
+            "SELECT opencode_session_id FROM chat_sessions WHERE id = ? AND user_id = ?",
+            (session_id, user_id),
+        ).fetchone()
+        if not row:
+            return None
+        return row["opencode_session_id"] or None
+
+    def set_opencode_session_id(
+        self, user_id: str, session_id: str, opencode_sid: Optional[str]
+    ) -> bool:
+        """写入或清空 OpenCode 原生 session ID。"""
+        cur = self.conn.execute(
+            "UPDATE chat_sessions SET opencode_session_id = ?, updated_at = ?"
+            " WHERE id = ? AND user_id = ?",
+            (opencode_sid, _now_iso(), session_id, user_id),
         )
         self.conn.commit()
         return cur.rowcount > 0

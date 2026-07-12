@@ -388,6 +388,9 @@ class SandboxManager:
             "ANTHROPIC_SMALL_FAST_MODEL",
             "API_TIMEOUT_MS",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+            "OPENCODE_MODEL",
+            "OPENCODE_CONFIG",
+            "OPENCODE_CONFIG_CONTENT",
         ):
             v = os.environ.get(k)
             if v:

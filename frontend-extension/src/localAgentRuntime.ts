@@ -6,6 +6,7 @@ export interface LocalAgentSettings {
   opencodeUrl: string;
   username: string;
   password: string;
+  workspace?: string;
 }
 
 export interface OpenCodeHealth {
@@ -32,6 +33,7 @@ export const DEFAULT_LOCAL_AGENT_SETTINGS: LocalAgentSettings = {
 
 const SETTINGS_KEY = 'eido_local_agent_settings';
 const SESSION_MAP_KEY = 'eido_opencode_session_map';
+const HTML_PREVIEW_KEY_PREFIX = 'eido_html_preview_';
 const SKIPPED_DIRECTORIES = new Set(['.git', 'node_modules', '.next', 'dist', 'build']);
 
 export async function loadLocalAgentSettings(): Promise<LocalAgentSettings> {
@@ -42,6 +44,7 @@ export async function loadLocalAgentSettings(): Promise<LocalAgentSettings> {
     ...value,
     opencodeUrl: value.opencodeUrl || DEFAULT_LOCAL_AGENT_SETTINGS.opencodeUrl,
     password: value.password || '',
+    workspace: typeof value.workspace === 'string' ? value.workspace : '',
   };
 }
 
@@ -52,6 +55,7 @@ export async function saveLocalAgentSettings(settings: LocalAgentSettings): Prom
       ? cleanBaseUrl(settings.opencodeUrl)
       : settings.opencodeUrl.trim().replace(/\/+$/, '') || DEFAULT_LOCAL_AGENT_SETTINGS.opencodeUrl,
     username: settings.username.trim() || DEFAULT_LOCAL_AGENT_SETTINGS.username,
+    workspace: settings.workspace?.trim() || '',
   };
   await chrome.storage.local.set({ [SETTINGS_KEY]: normalized });
 }
@@ -78,7 +82,8 @@ function fileMime(name: string, fallback?: string): string {
   if (fallback) return fallback;
   const extension = name.split('.').pop()?.toLowerCase();
   const types: Record<string, string> = {
-    md: 'text/markdown', pdf: 'application/pdf', csv: 'text/csv',
+    md: 'text/markdown', html: 'text/html', htm: 'text/html', svg: 'image/svg+xml',
+    pdf: 'application/pdf', csv: 'text/csv',
     xls: 'application/vnd.ms-excel',
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
@@ -593,22 +598,53 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
     return '#';
   }
 
+  private async openHtmlPreview(html: string, filename: string): Promise<void> {
+    const token = crypto.randomUUID();
+    const key = `${HTML_PREVIEW_KEY_PREFIX}${token}`;
+    await chrome.storage.session.set({
+      [key]: {
+        html,
+        filename,
+        createdAt: Date.now(),
+      },
+    });
+    try {
+      await chrome.tabs.create({ url: chrome.runtime.getURL(`file-preview/index.html#${token}`) });
+    } catch (error) {
+      await chrome.storage.session.remove(key);
+      throw error;
+    }
+    window.setTimeout(() => chrome.storage.session.remove(key).catch(() => undefined), 5 * 60 * 1000);
+  }
+
   async openWorkspaceFile(path: string, options?: { download?: boolean; filename?: string }): Promise<void> {
     const directory = await this.currentDirectory();
     const safePath = cleanWorkspacePath(path);
     const response = await this.request('/file/content', { directory, query: { path: safePath } });
     const payload = await response.json();
+    const filename = options?.filename || safePath.split('/').pop() || 'download';
+    if (!options?.download && payload.type === 'text' && /\.html?$/i.test(safePath)) {
+      await this.openHtmlPreview(payload.content, filename);
+      return;
+    }
+    if (!options?.download && payload.type === 'text' && /\.svg$/i.test(safePath)) {
+      const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(payload.content)}`;
+      await this.openHtmlPreview(
+        `<!doctype html><html><head><meta charset="UTF-8"><style>html,body{height:100%;margin:0}body{display:grid;place-items:center;background:#fff}img{max-width:100%;max-height:100%;object-fit:contain}</style></head><body><img src="${svgDataUrl}" alt="SVG preview"></body></html>`,
+        filename
+      );
+      return;
+    }
     const bytes = payload.type === 'binary' && payload.encoding === 'base64'
       ? Uint8Array.from(atob(payload.content), (character) => character.charCodeAt(0))
       : payload.content;
-    let mime = payload.mimeType || fileMime(safePath);
-    if (/\.(html?|svg)$/i.test(safePath)) mime = 'text/plain;charset=utf-8';
+    const mime = payload.mimeType || fileMime(safePath);
     const blob = new Blob([bytes], { type: mime });
     const objectUrl = URL.createObjectURL(blob);
     if (options?.download) {
       const anchor = document.createElement('a');
       anchor.href = objectUrl;
-      anchor.download = options.filename || safePath.split('/').pop() || 'download';
+      anchor.download = filename;
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
     } else {

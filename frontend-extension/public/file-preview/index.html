@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Eido 文件预览</title>
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <header>
+      <strong id="filename">文件预览</strong>
+      <span>本机 OpenCode</span>
+    </header>
+    <main>
+      <div id="status">正在加载文件...</div>
+      <iframe
+        id="preview"
+        title="HTML 文件预览"
+        sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
+      ></iframe>
+    </main>
+    <script src="host.js"></script>
+  </body>
+</html>

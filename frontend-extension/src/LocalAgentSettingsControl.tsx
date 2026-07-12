@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Toast } from 'antd-mobile';
+import { FolderOutline, LinkOutline, PlayOutline } from 'antd-mobile-icons';
 import type { LocalAgentSettings } from './localAgentRuntime';
 import { saveLocalAgentSettings, testLocalOpenCode } from './localAgentRuntime';
+import { requestNativeMessagingPermission } from './local-agent/nativeLauncherClient';
+import {
+  chooseOpenCodeWorkspace,
+  ensureOpenCodeRunning,
+} from './local-agent/openCodeLaunchCoordinator';
 
 const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({ settings }) => {
   const [draft, setDraft] = useState(settings);
   const [testing, setTesting] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const [connectionHealthy, setConnectionHealthy] = useState<boolean | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => setDraft(settings), [settings]);
@@ -32,11 +40,60 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
     try {
       const health = await testLocalOpenCode(draft);
       if (!health.healthy) throw new Error('OpenCode 服务未就绪');
+      setConnectionHealthy(true);
       setStatus(`已连接 OpenCode ${health.version || ''}`.trim());
     } catch (error) {
+      setConnectionHealthy(false);
       setStatus(error instanceof Error ? error.message : String(error));
     } finally {
       setTesting(false);
+    }
+  };
+
+  const requireNativePermission = async () => {
+    const granted = await requestNativeMessagingPermission();
+    if (!granted) throw new Error('未授予本机启动权限，仍可连接手工启动的 OpenCode');
+    return true;
+  };
+
+  const chooseWorkspace = async () => {
+    setLaunching(true);
+    setStatus('正在打开项目文件夹选择器...');
+    try {
+      await requireNativePermission();
+      const workspace = await chooseOpenCodeWorkspace(draft.workspace);
+      if (workspace) {
+        setDraft((value) => ({ ...value, workspace }));
+        setStatus('已选择项目文件夹');
+      } else {
+        setStatus('未更改项目文件夹');
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLaunching(false);
+    }
+  };
+
+  const launch = async () => {
+    setLaunching(true);
+    setStatus('正在检测本机启动组件...');
+    try {
+      await requireNativePermission();
+      const result = await ensureOpenCodeRunning({
+        trigger: 'user_click',
+        settings: draft,
+        workspace: draft.workspace,
+      });
+      setConnectionHealthy(true);
+      setStatus(`${result.status === 'started' ? '已启动并连接' : '已连接'} OpenCode ${result.version || ''}`.trim());
+      Toast.show({ content: '本机 OpenCode 已就绪' });
+      window.setTimeout(() => window.location.reload(), 350);
+    } catch (error) {
+      setConnectionHealthy(false);
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLaunching(false);
     }
   };
 
@@ -73,6 +130,17 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
 
       {draft.mode === 'local' ? (
         <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2.5">
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-gray-700">OpenCode 连接</div>
+              <div className="mt-0.5 truncate text-[11px] text-gray-400">{draft.opencodeUrl}</div>
+            </div>
+            <span className={`shrink-0 text-xs font-semibold ${
+              connectionHealthy === true ? 'text-emerald-600' : connectionHealthy === false ? 'text-amber-600' : 'text-gray-400'
+            }`}>
+              {connectionHealthy === true ? '已连接' : connectionHealthy === false ? '未连接' : '待检测'}
+            </span>
+          </div>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-gray-600">OpenCode 地址</span>
             <input
@@ -103,14 +171,30 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
               />
             </label>
           </div>
+          <div>
+            <div className="mb-1 text-xs font-semibold text-gray-600">项目文件夹</div>
+            <button
+              type="button"
+              onClick={chooseWorkspace}
+              disabled={launching}
+              className="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-left disabled:opacity-50"
+              title="选择 OpenCode 项目文件夹"
+            >
+              <FolderOutline className="shrink-0 text-base text-gray-500" />
+              <span className={`min-w-0 flex-1 truncate text-xs ${draft.workspace ? 'text-gray-700' : 'text-gray-400'}`}>
+                {draft.workspace || '选择 OpenCode 项目文件夹'}
+              </span>
+            </button>
+          </div>
           {status ? <div className="break-words text-xs leading-relaxed text-gray-500">{status}</div> : null}
           <div className="flex gap-2">
             <button
               type="button"
               onClick={test}
               disabled={testing}
-              className="flex-1 rounded-lg border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 disabled:opacity-50"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white py-2 text-xs font-bold text-gray-700 disabled:opacity-50"
             >
+              <LinkOutline />
               {testing ? '检测中...' : '测试连接'}
             </button>
             <button
@@ -121,6 +205,17 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
               保存并切换
             </button>
           </div>
+          {connectionHealthy !== true ? (
+            <button
+              type="button"
+              onClick={launch}
+              disabled={launching || !draft.workspace}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gray-800 py-2.5 text-xs font-bold text-white disabled:opacity-40"
+            >
+              <PlayOutline />
+              {launching ? '正在尝试唤起...' : '尝试唤起 OpenCode'}
+            </button>
+          ) : null}
         </div>
       ) : (
         <button

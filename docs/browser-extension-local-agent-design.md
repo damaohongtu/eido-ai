@@ -162,9 +162,9 @@ Eido local session id -> { providerSessionId, directory }
 
 当前限制为单文件 20 MB。消息发送成功后清除对应内存引用。
 
-项目文件通过 OpenCode `/file` 枚举，默认最多递归两层、最多 300 个节点，并跳过 `.git`、`node_modules`、构建目录和 OpenCode 标记为 ignored 的条目。预览或下载时才调用 `/file/content`，在插件内生成短生命周期 Blob URL。
+项目文件通过 OpenCode `/file` 枚举，默认最多递归两层、最多 300 个节点，并跳过 `.git`、`node_modules`、构建目录和 OpenCode 标记为 ignored 的条目。预览或下载时才调用 `/file/content`。普通文件在插件内生成短生命周期 Blob URL。
 
-HTML 与 SVG 内容以纯文本 MIME 打开，避免本机项目内容在扩展权限上下文中执行。
+HTML 与 SVG 使用专用预览页渲染。文件内容通过 `chrome.storage.session` 一次性传给预览 host，再由 `postMessage` 送入 Manifest V3 sandbox iframe；sandbox 拥有独立 origin，不能访问 `chrome.*`、插件登录态或父页面 DOM。HTML 的内联 CSS/脚本可以运行，sandbox 专属 CSP 只额外允许 HTTPS CDN 脚本和资源，不允许远程 HTTP 脚本。预览读取后立即删除 session payload，并保留五分钟兜底清理。
 
 ## 9. 技能与交互一致性
 
@@ -186,10 +186,10 @@ HTML 与 SVG 内容以纯文本 MIME 打开，避免本机项目内容在扩展�
 - 可通过 `OPENCODE_SERVER_PASSWORD` 启用 OpenCode Basic Auth；密码只保存在 `chrome.storage.local`，只发往配置的回环地址。
 - 不把本地配置、网页上下文或项目路径写入 Eido 请求。
 - 本机连接失败时显示本地错误，不自动降级到云端。
-- 文件预览使用 Blob URL，并在短时间后释放。
+- 普通文件预览使用短生命周期 Blob URL；HTML/SVG 使用无扩展权限的 sandbox 页面。
 - OpenCode 工具权限采用“允许一次”或“拒绝”，首期不替插件永久放宽权限。
 
-Chrome 扩展无法直接创建本机进程，因此“零额外进程”指不需要 Eido 自有辅助服务；OpenCode 本身仍需由用户启动。OpenCode TUI 支持直接带端口运行，无需另开 `serve` 进程。
+Chrome 扩展无法直接创建本机进程，因此当前版本仍需要用户启动 OpenCode。“零额外进程”指不需要 Eido 自有 Bridge。后续可通过按需 Native Messaging Launcher 尝试启动 `opencode serve`；Launcher 只管理进程启动，不代理 Agent 流量，详见 [`browser-extension-opencode-launch-design.md`](browser-extension-opencode-launch-design.md)。
 
 ## 11. 启动与配置
 
@@ -237,4 +237,4 @@ opencode /path/to/project --hostname 127.0.0.1 --port 4096 \
 
 ## 14. 后续扩展原则
 
-OpenClaw 等其他本地 Agent 应新增独立 `AgentRuntime`，继续复用共享 React 界面。只有当供应商本身不提供浏览器可访问的回环 HTTP/WebSocket API 时，才评估 Native Messaging Host；不能让新的供应商适配侵入 `useChatSend`、消息组件或云端 API 实现。
+OpenClaw 等其他本地 Agent 应新增独立 `AgentRuntime`，继续复用共享 React 界面。供应商协议仍优先使用浏览器可访问的回环 HTTP/WebSocket API；Native Messaging 只用于浏览器无法完成的本机进程发现与启动，不能承载聊天或文件协议，也不能让供应商适配侵入 `useChatSend`、消息组件或云端 API 实现。

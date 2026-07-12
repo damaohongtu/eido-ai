@@ -155,7 +155,9 @@ func choosePort(preferred int, allowFallback bool, username, password string) (i
 	case endpointHealthy:
 		return preferred, true, nil
 	case endpointAuthMismatch:
-		return 0, false, CodedError{Code: "AUTH_MISMATCH", Message: "an OpenCode server is running but its credentials do not match"}
+		if !allowFallback {
+			return 0, false, CodedError{Code: "AUTH_MISMATCH", Message: "an OpenCode server is running but its credentials do not match"}
+		}
 	}
 	if portAvailable(preferred) {
 		return preferred, false, nil

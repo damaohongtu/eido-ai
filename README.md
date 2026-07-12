@@ -188,13 +188,15 @@ VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
 
 ### 6. 使用本机 OpenCode
 
-本机模式仅复用 Eido 用户认证，不调用 Eido 的聊天、会话、技能、文件、任务或沙盒接口：
+本机模式仅复用 Eido 用户认证，不调用 Eido 的聊天、会话、技能、文件、任务或沙盒接口。安装 OpenCode 与 Eido Native Launcher 后，可在插件“我的设置 -> 执行位置”中选择“本机”，选择项目文件夹并点击“尝试唤起 OpenCode”。插件会自动探测、启动并连接本机服务。
+
+开发环境也可以手工启动 OpenCode：
 
 ```bash
 opencode /path/to/project --hostname 127.0.0.1 --port 4096
 ```
 
-进入插件“我的设置 -> 执行位置”，选择“本机”，保留默认地址 `http://127.0.0.1:4096`，测试连接后保存即可。插件会直接复用 OpenCode 当前打开的项目目录，无需另行安装或启动中间服务。若 OpenCode 配置了 `OPENCODE_SERVER_PASSWORD`，在插件中填写相同密码。
+插件会优先复用健康且凭据匹配的现有实例。若 OpenCode 配置了 `OPENCODE_SERVER_PASSWORD`，需在插件中填写相同密码。完整的功能和技术解析见 [`docs/local-agent-overview.md`](docs/local-agent-overview.md)。
 
 ## Docker 部署
 
@@ -307,6 +309,9 @@ npm run build
 ## 参考文档
 
 - `quick-start.md`：本地、Docker、模型配置和技能目录的详细快速开始。
+- `docs/local-agent-overview.md`：Local Agent 功能全景、架构、数据边界与使用路径。
+- `docs/browser-extension-local-agent-design.md`：Chrome 插件本机 OpenCode Runtime 技术方案。
+- `docs/browser-extension-opencode-launch-design.md`：插件唤起 OpenCode 与 Native Launcher 技术方案。
 - `docs/architecture.md`：单租户与沙盒模式架构。
 - `docs/api.md`：后端 API 说明。
 - `docs/skill-secret-protection.md`：技能密钥保护方案。

@@ -1,6 +1,6 @@
 # Chrome 插件尝试唤起并启动 OpenCode 技术方案
 
-> 状态：阶段 1 核心链路已实现。插件启动协调器、可选权限、Native Messaging 白名单、macOS Go Launcher、原生目录选择、启动探活、开发安装脚本和自动测试已落地；签名、公证的普通用户图形安装器尚未交付。
+> 状态：阶段 1 核心链路及 macOS 生产分发链路已实现。插件启动协调器、可选权限、Native Messaging 白名单、macOS Go Launcher、原生目录选择、启动探活、开发安装脚本、universal 图形安装器、Developer ID 签名、公证流水线和自动测试均已落地。正式发布仍需配置固定扩展 ID 与 Apple Developer 凭据后运行发布工作流。
 >
 > 目标：当插件本机模式无法连接 OpenCode 时，由插件发起并编排一次“尝试唤起”，尽可能直接启动本机 OpenCode；启动成功后自动连接现有 HTTP/SSE Agent Runtime，失败时留在本机模式并给出可恢复操作。
 >
@@ -67,7 +67,7 @@ ensureOpenCodeRunning({
 4. 插件发起唤起，Launcher 在后台执行固定的 `opencode serve` 指令。
 5. 插件自动连接，用户直接开始聊天。
 
-如果 Launcher 未注册或 OpenCode 路径不可发现，插件只展示“本机启动组件不可用”或“未找到已安装的 OpenCode”，不向用户展示命令行，也不尝试安装软件。
+如果 Launcher 未注册，插件展示“安装启动组件”入口，下载已签名、公证的 `.pkg`，由用户在 macOS Installer 中确认安装；Chrome 不允许扩展自动执行下载的安装包。如果 OpenCode 路径不可发现，插件展示“未找到已安装的 OpenCode”，不向用户展示命令行，也不静默安装软件。
 
 ## 2. 官方能力边界
 
@@ -631,23 +631,22 @@ Node 脚本可用于原型，但不建议作为正式分发形态，因为 Windo
 
 ### 14.2 macOS 首期
 
-建议用户级安装：
+正式 `.pkg` 使用系统级安装，供当前机器上的 Chrome 读取：
 
 ```text
-~/Library/Application Support/Eido/bin/eido-opencode-launcher
-~/Library/Application Support/Google/Chrome/NativeMessagingHosts/ai.eido.opencode_launcher.json
+/Library/Application Support/Eido/bin/eido-opencode-launcher
+/Library/Google/Chrome/NativeMessagingHosts/ai.eido.opencode_launcher.json
 ~/Library/Logs/Eido/opencode-<port>.log
-~/Library/Application Support/Eido/opencode-launcher-state.json
 ```
 
-正式分发应签名并公证。开发阶段提供可重复执行的安装/卸载脚本，参数包含扩展 ID。
+生产构建同时生成 x86_64 和 arm64 二进制并通过 `lipo` 合成为 universal Launcher。二进制使用 Developer ID Application 与 hardened runtime 签名，Installer 使用 Developer ID Installer 签名，随后通过 `notarytool` 公证并 staple 票据。开发阶段继续保留可重复执行的用户级安装/卸载脚本，参数包含扩展 ID。
 
 Native Launcher 的部署包只需要完成：
 
 - 安装 Native Launcher。
 - 注册 Native Messaging Host Manifest。
-- 创建 Eido 管理目录、日志目录和状态目录。
-- 提供图形化卸载入口。
+- 清理当前用户可能覆盖正式注册的开发版 Manifest。
+- 展示安装说明和完成后的 Chrome 重启提示。
 
 OpenCode 的安装和升级由现有交付流程负责，不属于插件唤起功能。开发脚本只用于开发者，不应出现在普通用户运行流程中。
 
@@ -735,7 +734,7 @@ native-launcher/
 
 ### 阶段 4：分发完善
 
-- macOS 签名、公证和安装包。
+- macOS 签名、公证和图形安装包。（已实现）
 - Windows 签名安装器。
 - Launcher 与扩展协议兼容矩阵和升级提示。
 

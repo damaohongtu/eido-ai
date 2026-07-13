@@ -1,0 +1,138 @@
+name: Release macOS Native Launcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Numeric installer version, for example 0.1.0
+        required: true
+        type: string
+      extension_id:
+        description: Fixed Chrome extension ID; leave empty to use the repository secret
+        required: false
+        type: string
+  push:
+    tags:
+      - native-launcher-v*
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign-notarize:
+    runs-on: macos-14
+    env:
+      APPLICATION_CERTIFICATE_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+      INSTALLER_CERTIFICATE_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_INSTALLER_P12_BASE64 }}
+      CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+      EIDO_CODESIGN_IDENTITY: ${{ secrets.MACOS_DEVELOPER_ID_APPLICATION }}
+      EIDO_INSTALLER_IDENTITY: ${{ secrets.MACOS_DEVELOPER_ID_INSTALLER }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      RELEASE_EXTENSION_ID: ${{ secrets.EIDO_CHROME_EXTENSION_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: native-launcher/go.mod
+
+      - name: Test Native Launcher
+        working-directory: native-launcher
+        run: go test ./...
+
+      - name: Resolve release metadata
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_EXTENSION_ID: ${{ inputs.extension_id }}
+        run: |
+          VERSION="$INPUT_VERSION"
+          if [[ -z "$VERSION" && "$GITHUB_REF_TYPE" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#native-launcher-v}"
+          fi
+          EXTENSION_ID="$INPUT_EXTENSION_ID"
+          if [[ -z "$EXTENSION_ID" ]]; then
+            EXTENSION_ID="$RELEASE_EXTENSION_ID"
+          fi
+          [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]] || { echo "Invalid version" >&2; exit 2; }
+          [[ "$EXTENSION_ID" =~ ^[a-p]{32}$ ]] || { echo "Invalid or missing extension ID" >&2; exit 2; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "EXTENSION_ID=$EXTENSION_ID" >> "$GITHUB_ENV"
+
+      - name: Import Developer ID certificates
+        run: |
+          for value in \
+            APPLICATION_CERTIFICATE_BASE64 \
+            INSTALLER_CERTIFICATE_BASE64 \
+            CERTIFICATE_PASSWORD \
+            KEYCHAIN_PASSWORD \
+            EIDO_CODESIGN_IDENTITY \
+            EIDO_INSTALLER_IDENTITY; do
+            [[ -n "${!value}" ]] || { echo "Missing secret: $value" >&2; exit 2; }
+          done
+          KEYCHAIN_PATH="$RUNNER_TEMP/eido-signing.keychain-db"
+          printf '%s' "$APPLICATION_CERTIFICATE_BASE64" | base64 -D > "$RUNNER_TEMP/application.p12"
+          printf '%s' "$INSTALLER_CERTIFICATE_BASE64" | base64 -D > "$RUNNER_TEMP/installer.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/application.p12" -P "$CERTIFICATE_PASSWORD" -A -t agg -f pkcs12 -k "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/installer.p12" -P "$CERTIFICATE_PASSWORD" -A -t agg -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          echo "EIDO_NOTARY_KEYCHAIN=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Configure Apple Notary credentials
+        run: |
+          [[ -n "$APPLE_ID" && -n "$APPLE_TEAM_ID" && -n "$APPLE_APP_PASSWORD" ]] || {
+            echo "Missing Apple Notary credentials" >&2
+            exit 2
+          }
+          xcrun notarytool store-credentials eido-release \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --keychain "$EIDO_NOTARY_KEYCHAIN"
+          echo "EIDO_NOTARY_KEYCHAIN_PROFILE=eido-release" >> "$GITHUB_ENV"
+
+      - name: Build, sign and notarize installer
+        run: |
+          native-launcher/installers/macos/build-package.sh \
+            --extension-id "$EXTENSION_ID" \
+            --version "$VERSION"
+          cp "native-launcher/dist/Eido-OpenCode-Launcher-$VERSION.pkg" \
+            native-launcher/dist/Eido-OpenCode-Launcher-macOS.pkg
+          (
+            cd native-launcher/dist
+            shasum -a 256 Eido-OpenCode-Launcher-macOS.pkg > Eido-OpenCode-Launcher-macOS.pkg.sha256
+          )
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eido-OpenCode-Launcher-${{ env.VERSION }}-macOS
+          path: |
+            native-launcher/dist/Eido-OpenCode-Launcher-${{ env.VERSION }}.pkg
+            native-launcher/dist/Eido-OpenCode-Launcher-${{ env.VERSION }}.pkg.sha256
+            native-launcher/dist/Eido-OpenCode-Launcher-macOS.pkg
+            native-launcher/dist/Eido-OpenCode-Launcher-macOS.pkg.sha256
+          if-no-files-found: error
+
+      - name: Publish tag release assets
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --generate-notes --title "Eido OpenCode Launcher $VERSION"
+          gh release upload "$GITHUB_REF_NAME" \
+            "native-launcher/dist/Eido-OpenCode-Launcher-$VERSION.pkg" \
+            "native-launcher/dist/Eido-OpenCode-Launcher-$VERSION.pkg.sha256" \
+            native-launcher/dist/Eido-OpenCode-Launcher-macOS.pkg \
+            native-launcher/dist/Eido-OpenCode-Launcher-macOS.pkg.sha256 \
+            --clobber

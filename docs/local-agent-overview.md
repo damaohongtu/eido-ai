@@ -285,11 +285,11 @@ flowchart TB
 
 目前仍有三个明确边界：
 
-- 普通用户使用的签名、公证图形安装器尚未交付；当前 Native Launcher 安装流程面向开发环境。
+- macOS universal 图形安装器及签名、公证发布流水线已经实现；正式产物需要使用固定扩展 ID 和 Apple Developer 发布凭据构建。
 - 当前首期 Launcher 覆盖 macOS，Windows 与 Linux 需要各自的 Native Host 注册和目录选择实现。
 - Side Panel 被关闭、扩展刷新或浏览器回收页面时，当前 SSE 连接会中断；OpenCode 任务可能仍在继续，但尚未实现断点级事件回放。
 
-后续重点不是扩张 Launcher 的职责，而是完善分发和浏览器生命周期：提供签名安装包、固定扩展 ID、跨平台安装与卸载，并在需要后台持续任务时评估 Manifest V3 offscreen document 和基于 Session 消息的状态恢复。
+后续重点不是扩张 Launcher 的职责，而是完善跨平台分发和浏览器生命周期：补齐 Windows/Linux 安装与卸载，并在需要后台持续任务时评估 Manifest V3 offscreen document 和基于 Session 消息的状态恢复。
 
 ## 结语
 

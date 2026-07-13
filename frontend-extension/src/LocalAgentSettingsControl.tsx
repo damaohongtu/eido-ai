@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Toast } from 'antd-mobile';
-import { FolderOutline, LinkOutline, PlayOutline } from 'antd-mobile-icons';
+import { DownlandOutline, FolderOutline, LinkOutline, PlayOutline } from 'antd-mobile-icons';
 import type { LocalAgentSettings } from './localAgentRuntime';
 import { saveLocalAgentSettings, testLocalOpenCode } from './localAgentRuntime';
 import { requestNativeMessagingPermission } from './local-agent/nativeLauncherClient';
@@ -8,6 +8,25 @@ import {
   chooseOpenCodeWorkspace,
   ensureOpenCodeRunning,
 } from './local-agent/openCodeLaunchCoordinator';
+
+const NATIVE_LAUNCHER_DOWNLOAD_URL =
+  'https://github.com/damaohongtu/eido-ai/releases/latest/download/Eido-OpenCode-Launcher-macOS.pkg';
+
+function readableError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object') {
+    const value = error as { message?: unknown; code?: unknown };
+    if (typeof value.message === 'string') return value.message;
+    if (typeof value.code === 'string') return value.code;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return '未知错误';
+    }
+  }
+  return String(error || '未知错误');
+}
 
 const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({ settings }) => {
   const [draft, setDraft] = useState(settings);
@@ -28,7 +47,8 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
       Toast.show({ content: '执行模式已保存' });
       window.setTimeout(() => window.location.reload(), 250);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = readableError(error);
+      console.error('保存本机 Agent 设置失败', error);
       setStatus(message);
       Toast.show({ content: message });
     }
@@ -44,7 +64,8 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
       setStatus(`已连接 OpenCode ${health.version || ''}`.trim());
     } catch (error) {
       setConnectionHealthy(false);
-      setStatus(error instanceof Error ? error.message : String(error));
+      console.error('测试本机 OpenCode 连接失败', error);
+      setStatus(readableError(error));
     } finally {
       setTesting(false);
     }
@@ -69,7 +90,8 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
         setStatus('未更改项目文件夹');
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      console.error('选择 OpenCode 项目文件夹失败', error);
+      setStatus(readableError(error));
     } finally {
       setLaunching(false);
     }
@@ -91,9 +113,20 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
       window.setTimeout(() => window.location.reload(), 350);
     } catch (error) {
       setConnectionHealthy(false);
-      setStatus(error instanceof Error ? error.message : String(error));
+      console.error('尝试唤起 OpenCode 失败', error);
+      setStatus(readableError(error));
     } finally {
       setLaunching(false);
+    }
+  };
+
+  const downloadLauncher = async () => {
+    try {
+      await chrome.tabs.create({ url: NATIVE_LAUNCHER_DOWNLOAD_URL });
+      setStatus('安装完成后请重新打开 Chrome，再次尝试唤起 OpenCode');
+    } catch (error) {
+      console.error('打开 Launcher 下载地址失败', error);
+      setStatus(readableError(error));
     }
   };
 
@@ -206,15 +239,25 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
             </button>
           </div>
           {connectionHealthy !== true ? (
-            <button
-              type="button"
-              onClick={launch}
-              disabled={launching || !draft.workspace}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gray-800 py-2.5 text-xs font-bold text-white disabled:opacity-40"
-            >
-              <PlayOutline />
-              {launching ? '正在尝试唤起...' : '尝试唤起 OpenCode'}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={downloadLauncher}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white py-2.5 text-xs font-bold text-gray-700"
+              >
+                <DownlandOutline />
+                安装启动组件
+              </button>
+              <button
+                type="button"
+                onClick={launch}
+                disabled={launching || !draft.workspace}
+                className="flex items-center justify-center gap-1.5 rounded-lg bg-gray-800 py-2.5 text-xs font-bold text-white disabled:opacity-40"
+              >
+                <PlayOutline />
+                {launching ? '正在唤起...' : '尝试唤起'}
+              </button>
+            </div>
           ) : null}
         </div>
       ) : (

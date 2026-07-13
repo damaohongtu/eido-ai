@@ -1,0 +1,58 @@
+name: Native Launcher CI
+
+on:
+  pull_request:
+    paths:
+      - native-launcher/**
+      - frontend-extension/**
+      - .github/workflows/native-launcher-*.yml
+  push:
+    branches:
+      - main
+      - dev_*
+    paths:
+      - native-launcher/**
+      - frontend-extension/**
+      - .github/workflows/native-launcher-*.yml
+
+jobs:
+  test-macos-package:
+    runs-on: macos-14
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: native-launcher/go.mod
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend-extension/package-lock.json
+
+      - name: Run Go tests
+        working-directory: native-launcher
+        run: go test ./...
+
+      - name: Test and build Chrome extension
+        working-directory: frontend-extension
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Build and verify unsigned Installer fixture
+        run: |
+          native-launcher/installers/macos/build-package.sh \
+            --extension-id aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+            --version 0.0.1 \
+            --unsigned
+          installer \
+            -pkg native-launcher/dist/Eido-OpenCode-Launcher-0.0.1.pkg \
+            -target / \
+            -showChoicesXML > "$RUNNER_TEMP/eido-installer-choices.xml"
+          plutil -lint "$RUNNER_TEMP/eido-installer-choices.xml"

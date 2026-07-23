@@ -18,7 +18,7 @@
     "pages": ["file-preview/sandbox.html"]
   },
   "content_security_policy": {
-    "sandbox": "sandbox allow-scripts allow-forms allow-popups allow-modals; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; font-src 'self' data: https:; connect-src https:; media-src 'self' data: blob: https:; worker-src 'self' blob:; object-src 'none'; child-src 'self' blob: https:;"
+    "sandbox": "sandbox allow-scripts; default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; base-uri 'none'; media-src data: blob:;"
   },
   "permissions": [
     "activeTab",

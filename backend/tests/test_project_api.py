@@ -153,6 +153,22 @@ def _create_session(
     return response.json()
 
 
+def _assert_restricted_active_preview(response) -> None:
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "private, no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    csp = response.headers["content-security-policy"]
+    directives = {directive.strip() for directive in csp.split(";")}
+    assert "sandbox" in directives
+    assert "allow-same-origin" not in csp
+    assert "allow-scripts" not in csp
+    assert "connect-src 'none'" in directives
+    assert "form-action 'none'" in directives
+    assert "object-src 'none'" in directives
+    assert "frame-src 'none'" in directives
+    assert "base-uri 'none'" in directives
+
+
 def test_project_upload_openapi_declares_binary_multipart_file(
     project_api: ProjectApiHarness,
 ):
@@ -307,6 +323,81 @@ def test_workspace_delete_respects_session_execution_guard(
     )
     assert deleted.status_code == 200, deleted.text
     assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "report.html",
+        "report.xht",
+        "diagram.svg",
+        "diagram.svgz",
+        "transform.xsl",
+        "transform.xslt",
+    ],
+)
+def test_workspace_active_file_preview_is_inline_and_sandboxed(
+    project_api: ProjectApiHarness,
+    filename: str,
+):
+    session = _create_session(project_api, title=f"Preview {filename}")
+    session_id = session["id"]
+    output = project_api.session_workspaces.outputs_dir(session_id) / filename
+    output.write_text(
+        "<html><script>fetch('https://example.com')</script><p>preview</p></html>",
+        encoding="utf-8",
+    )
+    params = {"session_id": session_id, "path": f"outputs/{filename}"}
+
+    ordinary = project_api.client.get("/api/v1/workspace/file", params=params)
+    assert ordinary.status_code == 200, ordinary.text
+    assert ordinary.headers["content-disposition"].startswith("attachment")
+    assert "content-security-policy" not in ordinary.headers
+
+    previewed = project_api.client.get(
+        "/api/v1/workspace/file", params={**params, "preview": "true"}
+    )
+    assert previewed.status_code == 200, previewed.text
+    assert previewed.headers["content-disposition"].startswith("inline")
+    _assert_restricted_active_preview(previewed)
+
+    downloaded = project_api.client.get(
+        "/api/v1/workspace/file",
+        params={**params, "preview": "true", "download": "true"},
+    )
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.headers["content-disposition"].startswith("attachment")
+    assert "content-security-policy" not in downloaded.headers
+
+    project_api.login_as("user-b")
+    unauthorized = project_api.client.get(
+        "/api/v1/workspace/file", params={**params, "preview": "true"}
+    )
+    assert unauthorized.status_code == 404
+
+
+def test_workspace_display_filename_cannot_override_real_media_type(
+    project_api: ProjectApiHarness,
+):
+    session = _create_session(project_api, title="MIME confusion")
+    session_id = session["id"]
+    output = project_api.session_workspaces.outputs_dir(session_id) / "report.txt"
+    output.write_text("<script>document.title='executed'</script>", encoding="utf-8")
+
+    response = project_api.client.get(
+        "/api/v1/workspace/file",
+        params={
+            "session_id": session_id,
+            "path": "outputs/report.txt",
+            "filename": "report.html",
+            "preview": "true",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/plain")
+    assert response.headers["content-disposition"].startswith("inline")
+    assert "content-security-policy" not in response.headers
 
 
 def test_delete_project_unbinds_but_preserves_session_messages_and_workspace(
@@ -626,7 +717,8 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
 
     project_api.login_as("user-b")
     assert project_api.client.get(
-        f"/api/v1/projects/{project_id}/files/{uploaded['id']}"
+        f"/api/v1/projects/{project_id}/files/{uploaded['id']}",
+        params={"preview": "true"},
     ).status_code == 404
 
     project_api.login_as("user-a")
@@ -721,6 +813,45 @@ def test_generated_result_formats_and_active_content_download_policy(
     disposition = fetched.headers["content-disposition"]
     assert disposition.startswith("attachment" if force_attachment else "inline")
     assert fetched.headers["x-content-type-options"] == "nosniff"
+
+
+@pytest.mark.parametrize("filename", ["report.html", "diagram.svg"])
+def test_project_active_file_preview_is_inline_and_sandboxed(
+    project_api: ProjectApiHarness,
+    filename: str,
+):
+    project = _create_project(project_api, name=f"Preview {filename}")
+    uploaded = project_api.client.post(
+        f"/api/v1/projects/{project['id']}/files",
+        files={
+            "file": (
+                filename,
+                b"<script>top.location='//example.com'</script>",
+                "text/plain",
+            )
+        },
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    url = f"/api/v1/projects/{project['id']}/files/{uploaded.json()['id']}"
+
+    ordinary = project_api.client.get(url)
+    assert ordinary.status_code == 200, ordinary.text
+    assert ordinary.headers["content-disposition"].startswith("attachment")
+    assert "content-security-policy" not in ordinary.headers
+
+    previewed = project_api.client.get(url, params={"preview": "true"})
+    assert previewed.status_code == 200, previewed.text
+    assert previewed.headers["content-disposition"].startswith("inline")
+    _assert_restricted_active_preview(previewed)
+
+    downloaded = project_api.client.get(url, params={"preview": "true", "download": "true"})
+    assert downloaded.status_code == 200, downloaded.text
+    assert downloaded.headers["content-disposition"].startswith("attachment")
+    assert "content-security-policy" not in downloaded.headers
+
+    project_api.login_as("user-b")
+    unauthorized = project_api.client.get(url, params={"preview": "true"})
+    assert unauthorized.status_code == 404
 
 
 def test_promoted_output_is_in_next_project_context_and_resets_provider_memory(

@@ -25,12 +25,65 @@ def test_legacy_global_path_only_allows_historical_file_roots(path: str):
 
 
 @pytest.mark.parametrize(
-    "extension", [".html", ".htm", ".xhtml", ".svg", ".xml", ".mhtml"]
+    "extension",
+    [
+        ".html",
+        ".htm",
+        ".xht",
+        ".xhtml",
+        ".svg",
+        ".svgz",
+        ".xml",
+        ".xsl",
+        ".xslt",
+        ".mhtml",
+        ".mht",
+    ],
 )
 def test_workspace_active_content_is_always_an_attachment(extension: str):
     assert _content_disposition_type(extension, download=False) == "attachment"
 
 
+@pytest.mark.parametrize(
+    "extension",
+    [
+        ".html",
+        ".htm",
+        ".xht",
+        ".xhtml",
+        ".svg",
+        ".svgz",
+        ".xml",
+        ".xsl",
+        ".xslt",
+        ".mhtml",
+        ".mht",
+    ],
+)
+def test_workspace_active_content_requires_explicit_preview_for_inline(
+    extension: str,
+):
+    assert _content_disposition_type(extension, download=False, preview=True) == "inline"
+    assert _content_disposition_type(extension, download=True, preview=True) == "attachment"
+
+
 def test_workspace_safe_content_respects_explicit_download():
     assert _content_disposition_type(".png", download=False) == "inline"
     assert _content_disposition_type(".png", download=True) == "attachment"
+
+
+@pytest.mark.parametrize(
+    "media_type",
+    ["text/html; charset=utf-8", "application/xhtml+xml", "application/atom+xml"],
+)
+def test_workspace_active_media_type_cannot_bypass_suffix_policy(media_type: str):
+    assert (
+        _content_disposition_type(".data", download=False, media_type=media_type)
+        == "attachment"
+    )
+    assert (
+        _content_disposition_type(
+            ".data", download=False, preview=True, media_type=media_type
+        )
+        == "inline"
+    )

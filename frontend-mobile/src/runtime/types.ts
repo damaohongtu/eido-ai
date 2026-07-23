@@ -31,7 +31,7 @@ export interface AgentRuntime {
   deleteWorkspaceFile(sessionId: string, path: string): Promise<void>;
   getWorkspaceFileUrl(
     path: string,
-    options?: { download?: boolean; filename?: string; sessionId?: string }
+    options?: { download?: boolean; preview?: boolean; filename?: string; sessionId?: string }
   ): string;
   openWorkspaceFile?(
     path: string,

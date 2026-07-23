@@ -39,5 +39,7 @@ export { skillCanManage } from '@shared/types';
 export {
   isProjectOutputPath,
   isSupportedProjectMaterial,
+  canPreviewInBrowser,
+  canRenderAsBrowserImage,
   shouldForceWorkspaceDownload,
 } from '@shared/utils/projectFiles';

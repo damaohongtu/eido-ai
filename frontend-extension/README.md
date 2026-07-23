@@ -7,7 +7,7 @@ Chrome Manifest V3 插件版前端，复用 `../frontend-mobile` 的窄屏 React
 - 点击扩展图标后在 Chrome 右侧 Side Panel 打开 Eido。
 - 保留 Web 前端的会话、技能、附件、引用面板、会话文件、自动任务等能力。
 - 读取当前网页内容，并可从已打开的标签页中选择其他页面加入分析上下文。
-- 本机模式生成的 HTML/SVG 文件可在独立标签页渲染预览；HTML 在无扩展 API 权限的 sandbox 页面中运行。
+- 本机模式生成的 HTML/SVG 文件可在独立标签页渲染预览；HTML 在无扩展 API 权限的静态 sandbox 页面中运行，报告脚本、表单、弹窗和外部网络默认禁用。
 - 云端模式发送消息时，已选择网页会自动通过 `context` 传给后端 `/api/v1/chat/chat`；本机模式只传给本机 OpenCode。
 - 可在“我的设置”切换到本机 OpenCode。云端仍是默认模式，现有请求链路不变。
 - 安装本机启动组件后，可在插件内选择项目文件夹并尝试唤起 `opencode serve`，无需独立启动 Bridge。

@@ -5,7 +5,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference, Project } from '../types';
 import { api, getWorkspaceFileUrl } from '../services/api';
-import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../utils/projectFiles';
+import {
+  canPreviewInBrowser,
+  canRenderAsBrowserImage,
+  isSupportedProjectMaterial,
+} from '../utils/projectFiles';
 import Mermaid from './Mermaid';
 
 const DOWNLOADABLE_FILE_EXTENSIONS = [
@@ -557,15 +561,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     img({ node, src, alt, ...props }: any) {
       // 外部 URL 和 data URL 直接使用；本地/工作区路径通过 API 代理预览
       const isExternal = src?.startsWith('http://') || src?.startsWith('https://') || src?.startsWith('data:');
-      if (!isExternal && src && shouldForceWorkspaceDownload(src)) {
+      if (!isExternal && src && !canRenderAsBrowserImage(src)) {
         const filename = src.split('/').pop() || 'download';
+        const canPreview = canPreviewInBrowser(src);
         return (
-          <a href={getWorkspaceFileUrl(src, { download: true, filename, sessionId: session?.id })}>
-            下载文件：{alt || filename}
+          <a
+            href={getWorkspaceFileUrl(src, {
+              download: !canPreview,
+              preview: canPreview,
+              filename,
+              sessionId: session?.id,
+            })}
+            target={canPreview ? '_blank' : undefined}
+            rel="noopener noreferrer"
+          >
+            {canPreview ? '预览文件' : '下载文件'}：{alt || filename}
           </a>
         );
       }
-      const imgSrc = isExternal ? src : (src ? getWorkspaceFileUrl(src, { sessionId: session?.id }) : src);
+      const imgSrc = isExternal ? src : (src ? getWorkspaceFileUrl(src, { preview: true, sessionId: session?.id }) : src);
       if (!imgSrc) return null;
       return (
         <span className="block my-3">
@@ -586,16 +600,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         const normalizedPath = normalizeWorkspacePath(href);
         if (!normalizedPath) return <span>{children}</span>;
         const filename = normalizedPath.split('/').pop() || 'download';
-        const forceDownload = shouldForceWorkspaceDownload(normalizedPath);
+        const canPreview = canPreviewInBrowser(normalizedPath);
         return (
           <span className="inline-flex items-center gap-2 my-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
             <a
               href={getWorkspaceFileUrl(normalizedPath, {
-                download: forceDownload,
+                download: !canPreview,
+                preview: canPreview,
                 filename,
                 sessionId: session?.id,
               })}
-              target={forceDownload ? undefined : '_blank'}
+              target={canPreview ? '_blank' : undefined}
               rel="noopener noreferrer"
               className="font-semibold text-gray-700 hover:text-gray-900 hover:underline"
             >
@@ -645,7 +660,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               📁 {project.name} / 会话
             </button>
           ) : (
-            <div className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-gray-400">未归属对话</div>
+            <div className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-gray-400">对话</div>
           )}
           <h2 className="truncate font-bold text-lg text-gray-800">{session.title}</h2>
         </div>
@@ -741,15 +756,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                   <div className="space-y-2">
                     {generatedFiles.map(file => (
                       <div key={file.path} className="rounded-xl bg-gray-50 px-3 py-3">
-                        {file.isImage && !shouldForceWorkspaceDownload(file.path) && (
+                        {file.isImage && canRenderAsBrowserImage(file.path) && (
                           <a
-                            href={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
+                            href={getWorkspaceFileUrl(file.path, { preview: true, sessionId: session?.id })}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="mb-3 block overflow-hidden rounded-xl border border-gray-200 bg-white"
                           >
                             <img
-                              src={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
+                              src={getWorkspaceFileUrl(file.path, { preview: true, sessionId: session?.id })}
                               alt={file.name}
                               className="max-h-72 w-full object-contain"
                               loading="lazy"
@@ -777,14 +792,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                                   : '加入项目资料'}
                             </button>
                           )}
-                          {!shouldForceWorkspaceDownload(file.path) && (
+                          {canPreviewInBrowser(file.path) && (
                             <a
-                              href={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
+                              href={getWorkspaceFileUrl(file.path, { preview: true, sessionId: session?.id })}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 hover:border-gray-400 hover:text-gray-900"
                             >
-                              {file.isImage ? '查看' : '打开'}
+                              预览
                             </a>
                           )}
                           <a

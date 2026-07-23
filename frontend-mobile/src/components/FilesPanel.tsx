@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Popup, Dialog, SpinLoading, Empty, Toast } from 'antd-mobile';
-import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../shared';
+import { canPreviewInBrowser, isSupportedProjectMaterial } from '../shared';
 import type { WorkspaceFileNode } from '../shared';
 import type { AgentRuntime } from '../runtime/types';
 
@@ -177,11 +177,11 @@ const FilesPanel: React.FC<FilesPanelProps> = ({
                   </>
                 ) : (
                   <>
-                    {!shouldForceWorkspaceDownload(node.path) && (
+                    {canPreviewInBrowser(node.path) && (
                       <a
-                        href={agentRuntime.getWorkspaceFileUrl(node.path, { sessionId })}
+                        href={agentRuntime.getWorkspaceFileUrl(node.path, { preview: true, sessionId })}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
                       >

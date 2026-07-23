@@ -5,6 +5,7 @@
 - 传 session_id 时：根收窄到 `.eido/workspaces/<session_id>/`，杜绝跨会话窥探
 """
 import logging
+import mimetypes
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +15,10 @@ from app.core.auth import get_current_user_id
 from app.core.config import settings
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
+from app.services.file_preview import (
+    file_content_disposition,
+    file_response_security_headers,
+)
 from app.services.session_workspace import (
     get_session_workspace_manager,
     validate_session_id,
@@ -27,7 +32,6 @@ DATA_ROOT = settings.data_root.resolve()
 LEGACY_FILE_ROOTS = tuple(
     (WORKSPACE_ROOT / name).resolve() for name in ("uploads", "output", "outputs")
 )
-ALLOWED_IMAGE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 FORCE_ATTACHMENT_EXT = {
     ".html",
     ".htm",
@@ -45,9 +49,20 @@ FORCE_ATTACHMENT_EXT = {
 }
 
 
-def _content_disposition_type(ext: str, download: bool) -> str:
-    """Never navigate same-origin generated active content inline."""
-    return "attachment" if download or ext.lower() in FORCE_ATTACHMENT_EXT else "inline"
+def _content_disposition_type(
+    ext: str,
+    download: bool,
+    preview: bool = False,
+    media_type: str | None = None,
+) -> str:
+    """Render active content inline only for an explicit sandboxed preview."""
+    return file_content_disposition(
+        ext,
+        download=download,
+        preview=preview,
+        force_attachment_extensions=FORCE_ATTACHMENT_EXT,
+        media_type=media_type,
+    )
 
 
 def _resolve_global_path(path_str: str) -> Path:
@@ -88,6 +103,7 @@ def _resolve_session_path(session_id: str, path_str: str) -> Path:
 async def get_workspace_file(
     path: str = Query(..., description="文件路径，绝对或相对均可"),
     download: bool = Query(False, description="是否以附件形式下载"),
+    preview: bool = Query(False, description="是否使用受限浏览器预览"),
     filename: str | None = Query(None, description="下载时使用的文件名"),
     session_id: str | None = Query(None, description="会话 ID。传入后路径解析将收窄到该会话工作区"),
     user_id: str = Depends(get_current_user_id),
@@ -112,25 +128,22 @@ async def get_workspace_file(
         raise HTTPException(status_code=400, detail="不是文件")
 
     ext = resolved.suffix.lower()
-    media_type = None
-    if ext in ALLOWED_IMAGE_EXT:
-        media_types = {
-            ".png": "image/png",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".gif": "image/gif",
-            ".webp": "image/webp",
-            ".svg": "image/svg+xml",
-        }
-        media_type = media_types.get(ext)
+    # Starlette otherwise guesses from ``filename``.  That value is only a
+    # Content-Disposition display name and must never be able to turn a safe
+    # file such as report.txt into an inline text/html response.
+    media_type = mimetypes.guess_type(resolved.name)[0] or "application/octet-stream"
 
     download_name = filename or resolved.name
     return FileResponse(
         resolved,
         media_type=media_type,
         filename=download_name,
-        content_disposition_type=_content_disposition_type(ext, download),
-        headers={"X-Content-Type-Options": "nosniff"},
+        content_disposition_type=_content_disposition_type(
+            ext, download, preview, media_type
+        ),
+        headers=file_response_security_headers(
+            ext, download=download, preview=preview, media_type=media_type
+        ),
     )
 
 

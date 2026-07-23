@@ -22,6 +22,10 @@ from app.services.chat_session_store import (
     ProjectQuotaExceededError,
     get_chat_session_store,
 )
+from app.services.file_preview import (
+    file_content_disposition,
+    file_response_security_headers,
+)
 from app.services.project_workspace import (
     PROJECT_FILE_EXTENSIONS,
     get_project_workspace_manager,
@@ -54,9 +58,8 @@ MEDIA_TYPES_BY_EXTENSION = {
     ".ppt": "application/vnd.ms-powerpoint",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
-# Active same-origin content and Office documents are never rendered inline.  This
-# prevents a generated HTML/SVG file from becoming script-capable Project content,
-# and keeps browser handling of Office formats deterministic.
+# Active same-origin content is attached by default and only rendered inline in
+# the explicit sandboxed preview mode. Office formats always remain attachments.
 FORCE_ATTACHMENT_EXTENSIONS = {
     ".html",
     ".htm",
@@ -623,7 +626,8 @@ async def import_project_file(
 async def get_project_file(
     project_id: str,
     file_id: str,
-    download: bool = Query(False),
+    download: bool = Query(False, description="是否以附件形式下载"),
+    preview: bool = Query(False, description="是否使用受限浏览器预览"),
     user_id: str = Depends(get_current_user_id),
 ):
     _require_project(user_id, project_id)
@@ -648,18 +652,24 @@ async def get_project_file(
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         if not path.exists() or not path.is_file():
             raise HTTPException(status_code=404, detail="项目资料文件不存在")
+        extension = Path(record["display_name"]).suffix.lower()
         response = _LeaseFileResponse(
             path,
             media_type=record.get("media_type") or "application/octet-stream",
             filename=record["display_name"],
-            content_disposition_type=(
-                "attachment"
-                if download
-                or Path(record["display_name"]).suffix.lower()
-                in FORCE_ATTACHMENT_EXTENSIONS
-                else "inline"
+            content_disposition_type=file_content_disposition(
+                extension,
+                download=download,
+                preview=preview,
+                force_attachment_extensions=FORCE_ATTACHMENT_EXTENSIONS,
+                media_type=record.get("media_type"),
             ),
-            headers={"X-Content-Type-Options": "nosniff"},
+            headers=file_response_security_headers(
+                extension,
+                download=download,
+                preview=preview,
+                media_type=record.get("media_type"),
+            ),
             release_lease=lambda: guard.release_project(project_lease),
         )
         response_owns_lease = True

@@ -4,11 +4,13 @@ import { BACKEND_URL, INITIAL_CHAT_STATE } from "../constants";
 /** 工作区文件 URL，支持预览或下载；传入 sessionId 时只允许访问该会话工作区。 */
 export function getWorkspaceFileUrl(
   path: string,
-  options?: { download?: boolean; filename?: string; sessionId?: string }
+  options?: { download?: boolean; preview?: boolean; filename?: string; sessionId?: string }
 ): string {
   const query = new URLSearchParams({ path });
   if (options?.download) {
     query.set('download', 'true');
+  } else if (options?.preview) {
+    query.set('preview', 'true');
   }
   if (options?.filename) {
     query.set('filename', options.filename);
@@ -19,14 +21,21 @@ export function getWorkspaceFileUrl(
   return `${BACKEND_URL}/api/v1/workspace/file?${query.toString()}`;
 }
 
-/** 项目共享资料 URL；默认 inline 打开，可通过 download 强制下载。 */
+/** 项目共享资料 URL；主动内容只有显式 preview 时才以内联安全策略打开。 */
 export function getProjectFileUrl(
   projectId: string,
   fileId: string,
-  options?: { download?: boolean }
+  options?: { download?: boolean; preview?: boolean }
 ): string {
-  const query = options?.download ? '?download=true' : '';
-  return `${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}${query}`;
+  const query = new URLSearchParams();
+  if (options?.download) {
+    query.set('download', 'true');
+  } else if (options?.preview) {
+    query.set('preview', 'true');
+  }
+  const queryString = query.toString();
+  const suffix = queryString ? `?${queryString}` : '';
+  return `${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}${suffix}`;
 }
 
 export interface WorkspaceFileNode {

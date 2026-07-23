@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectFile, Reference } from '../types';
 import { api, getProjectFileUrl, getWorkspaceFileUrl, WorkspaceFileNode } from '../services/api';
-import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../utils/projectFiles';
+import { canPreviewInBrowser, isSupportedProjectMaterial } from '../utils/projectFiles';
 
 interface ReferenceAreaProps {
   references: Reference[];
@@ -311,7 +311,9 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
                     <div className="truncate text-xs font-bold text-gray-800">{file.display_name}</div>
                     <div className="mt-1 text-[10px] text-gray-400">{file.media_type || '文件'} · {(file.size_bytes / 1024).toFixed(file.size_bytes >= 1024 ? 1 : 0)} KB</div>
                     <div className="mt-2 flex gap-2">
-                      <a href={getProjectFileUrl(project.id, file.id)} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-gray-600 hover:underline">打开</a>
+                      {canPreviewInBrowser(file.display_name) && (
+                        <a href={getProjectFileUrl(project.id, file.id, { preview: true })} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-gray-600 hover:underline">预览</a>
+                      )}
                       <a href={getProjectFileUrl(project.id, file.id, { download: true })} className="text-[10px] font-bold text-gray-600 hover:underline">下载</a>
                     </div>
                   </div>
@@ -552,11 +554,11 @@ const FileTreeView: React.FC<FileTreeViewProps> = ({
                       : '加入项目'}
                 </button>
               )}
-              {!shouldForceWorkspaceDownload(node.path) && (
+              {canPreviewInBrowser(node.path) && (
                 <a
-                  href={getWorkspaceFileUrl(node.path, { sessionId })}
+                  href={getWorkspaceFileUrl(node.path, { preview: true, sessionId })}
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
                   className="p-1 hover:bg-gray-200 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
                   title="预览"

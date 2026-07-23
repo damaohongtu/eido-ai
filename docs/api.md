@@ -101,7 +101,9 @@ interface ProjectFile {
 项目资料支持 `.md / .pdf / .csv / .xls / .xlsx / .html / .htm / .txt / .json / .png / .jpg /
 .jpeg / .gif / .webp / .svg / .doc / .docx / .ppt / .pptx`，单文件不超过 20 MiB。
 `files/import` 仅接受当前目标 Project 内会话的 `outputs/` 文件；成功返回的文件记录包含最新
-`context_revision`。HTML、SVG 和 Office 文档下载时强制使用 attachment。
+`context_revision`。HTML、SVG 和 Office 文档默认强制使用 attachment；HTML/HTM/SVG 可通过
+`GET /projects/{project_id}/files/{file_id}?preview=true` 使用受 CSP sandbox 保护的 inline 预览。
+`download=true` 始终优先并保持附件下载。
 
 默认配额为单文件 20 MiB、单 Project 100 个文件/512 MiB、单用户 500 个项目文件/2 GiB；累计
 配额可通过 `EIDO_PROJECT_MAX_*` 与 `EIDO_USER_PROJECT_MAX_*` 环境变量调整。待物理清理的文件
@@ -340,6 +342,7 @@ Query 参数：
 |---|---|---|
 | `path` | 是 | 文件路径（绝对或相对） |
 | `download` | 否 | `true` 时以附件下载 |
+| `preview` | 否 | `true` 时允许 HTML/XML/SVG/MHTML 家族主动内容使用安全沙箱预览 |
 | `filename` | 否 | 下载时使用的文件名 |
 | `session_id` | 否 | 传入后路径解析收窄到该会话工作区 |
 
@@ -347,6 +350,9 @@ Query 参数：
 - 不传 `session_id`：兼容历史路径，在 `WORKSPACE_ROOT` 全局范围内解析
 - 传 `session_id`：先校验该会话属于当前用户，再把根收窄到 `.eido/workspaces/<session_id>/`
 - 路径越界返回 403；会话不存在或不属于当前用户返回 404
+- 主动内容默认仍为附件；仅 `preview=true` 时 inline，并附加无 `allow-same-origin` 的 CSP
+  `sandbox`、`nosniff`、`private, no-store`，同时禁用网络连接、表单、对象、子框架和 base URL
+- `download=true` 优先于 `preview=true`，此时保持普通附件下载响应
 
 响应：原始文件流；图片自动设置 `image/*` MIME。
 

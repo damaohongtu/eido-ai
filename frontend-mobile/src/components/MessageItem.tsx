@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Toast } from 'antd-mobile';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../shared';
+import {
+  canPreviewInBrowser,
+  canRenderAsBrowserImage,
+  isSupportedProjectMaterial,
+} from '../shared';
 import type { Message } from '../shared';
 import type { AgentRuntime } from '../runtime/types';
 import {
@@ -154,32 +158,41 @@ const MessageItem: React.FC<MessageItemProps> = ({
       const isExternal =
         src?.startsWith('http://') || src?.startsWith('https://') || src?.startsWith('data:');
       if (!isExternal && src && agentRuntime.openWorkspaceFile) {
+        const filename = src.split('/').pop() || 'file';
+        const canPreview = canPreviewInBrowser(src);
         return (
           <button
             type="button"
-            onClick={() => openLocalFile(src)}
+            onClick={() => openLocalFile(src, !canPreview, filename)}
             className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
           >
-            查看图片：{alt || src.split('/').pop() || '图片'}
+            {canRenderAsBrowserImage(src) ? '查看图片' : canPreview ? '预览文件' : '下载文件'}：
+            {alt || filename}
           </button>
         );
       }
-      if (!isExternal && src && shouldForceWorkspaceDownload(src)) {
+      if (!isExternal && src && !canRenderAsBrowserImage(src)) {
         const filename = src.split('/').pop() || 'download';
+        const canPreview = canPreviewInBrowser(src);
         return (
-          <a href={agentRuntime.getWorkspaceFileUrl(src, {
-            download: true,
-            filename,
-            sessionId: sessionId || undefined,
-          })}>
-            下载文件：{alt || filename}
+          <a
+            href={agentRuntime.getWorkspaceFileUrl(src, {
+              download: !canPreview,
+              preview: canPreview,
+              filename,
+              sessionId: sessionId || undefined,
+            })}
+            target={canPreview ? '_blank' : undefined}
+            rel="noopener noreferrer"
+          >
+            {canPreview ? '预览文件' : '下载文件'}：{alt || filename}
           </a>
         );
       }
       const imgSrc = isExternal
         ? src
         : src
-          ? agentRuntime.getWorkspaceFileUrl(src, { sessionId: sessionId || undefined })
+          ? agentRuntime.getWorkspaceFileUrl(src, { preview: true, sessionId: sessionId || undefined })
           : src;
       if (!imgSrc) return null;
       return (
@@ -193,13 +206,21 @@ const MessageItem: React.FC<MessageItemProps> = ({
         const normalized = normalizeWorkspacePath(href);
         if (!normalized) return <span>{children}</span>;
         const filename = normalized.split('/').pop() || 'download';
+        const canPreview = canPreviewInBrowser(normalized);
         return (
           <a
-            href={agentRuntime.openWorkspaceFile ? '#' : agentRuntime.getWorkspaceFileUrl(normalized, { download: true, filename, sessionId: sessionId || undefined })}
+            href={agentRuntime.openWorkspaceFile ? '#' : agentRuntime.getWorkspaceFileUrl(normalized, {
+              download: !canPreview,
+              preview: canPreview,
+              filename,
+              sessionId: sessionId || undefined,
+            })}
             onClick={agentRuntime.openWorkspaceFile ? (event) => {
               event.preventDefault();
-              openLocalFile(normalized, true, filename);
+              openLocalFile(normalized, !canPreview, filename);
             } : undefined}
+            target={!agentRuntime.openWorkspaceFile && canPreview ? '_blank' : undefined}
+            rel="noopener noreferrer"
             className="font-semibold text-blue-600 underline"
           >
             {children}
@@ -262,15 +283,15 @@ const MessageItem: React.FC<MessageItemProps> = ({
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">生成文件</div>
             {generatedFiles.map((file) => (
               <div key={file.path} className="rounded-xl bg-gray-50 p-2.5">
-                {file.isImage && !agentRuntime.openWorkspaceFile && !shouldForceWorkspaceDownload(file.path) && (
+                {file.isImage && !agentRuntime.openWorkspaceFile && canRenderAsBrowserImage(file.path) && (
                   <a
-                    href={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
+                    href={agentRuntime.getWorkspaceFileUrl(file.path, { preview: true, sessionId: sessionId || undefined })}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mb-2 block overflow-hidden rounded-lg border border-gray-200 bg-white"
                   >
                     <img
-                      src={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
+                      src={agentRuntime.getWorkspaceFileUrl(file.path, { preview: true, sessionId: sessionId || undefined })}
                       alt={file.name}
                       className="max-h-60 w-full object-contain"
                       loading="lazy"
@@ -303,7 +324,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
                           onClick={() => openLocalFile(file.path)}
                           className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-600"
                         >
-                          {file.isImage ? '查看' : '打开'}
+                          预览
                         </button>
                         <button
                           type="button"
@@ -315,14 +336,14 @@ const MessageItem: React.FC<MessageItemProps> = ({
                       </>
                     ) : (
                       <>
-                        {!shouldForceWorkspaceDownload(file.path) && (
+                        {canPreviewInBrowser(file.path) && (
                           <a
-                            href={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
+                            href={agentRuntime.getWorkspaceFileUrl(file.path, { preview: true, sessionId: sessionId || undefined })}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-600"
                           >
-                            {file.isImage ? '查看' : '打开'}
+                            预览
                           </a>
                         )}
                         <a

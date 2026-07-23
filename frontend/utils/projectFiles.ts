@@ -11,8 +11,16 @@ export const PROJECT_MATERIAL_EXTENSIONS = [
 ] as const;
 
 const PROJECT_MATERIAL_EXTENSION_SET = new Set<string>(PROJECT_MATERIAL_EXTENSIONS);
+const BROWSER_PREVIEW_EXTENSION_SET = new Set([
+  'html', 'htm', 'xht', 'xhtml', 'svg', 'xml', 'xsl', 'xslt', 'mhtml', 'mht',
+  'pdf', 'txt', 'md', 'csv', 'json',
+  'png', 'jpg', 'jpeg', 'gif', 'webp',
+]);
+const BROWSER_IMAGE_EXTENSION_SET = new Set([
+  'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp',
+]);
 const ACTIVE_WORKSPACE_EXTENSION_SET = new Set([
-  'html', 'htm', 'xhtml', 'svg', 'xml', 'mhtml', 'mht',
+  'html', 'htm', 'xht', 'xhtml', 'svg', 'svgz', 'xml', 'xsl', 'xslt', 'mhtml', 'mht',
   'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
 ]);
 export const PROJECT_MATERIAL_ACCEPT = PROJECT_MATERIAL_EXTENSIONS
@@ -34,7 +42,21 @@ export function isSupportedProjectMaterial(
   return PROJECT_MATERIAL_EXTENSION_SET.has(extension);
 }
 
-/** Generated active content must be downloaded, never same-origin navigated. */
+/** 后端可安全 inline、且浏览器能够直接展示的文件类型。 */
+export function canPreviewInBrowser(path: string): boolean {
+  const withoutQuery = path.split(/[?#]/, 1)[0] || '';
+  const extension = withoutQuery.split('/').pop()?.split('.').pop()?.toLowerCase() || '';
+  return BROWSER_PREVIEW_EXTENSION_SET.has(extension);
+}
+
+/** 可安全放进 img 元素的浏览器图片类型；HTML/PDF 等应打开预览页。 */
+export function canRenderAsBrowserImage(path: string): boolean {
+  const withoutQuery = path.split(/[?#]/, 1)[0] || '';
+  const extension = withoutQuery.split('/').pop()?.split('.').pop()?.toLowerCase() || '';
+  return BROWSER_IMAGE_EXTENSION_SET.has(extension);
+}
+
+/** 未显式请求安全预览时，这些格式必须保持下载响应。 */
 export function shouldForceWorkspaceDownload(path: string): boolean {
   const withoutQuery = path.split(/[?#]/, 1)[0] || '';
   const extension = withoutQuery.split('/').pop()?.split('.').pop()?.toLowerCase() || '';

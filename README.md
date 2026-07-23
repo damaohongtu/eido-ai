@@ -107,14 +107,24 @@ flowchart LR
 
 ### 1. 准备模型访问
 
-Eido 通过 Anthropic 兼容接口调用模型。开发时通常在 `backend/.env` 中配置：
+Eido 通过 Claude Agent SDK 调用模型。开发时通常在 `backend/.env` 中配置：
 
 ```bash
 cd backend
 cp .env.example .env
 ```
 
-MiniMax 示例：
+Anthropic 官方 API（推荐）：
+
+```env
+ANTHROPIC_API_KEY=sk-ant-xxxxx
+```
+
+Agent SDK 使用非交互式 API 凭据；本机 `claude /login` 的 Claude.ai
+Pro/Max 登录不能作为 Eido 后端的认证方式。`backend/.env` 会由后端配置层读取并
+显式传给 SDK 内置 CLI，不需要在启动前手工 `export`。
+
+MiniMax 兼容网关示例：
 
 ```env
 ANTHROPIC_BASE_URL=https://api.minimaxi.com/anthropic
@@ -251,8 +261,8 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 
 | 变量 | 说明 |
 | --- | --- |
-| `ANTHROPIC_BASE_URL` | Anthropic 兼容 API 地址 |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | 模型服务密钥 |
+| `ANTHROPIC_BASE_URL` | Anthropic 兼容 API 地址；使用官方 API 时留空 |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | Agent SDK 非交互式模型服务凭据；官方 API 推荐 `ANTHROPIC_API_KEY` |
 | `ANTHROPIC_MODEL` | 主模型名称 |
 | `ANTHROPIC_SMALL_FAST_MODEL` | 快速/小模型名称 |
 | `AGENT_HARNESS` | 默认 agent harness：`claude_code`、`open_harness` 或 `opencode` |

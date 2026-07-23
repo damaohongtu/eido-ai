@@ -16,11 +16,11 @@ RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debia
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         ca-certificates \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code opencode-ai --registry https://registry.npmmirror.com
+RUN npm install -g @anthropic-ai/claude-code@2.1.218 opencode-ai --registry https://registry.npmmirror.com
 
 WORKDIR /app
 COPY backend/requirements.txt .

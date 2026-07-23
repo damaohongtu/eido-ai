@@ -15,10 +15,13 @@
 import asyncio
 import json
 import logging
+import os
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, List, Optional
+from urllib.parse import urlsplit
 
 from app.gateway.sandbox_manager import _safe_user_id
 from app.services.conversation_context import format_recent_conversation
@@ -33,6 +36,17 @@ DEFAULT_ALLOWED_TOOLS = ["Bash", "Glob", "Read", "WebFetch"]
 # 注释行不带 `data: ` 前缀，前端 SSE 解析逻辑会自然忽略。
 HEARTBEAT_INTERVAL_SEC = 12.0
 _HEARTBEAT_FRAME = ": ping\n\n"
+
+# 技能列表 API 会在页面装载期间被并发请求多次。缓存命中时不再遍历/解析
+# SKILL.md；TTL 到期后先比较轻量 stat 指纹，内容未变则继续复用对象。
+SKILL_CACHE_TTL_SEC = 5.0
+
+# ClaudeSDKClient 复用同一个 Claude Code 子进程，避免每轮重新启动、扫描技能、
+# 初始化工具。最大存活时间还会受 EIDO_USER_TOKEN_TTL 约束。
+CLIENT_IDLE_TTL_SEC = 15 * 60.0
+CLIENT_POOL_MAX = 32
+
+_NATIVE_SKILLS_MANIFEST = ".eido-native-skills.json"
 
 # 历史标记文件：保留以兼容旧目录扫描，不再作为权限判定依据
 USER_UPLOAD_MARKER = ".eido-user-upload"
@@ -99,12 +113,47 @@ class SkillMeta:
     owner_user_id: Optional[str] = None
 
 
+@dataclass
+class _SkillCacheEntry:
+    skills: tuple[SkillMeta, ...]
+    fingerprint: tuple[tuple[str, str, int, int], ...]
+    expires_at: float
+
+
+@dataclass
+class _ClaudeClientEntry:
+    client: Any
+    key: tuple[str, str]
+    user_id: Optional[str]
+    signature: tuple[Any, ...]
+    created_at: float
+    last_used: float
+    busy: bool = True
+    stale: bool = False
+
+
+class _ResumeUnavailable(RuntimeError):
+    """原生会话在产生本轮输出前已不可恢复，可安全回退到重建模式。"""
+
+    def __init__(self, cause: Exception):
+        super().__init__(str(cause))
+        self.cause = cause
+
+
+class _AgentAuthenticationError(RuntimeError):
+    """Agent SDK could not use a supported non-interactive credential."""
+
+
 class ClaudeSkillService:
     """基于本地文件的技能服务"""
 
     def __init__(self, skills_dir: Path, workspace_root: Path):
         self.skills_dir = skills_dir
         self.workspace_root = workspace_root
+        self._skill_cache: dict[str, _SkillCacheEntry] = {}
+        self._native_skill_views: dict[str, tuple[tuple[Any, ...], int]] = {}
+        self._clients: dict[tuple[str, str], _ClaudeClientEntry] = {}
+        self._client_cleanup_tasks: set[asyncio.Task] = set()
 
     # ------------------------------------------------------------------ #
     #  技能发现                                                             #
@@ -144,12 +193,61 @@ class ClaudeSkillService:
                 logger.warning(f"加载技能失败 [{skill_dir.name}]: {e}")
         return skills
 
+    def _catalog_fingerprint(
+        self, *, user_id: Optional[str]
+    ) -> tuple[tuple[str, str, int, int], ...]:
+        """只读取目录项和 SKILL.md stat，避免为未变化目录重复解析正文。"""
+        roots = [("system", self.system_dir)]
+        if user_id:
+            roots.append(("user", self.user_private_dir(user_id)))
+        entries: list[tuple[str, str, int, int]] = []
+        for owner_type, root in roots:
+            if not root.exists():
+                continue
+            for skill_dir in sorted(root.iterdir()):
+                skill_md = skill_dir / "SKILL.md"
+                if not skill_dir.is_dir() or not skill_md.is_file():
+                    continue
+                try:
+                    stat = skill_md.stat()
+                except OSError:
+                    continue
+                entries.append(
+                    (owner_type, str(skill_dir.resolve()), stat.st_mtime_ns, stat.st_size)
+                )
+        return tuple(entries)
+
+    def invalidate_skill_cache(
+        self, *, user_id: Optional[str] = None, system: bool = False
+    ) -> None:
+        """技能 CRUD 后主动失效；system 变化会影响所有用户视图。"""
+        if system or user_id is None:
+            self._skill_cache.clear()
+            affected_user: Optional[str] = None
+        else:
+            self._skill_cache.pop(user_id, None)
+            affected_user = user_id
+        for entry in self._clients.values():
+            if affected_user is None or entry.user_id == affected_user:
+                entry.stale = True
+
     def scan_skills(self, *, user_id: Optional[str] = None) -> List[SkillMeta]:
         """扫描 system 区 +（若给定 user_id）该用户私有区。
 
         合并策略：同 id 在 user 私有与 system 中都存在时，user 区覆盖 system 区，
         仅返回一条 user 视角的元数据；这样 LLM 可见的技能列表不会重复。
         """
+        cache_key = user_id or ""
+        now = time.monotonic()
+        cached = self._skill_cache.get(cache_key)
+        if cached and now < cached.expires_at:
+            return list(cached.skills)
+
+        fingerprint = self._catalog_fingerprint(user_id=user_id)
+        if cached and cached.fingerprint == fingerprint:
+            cached.expires_at = now + SKILL_CACHE_TTL_SEC
+            return list(cached.skills)
+
         system_skills = self._scan_dir(self.system_dir, owner_type="system")
         user_skills: List[SkillMeta] = []
         if user_id:
@@ -162,8 +260,17 @@ class ClaudeSkillService:
         user_ids = {s.id for s in user_skills}
         merged = [s for s in system_skills if s.id not in user_ids] + user_skills
         merged.sort(key=lambda s: s.id)
+        self._skill_cache[cache_key] = _SkillCacheEntry(
+            skills=tuple(merged),
+            fingerprint=fingerprint,
+            expires_at=now + SKILL_CACHE_TTL_SEC,
+        )
+        if cached is not None:
+            for entry in self._clients.values():
+                if entry.user_id == user_id:
+                    entry.stale = True
         logger.info(
-            "扫描到 %d 个技能 (system=%d, user=%d, user_id=%s)",
+            "刷新技能缓存: %d 个 (system=%d, user=%d, user_id=%s)",
             len(merged),
             len(system_skills),
             len(user_skills),
@@ -203,7 +310,7 @@ class ClaudeSkillService:
         description = meta.get("description") or _body[:200].strip()
 
         # allowed_tools：YAML list 或逗号分隔字符串，否则取默认值
-        raw_tools = meta.get("allowed_tools")
+        raw_tools = meta.get("allowed_tools") or meta.get("allowed-tools")
         if isinstance(raw_tools, list):
             allowed_tools = [str(t) for t in raw_tools]
         elif isinstance(raw_tools, str) and raw_tools:
@@ -234,7 +341,16 @@ class ClaudeSkillService:
     # ------------------------------------------------------------------ #
 
     # 自动执行模式下使用的通用工具集（覆盖所有技能可能需要的工具）
-    AUTO_ALLOWED_TOOLS = ["Bash", "Glob", "Read", "Write", "Edit", "WebFetch"]
+    AUTO_ALLOWED_TOOLS = [
+        "Bash",
+        "Glob",
+        "Grep",
+        "Read",
+        "Write",
+        "Edit",
+        "WebFetch",
+        "WebSearch",
+    ]
 
     @staticmethod
     def _extract_latest_user_text(messages: list) -> str:
@@ -264,7 +380,7 @@ class ClaudeSkillService:
         return ""
 
     def _build_skills_index(self, *, user_id: Optional[str] = None) -> str:
-        """构建可用技能索引文本，用于告知 Claude 有哪些技能可以使用。
+        """兼容无 session 的后台任务，构建旧式技能索引文本。
 
         SKILL.md 路径必须是绝对路径——agent cwd 会被切到 session 工作区，相对路径会失效。
         合并 system 区与该用户私有区；同 id 时私有覆盖。
@@ -280,6 +396,247 @@ class ClaudeSkillService:
                 f"- **{s.id}** [{scope}]: {s.description}\n  SKILL.md 绝对路径: `{abs_path}`"
             )
         return "\n".join(lines)
+
+    def _materialize_native_skills(
+        self, cwd: Path, *, user_id: Optional[str]
+    ) -> tuple[tuple[Any, ...], int]:
+        """把当前用户可见技能映射到 session 的原生 `.claude/skills/`。
+
+        Eido 的物理布局是 `system/<id>` 与 `users/<uid>/<id>`，而 Claude Code
+        原生发现要求 `.claude/skills/<id>`。这里仅创建目录符号链接，不复制技能，
+        因而 supporting files 与更新会立即可见；manifest 只用于安全清理本服务创建
+        的旧链接，不会删除用户自行创建的普通目录。
+        """
+        skills = self.scan_skills(user_id=user_id)
+        claude_dir = cwd / ".claude"
+        native_root = claude_dir / "skills"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        native_root.mkdir(parents=True, exist_ok=True)
+        manifest_path = claude_dir / _NATIVE_SKILLS_MANIFEST
+
+        managed: dict[str, str] = {}
+        try:
+            raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                managed = {
+                    str(name): str(target)
+                    for name, target in raw.items()
+                    if isinstance(name, str) and isinstance(target, str)
+                }
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+
+        expected: dict[str, str] = {}
+        revision: list[tuple[Any, ...]] = []
+        for skill in skills:
+            if Path(skill.id).name != skill.id or skill.id in {"", ".", ".."}:
+                logger.warning("跳过无法映射到原生目录的技能 ID: %r", skill.id)
+                continue
+            target = skill.skill_dir.resolve()
+            expected[skill.id] = str(target)
+            revision.append(
+                (
+                    skill.id,
+                    str(target),
+                    skill.updated_at,
+                    len(skill.content),
+                    skill.owner_type,
+                )
+            )
+
+        revision_tuple = tuple(revision)
+        view_key = str(cwd.resolve())
+        previous_view = self._native_skill_views.get(view_key)
+        if previous_view and previous_view[0] == revision_tuple and manifest_path.is_file():
+            return previous_view
+
+        for name, old_target in managed.items():
+            if expected.get(name) == old_target:
+                continue
+            link = native_root / name
+            if link.is_symlink():
+                try:
+                    current = (link.parent / os.readlink(link)).resolve()
+                    if str(current) == old_target:
+                        link.unlink()
+                except OSError:
+                    logger.warning("清理旧技能链接失败: %s", link, exc_info=True)
+
+        installed: dict[str, str] = {}
+        for name, target_text in expected.items():
+            link = native_root / name
+            target = Path(target_text)
+            if link.is_symlink():
+                try:
+                    current = (link.parent / os.readlink(link)).resolve()
+                    if current != target:
+                        link.unlink()
+                        link.symlink_to(target, target_is_directory=True)
+                except OSError:
+                    logger.warning("更新技能链接失败: %s", link, exc_info=True)
+                    continue
+            elif link.exists():
+                logger.warning("原生技能路径已存在且非托管链接，保留并跳过: %s", link)
+                continue
+            else:
+                try:
+                    link.symlink_to(target, target_is_directory=True)
+                except OSError:
+                    logger.warning("创建技能链接失败: %s -> %s", link, target, exc_info=True)
+                    continue
+            installed[name] = target_text
+
+        if managed != installed or not manifest_path.exists():
+            manifest_path.write_text(
+                json.dumps(installed, ensure_ascii=False, sort_keys=True),
+                encoding="utf-8",
+            )
+        result = (revision_tuple, len(installed))
+        self._native_skill_views[view_key] = result
+        return result
+
+    @staticmethod
+    def _client_key(user_id: Optional[str], session_id: str) -> tuple[str, str]:
+        return (user_id or "", session_id)
+
+    @staticmethod
+    def _client_max_age_sec() -> float:
+        """复用连接不能超过短期 EIDO_USER_TOKEN 的有效期。"""
+        try:
+            from app.core.config import settings
+
+            token_ttl = float(settings.EIDO_USER_TOKEN_TTL)
+        except Exception:
+            token_ttl = 300.0
+        return max(0.0, min(CLIENT_IDLE_TTL_SEC, token_ttl - 30.0))
+
+    async def _close_client_entry(self, entry: _ClaudeClientEntry) -> None:
+        try:
+            await entry.client.disconnect()
+        except Exception:
+            logger.debug("关闭 ClaudeSDKClient 失败", exc_info=True)
+
+    def _schedule_client_close(self, entry: _ClaudeClientEntry) -> None:
+        try:
+            task = asyncio.create_task(self._close_client_entry(entry))
+        except RuntimeError:
+            return
+        self._client_cleanup_tasks.add(task)
+        task.add_done_callback(self._client_cleanup_tasks.discard)
+
+    async def _prune_clients(self) -> None:
+        now = time.monotonic()
+        stale: list[_ClaudeClientEntry] = []
+        max_age = self._client_max_age_sec()
+        for key, entry in list(self._clients.items()):
+            if entry.busy:
+                continue
+            if (
+                entry.stale
+                or now - entry.last_used > CLIENT_IDLE_TTL_SEC
+                or max_age <= 0
+                or now - entry.created_at > max_age
+            ):
+                if self._clients.pop(key, None) is entry:
+                    stale.append(entry)
+        for entry in stale:
+            await self._close_client_entry(entry)
+
+    async def _acquire_client(
+        self,
+        *,
+        options: Any,
+        user_id: Optional[str],
+        session_id: str,
+        signature: tuple[Any, ...],
+    ) -> tuple[_ClaudeClientEntry, bool, float]:
+        """获取 session 级长连接；返回 (entry, warm_hit, connect_ms)。"""
+        from claude_agent_sdk import ClaudeSDKClient  # type: ignore
+
+        await self._prune_clients()
+        key = self._client_key(user_id, session_id)
+        now = time.monotonic()
+        current = self._clients.get(key)
+        max_age = self._client_max_age_sec()
+        if (
+            current
+            and not current.busy
+            and not current.stale
+            and current.signature == signature
+            and max_age > 0
+            and now - current.created_at <= max_age
+        ):
+            current.busy = True
+            return current, True, 0.0
+
+        if current is not None:
+            if current.busy:
+                raise RuntimeError(f"Claude session 正在执行: {session_id}")
+            self._clients.pop(key, None)
+            await self._close_client_entry(current)
+
+        started = time.perf_counter()
+        client = ClaudeSDKClient(options=options)
+        await client.connect()
+        connect_ms = (time.perf_counter() - started) * 1000
+        now = time.monotonic()
+        entry = _ClaudeClientEntry(
+            client=client,
+            key=key,
+            user_id=user_id,
+            signature=signature,
+            created_at=now,
+            last_used=now,
+        )
+        self._clients[key] = entry
+
+        if len(self._clients) > CLIENT_POOL_MAX:
+            candidates = sorted(
+                (
+                    item
+                    for item in self._clients.values()
+                    if not item.busy and item is not entry
+                ),
+                key=lambda item: item.last_used,
+            )
+            while len(self._clients) > CLIENT_POOL_MAX and candidates:
+                victim = candidates.pop(0)
+                if self._clients.pop(victim.key, None) is victim:
+                    self._schedule_client_close(victim)
+        return entry, False, connect_ms
+
+    async def _release_client(
+        self, entry: _ClaudeClientEntry, *, healthy: bool
+    ) -> None:
+        entry.busy = False
+        entry.last_used = time.monotonic()
+        if not healthy or entry.stale:
+            if self._clients.pop(entry.key, None) is entry:
+                await self._close_client_entry(entry)
+
+    def reset_session(self, session_id: str) -> None:
+        """驱逐指定 Eido session 的长连接；供项目切换/删除时调用。"""
+        for path in list(self._native_skill_views):
+            if Path(path).name == session_id:
+                self._native_skill_views.pop(path, None)
+        for key, entry in list(self._clients.items()):
+            if key[1] != session_id:
+                continue
+            entry.stale = True
+            if not entry.busy and self._clients.pop(key, None) is entry:
+                self._schedule_client_close(entry)
+
+    async def shutdown(self) -> None:
+        """应用关闭时回收所有 Claude Code 子进程。"""
+        entries = list(self._clients.values())
+        self._clients.clear()
+        if entries:
+            await asyncio.gather(
+                *(self._close_client_entry(entry) for entry in entries),
+                return_exceptions=True,
+            )
+        if self._client_cleanup_tasks:
+            await asyncio.gather(*tuple(self._client_cleanup_tasks), return_exceptions=True)
 
     async def execute_stream(
         self, messages: list, context: Optional[str] = None,
@@ -322,15 +679,30 @@ class ClaudeSkillService:
         else:
             cwd = self.workspace_root
 
+        native_skills = bool(session_id)
+        skill_revision: tuple[Any, ...] = ()
+        skill_count = 0
+        if native_skills:
+            try:
+                skill_revision, skill_count = self._materialize_native_skills(
+                    cwd, user_id=user_id
+                )
+            except Exception:
+                logger.exception("原生技能映射失败，回退到兼容技能索引")
+                native_skills = False
+
         # 导入 SDK
         try:
-            from claude_agent_sdk import query, ClaudeAgentOptions  # type: ignore
-            from claude_agent_sdk import ProcessError  # type: ignore
+            from claude_agent_sdk import (  # type: ignore
+                ClaudeAgentOptions,
+                ClaudeSDKError,
+                query,
+            )
         except ImportError:
             logger.error("claude_agent_sdk 未安装")
             yield self._sse({
                 "type": "error",
-                "message": "claude_agent_sdk 未安装，请运行: pip install claude-code-sdk"
+                "message": "claude_agent_sdk 未安装，请运行: pip install claude-agent-sdk"
             })
             yield "data: [DONE]\n\n"
             return
@@ -340,14 +712,25 @@ class ClaudeSkillService:
             yield self._sse({"type": "error", "message": "未找到用户输入"})
             yield "data: [DONE]\n\n"
             return
-        recent_history = format_recent_conversation(messages)
-
         claude_sid = self._load_claude_sid(
             user_id, session_id, project_context=project_context
         )
         agent_env = self._build_agent_env(
             user_id, session_id, project_context.id if project_context else None
         )
+        auth_error = self._agent_auth_error(agent_env)
+        if auth_error:
+            logger.error("Claude Agent SDK 认证配置缺失: %s", auth_error)
+            yield self._sse({"type": "error", "message": auth_error})
+            yield "data: [DONE]\n\n"
+            return
+        auth_mode, provider = self._agent_auth_summary(agent_env)
+        logger.info("  [ClaudeAuth] mode=%s provider=%s", auth_mode, provider)
+        project_signature = (
+            project_context.id,
+            project_context.context_revision,
+        ) if project_context else (None, None)
+        client_signature = (str(cwd.resolve()), project_signature, skill_revision)
 
         async def _run_once(resume_sid: Optional[str]) -> AsyncGenerator[str, None]:
             """单次 SDK 调用，按 resume 模式构建不同 prompt/options。"""
@@ -358,43 +741,99 @@ class ClaudeSkillService:
                 user_id=user_id,
                 resume=bool(resume_sid),
                 project_context=project_context,
-                conversation_history=recent_history,
+                conversation_history=(
+                    format_recent_conversation(messages) if not resume_sid else ""
+                ),
+                native_skills=native_skills,
             )
+            available_tools = list(self.AUTO_ALLOWED_TOOLS)
+            if native_skills:
+                available_tools.append("Skill")
             options = ClaudeAgentOptions(
                 allowed_tools=self.AUTO_ALLOWED_TOOLS,
+                tools=available_tools,
                 cwd=str(cwd),
-                setting_sources=["project"],
+                setting_sources=["project"] if native_skills else [],
+                skills="all" if native_skills else None,
                 permission_mode="acceptEdits",
                 env=agent_env,
-                include_partial_messages=True,
+                include_partial_messages=False,
                 max_buffer_size=10 * 1024 * 1024,
                 resume=resume_sid,
             )
-            logger.info(
-                f"  resume={resume_sid or '(none)'} | 工具集={self.AUTO_ALLOWED_TOOLS} "
-                f"| prompt={len(prompt)}B | cwd={cwd}"
-            )
-
-            async for message in query(prompt=prompt, options=options):
-                self._log_message(message)
-                # 捕获原生 session_id，持久化以便下一轮 resume
-                try:
-                    from claude_agent_sdk.types import ResultMessage  # type: ignore
-                    if (
-                        session_id
-                        and isinstance(message, ResultMessage)
-                        and getattr(message, "session_id", None)
-                    ):
-                        self._save_claude_sid(
-                            user_id,
-                            session_id,
-                            message.session_id,
-                            project_context=project_context,
+            entry: Optional[_ClaudeClientEntry] = None
+            warm_hit = False
+            connect_ms = 0.0
+            message_seen = False
+            saw_result = False
+            run_started = time.perf_counter()
+            try:
+                if session_id:
+                    try:
+                        entry, warm_hit, connect_ms = await self._acquire_client(
+                            options=options,
+                            user_id=user_id,
+                            session_id=session_id,
+                            signature=client_signature,
                         )
-                except Exception as e:
-                    logger.warning(f"持久化 claude_session_id 失败: {e}")
-                for event in self._convert_message(message):
-                    yield event
+                        await entry.client.query(prompt)
+                    except ClaudeSDKError as exc:
+                        if resume_sid:
+                            raise _ResumeUnavailable(exc) from exc
+                        raise
+                    messages_iter = entry.client.receive_response()
+                else:
+                    messages_iter = query(prompt=prompt, options=options)
+
+                logger.info(
+                    "  [ClaudeRun] mode=%s warm=%s connect_ms=%.1f prompt_chars=%d "
+                    "skills=%d tools=%d cwd=%s",
+                    "resume" if resume_sid else "fresh",
+                    warm_hit,
+                    connect_ms,
+                    len(prompt),
+                    skill_count,
+                    len(available_tools),
+                    cwd,
+                )
+
+                async for message in messages_iter:
+                    if not message_seen:
+                        logger.info(
+                            "  [ClaudeRun] first_message_ms=%.1f warm=%s session=%s",
+                            (time.perf_counter() - run_started) * 1000,
+                            warm_hit,
+                            session_id or "(none)",
+                        )
+                    message_seen = True
+                    self._log_message(message)
+                    if self._is_not_logged_in_message(message):
+                        raise _AgentAuthenticationError(
+                            self._agent_auth_failure_message()
+                        )
+                    # 捕获原生 session_id，持久化以便进程回收/服务重启后 resume
+                    try:
+                        from claude_agent_sdk.types import ResultMessage  # type: ignore
+                        if isinstance(message, ResultMessage):
+                            saw_result = True
+                            if session_id and getattr(message, "session_id", None):
+                                self._save_claude_sid(
+                                    user_id,
+                                    session_id,
+                                    message.session_id,
+                                    project_context=project_context,
+                                )
+                    except Exception as e:
+                        logger.warning(f"持久化 claude_session_id 失败: {e}")
+                    for event in self._convert_message(message):
+                        yield event
+            except ClaudeSDKError as exc:
+                if resume_sid and not message_seen:
+                    raise _ResumeUnavailable(exc) from exc
+                raise
+            finally:
+                if entry is not None:
+                    await self._release_client(entry, healthy=saw_result)
 
         # ---- 生产者 + 心跳 桥接到外层 yield ----
         queue: asyncio.Queue = asyncio.Queue()
@@ -411,11 +850,12 @@ class ClaudeSkillService:
                         async for ev in _run_once(claude_sid):
                             await queue.put(ev)
                         return
-                    except ProcessError as e:
-                        # 典型为 claude jsonl 不存在 / 损坏；清 sid 后回退
+                    except _ResumeUnavailable as e:
+                        cause = e.cause
                         logger.warning(
-                            f"resume({claude_sid}) 失败，清 sid 并回退到首轮: "
-                            f"exit={e.exit_code} stderr={(e.stderr or '')[:240]}"
+                            "resume(%s) 在本轮输出前失败，清 sid 并回退到重建模式: %s",
+                            claude_sid,
+                            cause,
                         )
                         if session_id:
                             self._save_claude_sid(
@@ -436,6 +876,10 @@ class ClaudeSkillService:
                     await queue.put(ev)
             except asyncio.CancelledError:
                 raise
+            except _AgentAuthenticationError as e:
+                logger.error("Claude Agent SDK 认证失败: %s", e)
+                had_error["v"] = True
+                await queue.put(self._sse({"type": "error", "message": str(e)}))
             except Exception as e:
                 logger.error(f"技能自动执行失败: {e}", exc_info=True)
                 had_error["v"] = True
@@ -490,10 +934,11 @@ class ClaudeSkillService:
         resume: bool,
         project_context: Optional[ProjectContext] = None,
         conversation_history: str = "",
+        native_skills: bool = False,
     ) -> str:
         """根据是否 resume 构造 prompt：
-        - 首轮：完整 workspace_section + 技能索引 + 执行说明 + 本轮 user 输入
-        - 续接：极简版，仅本轮 user 输入 +（如有）流水线上下文，历史靠 claude jsonl
+        - 首轮：workspace/project/重建历史 + 本轮输入；session 使用原生 Skills
+        - 续接：仅本轮输入 + 流水线上下文；历史和项目上下文均由原生会话维护
         """
         context_section = ""
         if context and context.strip():
@@ -502,21 +947,17 @@ class ClaudeSkillService:
                 f"\n\n---\n\n## 上一步执行结果（供参考）\n\n{truncated}\n"
             )
 
+        if resume:
+            # Project revision 变化会先清 provider SID，因此续接时无需重复注入
+            # 最多 20k+ 的项目说明/文件表；这部分已存在于原生 transcript。
+            return f"## 用户最新请求\n\n{latest_user_text}{context_section}"
+
         project_text = format_project_context(project_context)
         project_section = f"{project_text}\n\n---\n\n" if project_text else ""
         history_section = (
             f"{conversation_history}\n\n---\n\n" if conversation_history else ""
         )
 
-        if resume:
-            # 续接：让原生记忆机制接管，prompt 只放本轮新输入
-            return (
-                f"{project_section}"
-                f"## 用户最新请求\n\n{latest_user_text}"
-                f"{context_section}"
-            )
-
-        skills_index = self._build_skills_index(user_id=user_id)
         skills_root_abs = Path(self.skills_dir).resolve()
         workspace_section = (
             f"**当前会话工作区（你的 cwd）**: `{cwd}`\n"
@@ -524,17 +965,27 @@ class ClaudeSkillService:
             f"  - 你生成的所有产物请写入: `{cwd / 'outputs'}`\n"
             f"**技能库根目录（绝对路径，仅可读取）**: `{skills_root_abs}`\n"
         )
+        if native_skills:
+            skills_section = (
+                "## 技能使用\n\n"
+                "可用技能已由 Claude Code 原生 Skills 机制注册。根据请求按需调用 Skill；"
+                "技能正文会在命中后加载，无需先读取或枚举 SKILL.md。\n\n---\n\n"
+            )
+        else:
+            skills_index = self._build_skills_index(user_id=user_id)
+            skills_section = (
+                f"## 可用技能列表\n\n{skills_index}\n\n---\n\n"
+                "## 技能使用\n\n根据最新请求选择技能，并用 Read 读取对应 SKILL.md 的绝对路径。\n\n"
+                "---\n\n"
+            )
         return (
             f"{workspace_section}\n"
             f"{project_section}"
-            f"## 可用技能列表\n\n{skills_index}\n\n"
-            f"---\n\n"
+            f"{skills_section}"
             f"## 执行说明\n\n"
-            f"请根据用户的最新请求，判断需要使用哪个技能（必要时可组合多个技能），"
-            f"使用 Read 工具读取对应 SKILL.md 的**绝对路径**（cwd 已切到会话工作区，相对路径无效），"
-            f"然后严格按照技能说明完成任务。\n"
             f"- 所有写文件操作请落在 `{cwd / 'outputs'}` 目录下；不要写到工作区之外。\n"
             f"- 用户上传文件已在消息中提供绝对路径，可直接 Read。\n"
+            f"- 技能库只读；不要修改 `.claude/skills` 或技能源目录。\n"
             f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
             f"---\n\n"
             f"{history_section}"
@@ -546,7 +997,16 @@ class ClaudeSkillService:
     def _build_agent_env(
         user_id: Optional[str], session_id: Optional[str], project_id: Optional[str] = None
     ) -> dict:
-        env: dict[str, str] = {}
+        from app.core.config import settings
+
+        # 多租户 session 不应读取宿主机 ~/.claude/projects 的自动记忆；关闭它也
+        # 避免每个冷启动把无关 memory 重复塞入 system prompt。
+        # Provider 配置来自 Settings，而不是依赖父进程 export。这样
+        # backend/.env 中的 API key/base URL 会被确定性传给 SDK 内置 CLI。
+        env: dict[str, str] = {
+            **settings.claude_agent_env,
+            "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+        }
         if user_id:
             from app.core.user_token import create_user_token
             env["EIDO_USER_TOKEN"] = create_user_token(user_id)
@@ -555,6 +1015,67 @@ class ClaudeSkillService:
         if project_id:
             env["EIDO_PROJECT_ID"] = project_id
         return env
+
+    @staticmethod
+    def _agent_auth_error(agent_env: dict[str, str]) -> Optional[str]:
+        credential_keys = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
+        provider_flags = (
+            "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+            "CLAUDE_CODE_USE_VERTEX",
+            "CLAUDE_CODE_USE_FOUNDRY",
+        )
+        if any(agent_env.get(key) for key in (*credential_keys, *provider_flags)):
+            return None
+        return ClaudeSkillService._agent_auth_failure_message()
+
+    @staticmethod
+    def _agent_auth_failure_message() -> str:
+        return (
+            "Claude Agent SDK 未配置可用的非交互式凭据。请在 backend/.env "
+            "配置 Claude Console 的 ANTHROPIC_API_KEY（推荐），或配置受支持的 "
+            "Anthropic 兼容网关/云平台凭据，然后重启后端。Claude.ai 的 /login "
+            "登录不能作为 Eido Agent SDK 的认证方式。"
+        )
+
+    @staticmethod
+    def _agent_auth_summary(agent_env: dict[str, str]) -> tuple[str, str]:
+        if agent_env.get("ANTHROPIC_API_KEY"):
+            auth_mode = "api_key"
+        elif agent_env.get("ANTHROPIC_AUTH_TOKEN"):
+            auth_mode = "auth_token"
+        else:
+            auth_mode = next(
+                (
+                    key.removeprefix("CLAUDE_CODE_USE_").lower()
+                    for key in (
+                        "CLAUDE_CODE_USE_BEDROCK",
+                        "CLAUDE_CODE_USE_ANTHROPIC_AWS",
+                        "CLAUDE_CODE_USE_VERTEX",
+                        "CLAUDE_CODE_USE_FOUNDRY",
+                    )
+                    if agent_env.get(key)
+                ),
+                "missing",
+            )
+        base_url = agent_env.get("ANTHROPIC_BASE_URL", "").strip()
+        provider = urlsplit(base_url).hostname if base_url else "api.anthropic.com"
+        return auth_mode, provider or "custom"
+
+    @staticmethod
+    def _is_not_logged_in_message(message: object) -> bool:
+        try:
+            from claude_agent_sdk.types import AssistantMessage, TextBlock  # type: ignore
+        except ImportError:
+            return False
+        if not isinstance(message, AssistantMessage):
+            return False
+        return any(
+            isinstance(block, TextBlock)
+            and "not logged in" in block.text.lower()
+            and "/login" in block.text.lower()
+            for block in message.content
+        )
 
     @staticmethod
     def _load_claude_sid(
@@ -610,8 +1131,14 @@ class ClaudeSkillService:
         """将 SDK 消息写入日志，便于后端实时追踪执行过程"""
         try:
             from claude_agent_sdk.types import (  # type: ignore
-                AssistantMessage, UserMessage, SystemMessage, ResultMessage,
-                TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock,
+                AssistantMessage,
+                ResultMessage,
+                SystemMessage,
+                TextBlock,
+                ThinkingBlock,
+                ToolResultBlock,
+                ToolUseBlock,
+                UserMessage,
             )
         except ImportError:
             return
@@ -644,9 +1171,16 @@ class ClaudeSkillService:
             cost = f"${message.total_cost_usd:.4f}" if message.total_cost_usd else "N/A"
             duration = f"{message.duration_ms / 1000:.1f}s"
             status = "ERROR" if message.is_error else "OK"
+            usage = message.usage or {}
             logger.info(
                 f"  [Result/{status}] 用时={duration} | 费用={cost} | "
-                f"轮次={message.num_turns} | session={message.session_id}"
+                f"轮次={message.num_turns} | session={message.session_id} | "
+                f"terminal={getattr(message, 'terminal_reason', None) or '-'} | "
+                f"api_status={getattr(message, 'api_error_status', None) or '-'} | "
+                f"input={usage.get('input_tokens', 0)} | "
+                f"cache_read={usage.get('cache_read_input_tokens', 0)} | "
+                f"cache_create={usage.get('cache_creation_input_tokens', 0)} | "
+                f"output={usage.get('output_tokens', 0)}"
             )
 
     def _convert_message(self, message: object) -> List[str]:
@@ -657,8 +1191,14 @@ class ClaudeSkillService:
         """
         try:
             from claude_agent_sdk.types import (  # type: ignore
-                AssistantMessage, UserMessage, SystemMessage, ResultMessage,
-                TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock,
+                AssistantMessage,
+                ResultMessage,
+                SystemMessage,
+                TextBlock,
+                ThinkingBlock,
+                ToolResultBlock,
+                ToolUseBlock,
+                UserMessage,
             )
         except ImportError:
             return []
@@ -732,6 +1272,7 @@ class ClaudeSkillService:
             "Edit":      lambda i: f"编辑文件: {i.get('file_path', '')}",
             "Grep":      lambda i: f"搜索内容: {i.get('pattern', '')}",
             "MultiEdit": lambda i: f"批量编辑: {i.get('file_path', '')}",
+            "Skill":     lambda i: f"加载技能: {i.get('skill', i.get('name', ''))}",
         }
         fn = hints.get(tool_name)
         if fn:

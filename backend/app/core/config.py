@@ -2,7 +2,8 @@
 Configuration management for the application.
 """
 from pathlib import Path
-from pydantic import Field, field_validator
+
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings
 
 # 工作区根目录（backend/app/core/ → backend/app/ → backend/ → workspace/）
@@ -88,6 +89,23 @@ class Settings(BaseSettings):
 
     AGENT_HARNESS: str = "claude_code"
 
+    # Claude Agent SDK / Claude Code provider configuration.  These fields must
+    # be declared explicitly: pydantic-settings reads backend/.env into the
+    # Settings object, but does not export arbitrary/extra keys to os.environ.
+    # Keep credentials as SecretStr so Settings repr/validation logs cannot
+    # accidentally expose them.
+    ANTHROPIC_BASE_URL: str = ""
+    ANTHROPIC_API_KEY: SecretStr = SecretStr("")
+    ANTHROPIC_AUTH_TOKEN: SecretStr = SecretStr("")
+    ANTHROPIC_MODEL: str = ""
+    ANTHROPIC_SMALL_FAST_MODEL: str = ""
+    API_TIMEOUT_MS: int = Field(default=300000, gt=0)
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: bool = False
+    CLAUDE_CODE_USE_BEDROCK: bool = False
+    CLAUDE_CODE_USE_ANTHROPIC_AWS: bool = False
+    CLAUDE_CODE_USE_VERTEX: bool = False
+    CLAUDE_CODE_USE_FOUNDRY: bool = False
+
     # Logging Configuration
     LOG_LEVEL: str = "INFO"
     LOG_DIR: str = "logs"
@@ -141,6 +159,49 @@ class Settings(BaseSettings):
         if not user_id:
             return False
         return user_id in self.admin_user_set
+
+    @property
+    def claude_agent_env(self) -> dict[str, str]:
+        """Return the explicit, non-empty provider environment for Agent SDK.
+
+        Agent SDK 0.2+ runs a bundled Claude Code process. Passing provider
+        credentials through ``ClaudeAgentOptions.env`` makes local ``.env``
+        loading deterministic and avoids relying on the launching shell to
+        export secrets.
+        """
+        env: dict[str, str] = {}
+        plain_values = {
+            "ANTHROPIC_BASE_URL": self.ANTHROPIC_BASE_URL,
+            "ANTHROPIC_MODEL": self.ANTHROPIC_MODEL,
+            "ANTHROPIC_SMALL_FAST_MODEL": self.ANTHROPIC_SMALL_FAST_MODEL,
+        }
+        for key, value in plain_values.items():
+            if value.strip():
+                env[key] = value.strip()
+
+        secret_values = {
+            "ANTHROPIC_API_KEY": self.ANTHROPIC_API_KEY,
+            "ANTHROPIC_AUTH_TOKEN": self.ANTHROPIC_AUTH_TOKEN,
+        }
+        for key, value in secret_values.items():
+            raw = value.get_secret_value().strip()
+            if raw:
+                env[key] = raw
+
+        env["API_TIMEOUT_MS"] = str(self.API_TIMEOUT_MS)
+        boolean_flags = {
+            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": (
+                self.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+            ),
+            "CLAUDE_CODE_USE_BEDROCK": self.CLAUDE_CODE_USE_BEDROCK,
+            "CLAUDE_CODE_USE_ANTHROPIC_AWS": self.CLAUDE_CODE_USE_ANTHROPIC_AWS,
+            "CLAUDE_CODE_USE_VERTEX": self.CLAUDE_CODE_USE_VERTEX,
+            "CLAUDE_CODE_USE_FOUNDRY": self.CLAUDE_CODE_USE_FOUNDRY,
+        }
+        for key, enabled in boolean_flags.items():
+            if enabled:
+                env[key] = "1"
+        return env
 
     @field_validator("CAS_SERVER_URL", mode="before")
     @classmethod

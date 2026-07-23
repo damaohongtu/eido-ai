@@ -196,15 +196,19 @@ async def patch_session(
         if sess is None:
             raise HTTPException(status_code=404, detail="会话不存在")
         if project_changed:
-            # OpenHarness 的上下文只存在内存中；项目切换后必须驱逐旧 engine。
+            # 内存 engine / Claude 长连接都含旧项目上下文；项目切换后必须驱逐。
             try:
+                from app.services.claude_skill_service import get_claude_skill_service
                 from app.services.open_harness_service import get_open_harness_service
 
                 service = get_open_harness_service()
                 if service is not None:
                     service.reset_session(session_id)
+                claude_service = get_claude_skill_service()
+                if claude_service is not None and claude_service is not service:
+                    claude_service.reset_session(session_id)
             except Exception as e:
-                logger.warning("重置 OpenHarness 会话失败 session=%s: %s", session_id, e)
+                logger.warning("重置 agent 会话失败 session=%s: %s", session_id, e)
         return sess
     finally:
         if guard is not None:
@@ -231,6 +235,18 @@ async def delete_session(
         deleted = store.delete_session(user_id, session_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="会话不存在")
+        try:
+            from app.services.claude_skill_service import get_claude_skill_service
+            from app.services.open_harness_service import get_open_harness_service
+
+            claude_service = get_claude_skill_service()
+            open_harness = get_open_harness_service()
+            if open_harness is not None:
+                open_harness.reset_session(session_id)
+            if claude_service is not None and claude_service is not open_harness:
+                claude_service.reset_session(session_id)
+        except Exception as e:
+            logger.warning("删除前重置 agent 会话失败 session=%s: %s", session_id, e)
         try:
             get_session_workspace_manager().remove(session_id)
         except Exception as e:

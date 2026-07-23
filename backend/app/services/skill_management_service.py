@@ -87,6 +87,12 @@ class SkillManagementService:
         else:
             raise PermissionError(f"未知 owner_type: {owner_type}")
 
+    def _invalidate_execution_cache(self, owner_type: str, user_id: str) -> None:
+        self._execution_service.invalidate_skill_cache(
+            user_id=user_id,
+            system=(owner_type == "system"),
+        )
+
     def _validate_file_path(self, skill_dir: Path, path: str) -> Path:
         """验证文件路径不逃逸出技能目录，返回解析后的 Path"""
         if not path or ".." in path:
@@ -139,6 +145,8 @@ class SkillManagementService:
             shutil.rmtree(target_dir, ignore_errors=True)
             raise
 
+        owner_type = "system" if settings.is_admin(user_id) else "user"
+        self._invalidate_execution_cache(owner_type, user_id)
         return self._execution_service.get_skill(skill_id, user_id=user_id)
 
     def update_skill(
@@ -179,6 +187,7 @@ class SkillManagementService:
         skill_md = skill_dir / "SKILL.md"
         skill_md.write_text(new_text, encoding="utf-8")
 
+        self._invalidate_execution_cache(owner_type, user_id)
         return self._execution_service.get_skill(skill_id, user_id=user_id)
 
     def delete_skill(self, user_id: str, skill_id: str) -> None:
@@ -186,6 +195,7 @@ class SkillManagementService:
         skill_dir, owner_type = self._locate_skill(skill_id, user_id)
         self._check_write_perm(owner_type, user_id)
         shutil.rmtree(skill_dir)
+        self._invalidate_execution_cache(owner_type, user_id)
         logger.info(
             "已删除技能 user=%s owner_type=%s id=%s", user_id, owner_type, skill_id
         )
@@ -243,6 +253,8 @@ class SkillManagementService:
         file_path = self._validate_file_path(skill_dir, path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding="utf-8")
+        if file_path.name == "SKILL.md":
+            self._invalidate_execution_cache(owner_type, user_id)
 
     def delete_file(self, user_id: str, skill_id: str, path: str) -> None:
         """删除技能目录下指定文件或目录（目录递归删除）；禁止删除 SKILL.md"""

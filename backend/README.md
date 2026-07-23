@@ -45,7 +45,7 @@ pip install -r requirements.txt
 
 # 配置环境变量
 cp .env.example .env
-# 编辑 .env，至少填入 DEEPSEEK_API_KEY
+# 编辑 .env，至少填入 ANTHROPIC_API_KEY
 
 # 启动开发服务器（热重载）
 python run.py
@@ -61,11 +61,16 @@ python run.py
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | 必填 |
-| `DEEPSEEK_MODEL` | 使用的模型 | `deepseek-chat` |
+| `ANTHROPIC_API_KEY` | Claude Agent SDK API Key（推荐使用 Claude Console Key） | 必填* |
+| `ANTHROPIC_BASE_URL` | Anthropic 兼容网关地址；官方 API 留空 | 空 |
+| `ANTHROPIC_AUTH_TOKEN` | 部分兼容网关使用的 Bearer Token | 空 |
+| `ANTHROPIC_MODEL` | 自定义主模型名称 | 服务默认 |
 | `SKILLS_DIR` | 技能目录路径 | `{workspace}/.claude/skills` |
 | `WORKSPACE_ROOT` | 工作区根路径（传给 claude_agent_sdk） | 自动推断 |
 | `LOG_LEVEL` | 日志级别 | `INFO` |
+
+\* 使用 Bedrock、Vertex、Foundry 等官方支持的云平台认证时无需
+`ANTHROPIC_API_KEY`。本机 `claude /login` 的 Claude.ai 登录不适用于 Eido 后端。
 
 ---
 
@@ -137,7 +142,7 @@ python run.py
 
 - **`scan_skills()`** — 扫描 `SKILLS_DIR`，解析每个子目录的 `SKILL.md` frontmatter
 - **`get_skill(skill_id)`** — 按目录名加载单个技能
-- **`execute_stream(skill_id, messages, context)`** — 构建 prompt 并调用 `claude_agent_sdk.query()`，以 SSE 格式流式返回
+- **`execute_stream(messages, context, ...)`** — 构建 prompt，优先复用 session 级 `ClaudeSDKClient`，以 SSE 格式流式返回
 
 Prompt 结构：
 ```

@@ -55,6 +55,8 @@ Chrome 扩展本身不能直接运行本机可执行文件。Eido 使用 Chrome 
 
 Launcher 不是常驻服务，也不是聊天代理。Chrome 在收到请求时启动它，它完成一次 OpenCode 检测或进程创建后立即退出。之后的聊天、事件和文件数据仍由插件直连 OpenCode HTTP/SSE，不经过 Launcher。
 
+> 参考： https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging?hl=zh-cn
+
 ## 二、总体架构：一套界面，两种执行位置
 
 ```mermaid

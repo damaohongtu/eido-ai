@@ -1,8 +1,8 @@
 import type { Message } from '../shared';
 
 const DOWNLOADABLE_FILE_EXTENSIONS = [
-  'md', 'pdf', 'csv', 'xls', 'xlsx', 'html', 'htm', 'txt', 'json',
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+  'md', 'pdf', 'csv', 'xlsx', 'xls', 'html', 'htm', 'txt', 'json',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'docx', 'doc', 'pptx', 'ppt',
 ];
 const DOWNLOADABLE_FILE_SOURCE =
   `((?:/|(?:outputs?|uploads|\\.claude/skills/[^\\s/]+/output)/)[^\\s"'()\`<>]+\\.(?:${DOWNLOADABLE_FILE_EXTENSIONS.join('|')}))`;

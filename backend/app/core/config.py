@@ -2,7 +2,7 @@
 Configuration management for the application.
 """
 from pathlib import Path
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 # 工作区根目录（backend/app/core/ → backend/app/ → backend/ → workspace/）
@@ -68,6 +68,12 @@ class Settings(BaseSettings):
     EIDO_USER_MEM: str = "2g"
     EIDO_USER_CPUS: float = 1.0
     EIDO_USER_PIDS_LIMIT: int = 500
+    # Project 共享资料配额。单文件上限仍由 API 固定为 20 MiB；这里限制累计占用，
+    # 防止单个已认证用户持续上传填满持久化卷。
+    EIDO_PROJECT_MAX_FILES: int = Field(default=100, gt=0)
+    EIDO_PROJECT_MAX_BYTES: int = Field(default=512 * 1024 * 1024, gt=0)
+    EIDO_USER_PROJECT_MAX_FILES: int = Field(default=500, gt=0)
+    EIDO_USER_PROJECT_MAX_BYTES: int = Field(default=2 * 1024 * 1024 * 1024, gt=0)
     # gateway → user 共享 secret，user 容器进入"信任网关头"模式必须校验该值
     EIDO_GATEWAY_SECRET: str = ""
     # user 容器内开关：仅在沙箱模式下置 1
@@ -115,6 +121,11 @@ class Settings(BaseSettings):
     def workspaces_root(self) -> Path:
         """会话工作区根目录：<data_root>/workspaces。"""
         return self.data_root / "workspaces"
+
+    @property
+    def projects_root(self) -> Path:
+        """项目共享资料根目录：<data_root>/projects。"""
+        return self.data_root / "projects"
 
     @property
     def token_secret(self) -> str:

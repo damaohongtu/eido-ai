@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import AsyncGenerator, List, Optional
 
 from app.gateway.sandbox_manager import _safe_user_id
+from app.services.conversation_context import format_recent_conversation
+from app.services.project_context import ProjectContext, format_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +284,7 @@ class ClaudeSkillService:
     async def execute_stream(
         self, messages: list, context: Optional[str] = None,
         *, user_id: Optional[str] = None, session_id: Optional[str] = None,
+        project_context: Optional[ProjectContext] = None,
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
 
@@ -337,9 +340,14 @@ class ClaudeSkillService:
             yield self._sse({"type": "error", "message": "未找到用户输入"})
             yield "data: [DONE]\n\n"
             return
+        recent_history = format_recent_conversation(messages)
 
-        claude_sid = self._load_claude_sid(user_id, session_id)
-        agent_env = self._build_agent_env(user_id, session_id)
+        claude_sid = self._load_claude_sid(
+            user_id, session_id, project_context=project_context
+        )
+        agent_env = self._build_agent_env(
+            user_id, session_id, project_context.id if project_context else None
+        )
 
         async def _run_once(resume_sid: Optional[str]) -> AsyncGenerator[str, None]:
             """单次 SDK 调用，按 resume 模式构建不同 prompt/options。"""
@@ -349,6 +357,8 @@ class ClaudeSkillService:
                 context=context,
                 user_id=user_id,
                 resume=bool(resume_sid),
+                project_context=project_context,
+                conversation_history=recent_history,
             )
             options = ClaudeAgentOptions(
                 allowed_tools=self.AUTO_ALLOWED_TOOLS,
@@ -375,7 +385,12 @@ class ClaudeSkillService:
                         and isinstance(message, ResultMessage)
                         and getattr(message, "session_id", None)
                     ):
-                        self._save_claude_sid(user_id, session_id, message.session_id)
+                        self._save_claude_sid(
+                            user_id,
+                            session_id,
+                            message.session_id,
+                            project_context=project_context,
+                        )
                 except Exception as e:
                     logger.warning(f"持久化 claude_session_id 失败: {e}")
                 for event in self._convert_message(message):
@@ -403,7 +418,12 @@ class ClaudeSkillService:
                             f"exit={e.exit_code} stderr={(e.stderr or '')[:240]}"
                         )
                         if session_id:
-                            self._save_claude_sid(user_id, session_id, None)
+                            self._save_claude_sid(
+                                user_id,
+                                session_id,
+                                None,
+                                project_context=project_context,
+                            )
                         await queue.put(
                             self._sse({"type": "thinking", "content": "原会话已失效，重建中..."})
                         )
@@ -468,6 +488,8 @@ class ClaudeSkillService:
         context: Optional[str],
         user_id: Optional[str],
         resume: bool,
+        project_context: Optional[ProjectContext] = None,
+        conversation_history: str = "",
     ) -> str:
         """根据是否 resume 构造 prompt：
         - 首轮：完整 workspace_section + 技能索引 + 执行说明 + 本轮 user 输入
@@ -480,9 +502,16 @@ class ClaudeSkillService:
                 f"\n\n---\n\n## 上一步执行结果（供参考）\n\n{truncated}\n"
             )
 
+        project_text = format_project_context(project_context)
+        project_section = f"{project_text}\n\n---\n\n" if project_text else ""
+        history_section = (
+            f"{conversation_history}\n\n---\n\n" if conversation_history else ""
+        )
+
         if resume:
             # 续接：让原生记忆机制接管，prompt 只放本轮新输入
             return (
+                f"{project_section}"
                 f"## 用户最新请求\n\n{latest_user_text}"
                 f"{context_section}"
             )
@@ -497,6 +526,7 @@ class ClaudeSkillService:
         )
         return (
             f"{workspace_section}\n"
+            f"{project_section}"
             f"## 可用技能列表\n\n{skills_index}\n\n"
             f"---\n\n"
             f"## 执行说明\n\n"
@@ -507,39 +537,70 @@ class ClaudeSkillService:
             f"- 用户上传文件已在消息中提供绝对路径，可直接 Read。\n"
             f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
             f"---\n\n"
+            f"{history_section}"
             f"## 用户最新请求\n\n{latest_user_text}"
             f"{context_section}"
         )
 
     @staticmethod
-    def _build_agent_env(user_id: Optional[str], session_id: Optional[str]) -> dict:
+    def _build_agent_env(
+        user_id: Optional[str], session_id: Optional[str], project_id: Optional[str] = None
+    ) -> dict:
         env: dict[str, str] = {}
         if user_id:
             from app.core.user_token import create_user_token
             env["EIDO_USER_TOKEN"] = create_user_token(user_id)
         if session_id:
             env["EIDO_SESSION_ID"] = session_id
+        if project_id:
+            env["EIDO_PROJECT_ID"] = project_id
         return env
 
     @staticmethod
-    def _load_claude_sid(user_id: Optional[str], session_id: Optional[str]) -> Optional[str]:
+    def _load_claude_sid(
+        user_id: Optional[str],
+        session_id: Optional[str],
+        *,
+        project_context: Optional[ProjectContext],
+    ) -> Optional[str]:
         if not (user_id and session_id):
             return None
         try:
             from app.services.chat_session_store import get_chat_session_store
-            return get_chat_session_store().get_claude_session_id(user_id, session_id)
+            return get_chat_session_store().get_claude_session_id(
+                user_id,
+                session_id,
+                expected_project_id=project_context.id if project_context else None,
+                expected_context_revision=(
+                    project_context.context_revision if project_context else None
+                ),
+            )
         except Exception as e:
             logger.warning(f"读取 claude_session_id 失败: {e}")
             return None
 
     @staticmethod
     def _save_claude_sid(
-        user_id: Optional[str], session_id: Optional[str], claude_sid: Optional[str]
+        user_id: Optional[str],
+        session_id: Optional[str],
+        claude_sid: Optional[str],
+        *,
+        project_context: Optional[ProjectContext],
     ) -> None:
         if not (user_id and session_id):
             return
         from app.services.chat_session_store import get_chat_session_store
-        get_chat_session_store().set_claude_session_id(user_id, session_id, claude_sid)
+        saved = get_chat_session_store().set_claude_session_id(
+            user_id,
+            session_id,
+            claude_sid,
+            expected_project_id=project_context.id if project_context else None,
+            expected_context_revision=(
+                project_context.context_revision if project_context else None
+            ),
+        )
+        if not saved:
+            logger.info("忽略已过期请求返回的 Claude session ID: session=%s", session_id)
 
     # ------------------------------------------------------------------ #
     #  消息转换                                                             #

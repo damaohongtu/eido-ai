@@ -1,14 +1,16 @@
-import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession } from "../types";
+import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession, Project, ProjectFile } from "../types";
 import { BACKEND_URL, INITIAL_CHAT_STATE } from "../constants";
 
 /** 工作区文件 URL，支持预览或下载；传入 sessionId 时只允许访问该会话工作区。 */
 export function getWorkspaceFileUrl(
   path: string,
-  options?: { download?: boolean; filename?: string; sessionId?: string }
+  options?: { download?: boolean; preview?: boolean; filename?: string; sessionId?: string }
 ): string {
   const query = new URLSearchParams({ path });
   if (options?.download) {
     query.set('download', 'true');
+  } else if (options?.preview) {
+    query.set('preview', 'true');
   }
   if (options?.filename) {
     query.set('filename', options.filename);
@@ -17,6 +19,23 @@ export function getWorkspaceFileUrl(
     query.set('session_id', options.sessionId);
   }
   return `${BACKEND_URL}/api/v1/workspace/file?${query.toString()}`;
+}
+
+/** 项目共享资料 URL；主动内容只有显式 preview 时才以内联安全策略打开。 */
+export function getProjectFileUrl(
+  projectId: string,
+  fileId: string,
+  options?: { download?: boolean; preview?: boolean }
+): string {
+  const query = new URLSearchParams();
+  if (options?.download) {
+    query.set('download', 'true');
+  } else if (options?.preview) {
+    query.set('preview', 'true');
+  }
+  const queryString = query.toString();
+  const suffix = queryString ? `?${queryString}` : '';
+  return `${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}${suffix}`;
 }
 
 export interface WorkspaceFileNode {
@@ -31,6 +50,8 @@ export interface PersistedSession {
   user_id: string;
   title: string;
   skill_id: string | null;
+  /** 旧服务端响应可能没有该字段。 */
+  project_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +90,7 @@ export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
   return {
     id: detail.id,
     title: detail.title,
+    projectId: detail.project_id ?? null,
     skillId: detail.skill_id || undefined,
     messages,
     updatedAt: Date.parse(detail.updated_at) || Date.now(),
@@ -79,6 +101,7 @@ export function summaryToSession(s: PersistedSession): ChatSession {
   return {
     id: s.id,
     title: s.title,
+    projectId: s.project_id ?? null,
     skillId: s.skill_id || undefined,
     messages: [],
     updatedAt: Date.parse(s.updated_at) || Date.now(),
@@ -487,10 +510,128 @@ export class ApiService {
     return response.json();
   }
 
+  // -------------------- 项目 -------------------- //
+
+  async listProjects(options?: { include_archived?: boolean }): Promise<Project[]> {
+    const query = new URLSearchParams();
+    if (options?.include_archived) query.set('include_archived', 'true');
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/projects/${query.toString() ? `?${query.toString()}` : ''}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    if (!response.ok) throw new Error(`获取项目列表失败: ${response.status}`);
+    const data = await response.json();
+    // 兼容直接数组和通用 { items } 列表响应。
+    return Array.isArray(data) ? data : (data.items || []);
+  }
+
+  async getProject(projectId: string): Promise<Project> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`获取项目失败: ${response.status}`);
+    return response.json();
+  }
+
+  async createProject(body: { name: string; description?: string; instructions?: string }): Promise<Project> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/projects/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `创建项目失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async patchProject(
+    projectId: string,
+    body: Partial<Pick<Project, 'name' | 'description' | 'instructions'>> & { archived?: boolean },
+  ): Promise<Project> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `更新项目失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async deleteProject(projectId: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`删除项目失败: ${response.status}`);
+    }
+  }
+
+  async listProjectFiles(projectId: string): Promise<ProjectFile[]> {
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}/files`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+    );
+    if (!response.ok) throw new Error(`获取项目资料失败: ${response.status}`);
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.items || data.files || []);
+  }
+
+  async uploadProjectFile(projectId: string, file: File): Promise<ProjectFile> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}/files`,
+      { method: 'POST', body: formData },
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `上传项目资料失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async deleteProjectFile(projectId: string, fileId: string): Promise<void> {
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(fileId)}`,
+      { method: 'DELETE' },
+    );
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`删除项目资料失败: ${response.status}`);
+    }
+  }
+
+  async importProjectFile(
+    projectId: string,
+    body: { session_id: string; path: string; display_name?: string },
+  ): Promise<ProjectFile> {
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/projects/${encodeURIComponent(projectId)}/files/import`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `保存到项目资料失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
   // -------------------- 会话持久化 -------------------- //
 
-  async listSessions(): Promise<PersistedSession[]> {
-    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/`, {
+  async listSessions(options?: { project_id?: string; unassigned?: boolean }): Promise<PersistedSession[]> {
+    const query = new URLSearchParams();
+    if (options?.project_id) query.set('project_id', options.project_id);
+    if (options?.unassigned) query.set('unassigned', 'true');
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${query.toString() ? `?${query.toString()}` : ''}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -507,7 +648,7 @@ export class ApiService {
     return response.json();
   }
 
-  async createSession(body: { title?: string; skill_id?: string | null }): Promise<PersistedSession> {
+  async createSession(body: { title?: string; skill_id?: string | null; project_id?: string | null }): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -519,7 +660,7 @@ export class ApiService {
 
   async patchSession(
     sessionId: string,
-    body: { title?: string; skill_id?: string | null }
+    body: { title?: string; skill_id?: string | null; project_id?: string | null }
   ): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}`, {
       method: 'PATCH',
@@ -634,12 +775,18 @@ export class ApiService {
       const decoder = new TextDecoder();
 
       if (reader) {
+        // 网络 chunk 不保证落在 SSE 行边界；保留最后一段，避免半条 JSON 被丢弃。
+        let sseBuffer = '';
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+          if (value) sseBuffer += decoder.decode(value, { stream: !done });
+          if (done) {
+            sseBuffer += decoder.decode();
+            // EOF 前即使服务端没有补换行，也把最后一条 data 事件交给解析器。
+            if (sseBuffer.trim()) sseBuffer += '\n';
+          }
+          const lines = sseBuffer.split(/\r?\n/);
+          sseBuffer = lines.pop() || '';
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -724,6 +871,7 @@ export class ApiService {
               }
             }
           }
+          if (done) break;
         }
       }
 

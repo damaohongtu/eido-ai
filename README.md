@@ -11,6 +11,7 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 - **多技能协作**：前端支持在对话中选择或 `@` 提及技能，后端可把多个技能串成任务上下文，适合投研、文档解析、邮件、搜索、文件处理等复合场景。
 - **过程可观测**：流式返回模型思考、执行步骤、引用来源、工作流 Mermaid 图、待确认操作和最终回答，前端可逐步展示任务进展。
 - **会话工作区**：每个会话拥有独立 workspace，支持附件上传、结果文件查看/下载/删除，历史消息和文件上下文可持续复用。
+- **项目知识沉淀**：Project 会话自动获得项目指令和共享资料；会话 `outputs/` 中的生成结果可一键复制为项目资料，供后续会话继续使用。
 - **网页上下文分析**：Chrome 插件在当前浏览器右侧 Side Panel 打开，可读取当前页内容，也可选择用户已打开的其他标签页加入分析。
 - **本机 Agent 模式**：Chrome 插件可直接连接本机 OpenCode；除用户认证外，会话、网页上下文、附件和执行结果均保留在浏览器与本机，不经过 Eido 后端。
 - **定时任务**：支持技能、脚本和对话类任务的创建、编辑、手动运行和周期调度，用于日报、监控、摘要生成等自动化场景。
@@ -265,6 +266,8 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | `EIDO_SANDBOX_MODE` | `local` 或 `docker` |
 | `EIDO_GATEWAY_SECRET` | gateway 与 user container 之间的信任密钥 |
 | `EIDO_USER_IMAGE` | 沙盒 user container 镜像 |
+| `EIDO_PROJECT_MAX_FILES` / `EIDO_PROJECT_MAX_BYTES` | 单 Project 共享资料数量/字节上限，默认 100 / 512 MiB |
+| `EIDO_USER_PROJECT_MAX_FILES` / `EIDO_USER_PROJECT_MAX_BYTES` | 单用户项目资料数量/字节上限，默认 500 / 2 GiB |
 | `BACKEND_CORS_ORIGIN_REGEX` | 允许 Chrome 插件等动态 origin 的 CORS 正则 |
 
 ## 运行时数据
@@ -273,6 +276,7 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 - 会话数据库：默认 `.eido/chat_sessions.db`。
 - 定时任务数据库：默认 `.eido/scheduled_tasks.db`。
 - 会话工作区：默认 `.eido/workspaces/<session_id>/`。
+- 项目共享资料：默认 `.eido/projects/<project_id>/files/`；普通直接聊天不创建或绑定默认项目。
 - Docker 日志：容器内 `/var/log/eido/`，Compose 中也挂载到命名 volume。
 
 ## API 概览
@@ -283,6 +287,7 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | 聊天流式执行 | `/api/v1/chat/chat` |
 | 附件上传 | `/api/v1/chat/upload` |
 | 会话管理 | `/api/v1/sessions/*` |
+| 项目与共享资料 | `/api/v1/projects/*` |
 | 技能管理 | `/api/v1/skills/*` |
 | 定时任务 | `/api/v1/tasks/*` |
 | 工作区文件 | `/api/v1/workspace/*` |
@@ -315,5 +320,6 @@ npm run build
 - `docs/browser-extension-opencode-launch-design.md`：插件唤起 OpenCode 与 Native Launcher 技术方案。
 - `docs/architecture.md`：单租户与沙盒模式架构。
 - `docs/api.md`：后端 API 说明。
+- `docs/project-design.md`：Project 数据、上下文、并发、文件与发布设计。
 - `docs/skill-secret-protection.md`：技能密钥保护方案。
 - `frontend-extension/README.md`：Chrome 插件构建、登录和空白页排查。

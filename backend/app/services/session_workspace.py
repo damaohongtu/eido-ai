@@ -61,14 +61,25 @@ class SessionWorkspaceManager:
     def session_root(self, session_id: str, *, create: bool = True) -> Path:
         """返回该会话的工作区根目录，create=True 时确保子目录存在。"""
         validate_session_id(session_id)
-        sess_dir = (self._root / session_id).resolve()
+        raw_sess_dir = self._root / session_id
+        # Do not let a session directory alias another workspace. Resolving first
+        # would erase the evidence that the externally addressable root is a link.
+        if raw_sess_dir.is_symlink():
+            raise ValueError(f"session 目录不能是符号链接: {raw_sess_dir}")
+        sess_dir = raw_sess_dir.resolve()
         try:
             sess_dir.relative_to(self._root)
         except ValueError as e:
             raise ValueError(f"session 目录越界: {sess_dir}") from e
+        outputs_dir = sess_dir / OUTPUTS_SUBDIR
+        # ``outputs`` is a trust boundary for Project-file promotion. A link to
+        # uploads/ or the session root must not redefine that boundary, including
+        # on read/delete paths that request ``create=False``.
+        if outputs_dir.is_symlink():
+            raise ValueError(f"outputs 目录不能是符号链接: {outputs_dir}")
         if create:
             (sess_dir / UPLOADS_SUBDIR).mkdir(parents=True, exist_ok=True)
-            (sess_dir / OUTPUTS_SUBDIR).mkdir(parents=True, exist_ok=True)
+            outputs_dir.mkdir(parents=True, exist_ok=True)
         return sess_dir
 
     def uploads_dir(self, session_id: str) -> Path:
@@ -129,7 +140,11 @@ class SessionWorkspaceManager:
     def remove(self, session_id: str) -> bool:
         """删除整个会话工作区目录。不存在时返回 False。"""
         validate_session_id(session_id)
-        sess_dir = (self._root / session_id).resolve()
+        raw_sess_dir = self._root / session_id
+        if raw_sess_dir.is_symlink():
+            logger.warning(f"拒绝删除符号链接 session 目录: {raw_sess_dir}")
+            return False
+        sess_dir = raw_sess_dir.resolve()
         try:
             sess_dir.relative_to(self._root)
         except ValueError:

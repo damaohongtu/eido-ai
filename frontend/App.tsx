@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ViewType, Skill, Message, ChatSession, Reference, SkillAction } from './types';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { ViewType, Skill, Message, ChatSession, Reference, SkillAction, Project, ProjectFile, CreateSessionOptions } from './types';
 import { INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
@@ -9,6 +9,7 @@ import HomeView from './components/HomeView';
 import SkillManager from './components/SkillManager';
 import SkillDetailPage from './components/SkillDetailPage';
 import ScheduledTasksManager from './components/ScheduledTasksManager';
+import ProjectView, { CreateProjectModal } from './components/ProjectView';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, hydrateSession, summaryToSession } from './services/api';
@@ -126,9 +127,22 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   }, [authRequired, checkAuthState, extensionMode]);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [projectFilesLoading, setProjectFilesLoading] = useState(false);
+  const [projectFilesProjectId, setProjectFilesProjectId] = useState<string | null>(null);
+  const projectFilesRequestRef = useRef(0);
+  const projectsRequestRef = useRef(0);
+  const navigationRequestRef = useRef(0);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(() =>
     readStorage<string | null>(STORAGE_ACTIVE_SESSION_KEY, null)
   );
+  const activeSessionIdRef = useRef<string | null>(activeSessionId);
+  activeSessionIdRef.current = activeSessionId;
 
   const [activeView, setActiveView] = useState<ViewType>(() => {
     const cachedId = readStorage<string | null>(STORAGE_ACTIVE_SESSION_KEY, null);
@@ -167,10 +181,17 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   useEffect(() => {
     if (!authChecked) return;
     (async () => {
+      const requestId = ++navigationRequestRef.current;
       try {
         const list = await api.listSessions();
         const summaries = list.map(summaryToSession);
-        setSessions(summaries);
+        setSessions(prev => {
+          if (navigationRequestRef.current === requestId) return summaries;
+          const known = new Set(prev.map(session => session.id));
+          return [...prev, ...summaries.filter(session => !known.has(session.id))];
+        });
+
+        if (navigationRequestRef.current !== requestId) return;
 
         const cachedId = readStorage<string | null>(STORAGE_ACTIVE_SESSION_KEY, null);
         const target = cachedId && summaries.find(s => s.id === cachedId)
@@ -181,12 +202,16 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
             const detail = await api.getSession(target);
             const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
             setSessions(prev => prev.map(s => s.id === target ? hydrated : s));
+            if (navigationRequestRef.current !== requestId) return;
             setActiveSessionId(target);
+            setActiveProjectId(hydrated.projectId);
             setActiveView(ViewType.CHAT);
           } catch (err) {
             console.warn('恢复上次会话失败:', err);
-            setActiveSessionId(null);
-            removeStorage(STORAGE_ACTIVE_SESSION_KEY);
+            if (navigationRequestRef.current === requestId) {
+              setActiveSessionId(null);
+              removeStorage(STORAGE_ACTIVE_SESSION_KEY);
+            }
           }
         }
       } catch (err) {
@@ -194,6 +219,23 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
       }
     })();
   }, [authChecked]);
+
+  const refreshProjects = useCallback(async () => {
+    const requestId = ++projectsRequestRef.current;
+    try {
+      // 已归档项目的既有会话仍可继续使用项目上下文，因此导航也要保留它们。
+      const list = await api.listProjects({ include_archived: true });
+      if (projectsRequestRef.current === requestId) setProjects(list);
+    } catch (err) {
+      // Project 是增量能力；旧后端不可用时不能阻塞原有聊天。
+      console.warn('加载项目列表失败:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked || authRequired) return;
+    refreshProjects();
+  }, [authChecked, authRequired, refreshProjects]);
 
   // 加载系统技能和用户技能
   useEffect(() => {
@@ -218,6 +260,16 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   const activeSession = useMemo(() =>
     sessions.find(s => s.id === activeSessionId) || null
   , [sessions, activeSessionId]);
+
+  const activeProject = useMemo(
+    () => projects.find(project => project.id === activeProjectId) || null,
+    [projects, activeProjectId]
+  );
+
+  const activeSessionProject = useMemo(
+    () => projects.find(project => project.id === activeSession?.projectId) || null,
+    [projects, activeSession?.projectId]
+  );
 
   const allSkills = useMemo(() => [...systemSkills, ...userSkills], [systemSkills, userSkills]);
 
@@ -244,24 +296,33 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
 
   /** 切换激活会话；若该会话尚未拉取过完整消息则按需拉取一次。 */
   const selectSession = async (id: string) => {
-    const target = sessions.find(s => s.id === id);
+    const requestId = ++navigationRequestRef.current;
+    let target = sessions.find(s => s.id === id);
+    if (!target) return;
     if (target && target.messages.length === 0) {
       try {
         const detail = await api.getSession(id);
         const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
         setSessions(prev => prev.map(s => s.id === id ? hydrated : s));
+        target = hydrated;
       } catch (err) {
         console.error('加载会话消息失败:', err);
         return;
       }
     }
+    if (navigationRequestRef.current !== requestId) return;
     setActiveSessionId(id);
+    setActiveProjectId(target?.projectId ?? null);
     setActiveView(ViewType.CHAT);
   };
 
-  const createNewSession = async (skillId?: string) => {
+  const createNewSession = async (options: CreateSessionOptions = {}) => {
+    const requestId = ++navigationRequestRef.current;
     try {
-      const created = await api.createSession({ skill_id: skillId ?? null });
+      const created = await api.createSession({
+        skill_id: options.skillId ?? null,
+        project_id: options.projectId ?? null,
+      });
       // 初始欢迎语是前端 UI 状态，不写入后端；id 按会话生成，避免本地渲染 key 冲突
       const initialMessages: Message[] = INITIAL_CHAT_STATE.map((m, i) => ({
         ...m,
@@ -271,13 +332,18 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
       const newSession: ChatSession = {
         id: created.id,
         title: created.title || '新建会话',
-        skillId: created.skill_id || skillId,
+        projectId: created.project_id ?? options.projectId ?? null,
+        skillId: created.skill_id || options.skillId,
         messages: initialMessages,
         updatedAt: Date.parse(created.updated_at) || Date.now(),
       };
       setSessions(prev => [newSession, ...prev]);
-      setActiveSessionId(newSession.id);
-      setActiveView(ViewType.CHAT);
+      if (navigationRequestRef.current === requestId) {
+        setActiveSessionId(newSession.id);
+        setActiveProjectId(newSession.projectId);
+        setActiveView(ViewType.CHAT);
+      }
+      refreshProjects();
 
     } catch (err) {
       console.error('创建会话失败:', err);
@@ -285,6 +351,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   };
 
   const deleteSession = async (id: string) => {
+    const navigationVersion = navigationRequestRef.current;
+    const deletedSession = sessions.find(session => session.id === id);
     try {
       await api.deleteSession(id);
     } catch (err) {
@@ -292,17 +360,27 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
       return;
     }
     setSessions(prev => prev.filter(s => s.id !== id));
-    if (activeSessionId === id) {
+    refreshProjects();
+    if (
+      activeSessionIdRef.current === id
+      && navigationRequestRef.current === navigationVersion
+    ) {
+      navigationRequestRef.current += 1;
       setActiveSessionId(null);
-      setActiveView(ViewType.HOME);
+      if (deletedSession?.projectId && projects.some(project => project.id === deletedSession.projectId)) {
+        setActiveProjectId(deletedSession.projectId);
+        setActiveView(ViewType.PROJECT);
+      } else {
+        setActiveProjectId(null);
+        setActiveView(ViewType.HOME);
+      }
     }
   };
 
-  /** 添加消息到当前会话；聊天消息由 /chat/chat 后端统一持久化。 */
-  const addMessageToActiveSession = (msg: Message) => {
-    if (!activeSessionId) return;
+  /** 按明确会话写入，避免流式执行期间切换侧栏后把结果写进另一项目。 */
+  const addMessageToSession = (sessionId: string, msg: Message) => {
     setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) {
+      if (s.id === sessionId) {
         const messages = [...s.messages, msg];
         let title = s.title;
         const isFirstUserMsg = msg.role === 'user' && (s.title === '新建会话' || !s.title);
@@ -315,7 +393,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
           if (!title) title = '新建会话';
         }
         if (title !== s.title) {
-          api.patchSession(activeSessionId, { title }).catch(err =>
+          api.patchSession(sessionId, { title }).catch(err =>
             console.warn('更新会话标题失败:', err)
           );
         }
@@ -326,7 +404,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
 
     // 非聊天系统消息仍可通过 sessions API 直接追加；user/assistant 由 /chat/chat 统一保存。
     if (msg.role === 'system') {
-      api.appendMessage(activeSessionId, {
+      api.appendMessage(sessionId, {
         id: msg.id,
         role: msg.role,
         content: msg.content,
@@ -335,10 +413,9 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     }
   };
 
-  const updateAssistantMessage = (id: string, updates: Partial<Message>) => {
-    if (!activeSessionId) return;
+  const updateAssistantMessage = (sessionId: string, id: string, updates: Partial<Message>) => {
     setSessions(prev => prev.map(s => {
-      if (s.id === activeSessionId) {
+      if (s.id === sessionId) {
         const messages = s.messages.map(m => m.id === id ? { ...m, ...updates } : m);
         return { ...s, messages };
       }
@@ -357,6 +434,132 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     api.patchSession(activeSessionId, { skill_id: skillId }).catch(err =>
       console.warn('更新会话 skill_id 失败:', err)
     );
+  };
+
+  const loadProjectFiles = useCallback(async (projectId: string) => {
+    const requestId = ++projectFilesRequestRef.current;
+    setProjectFilesLoading(true);
+    setProjectFilesProjectId(projectId);
+    try {
+      const files = await api.listProjectFiles(projectId);
+      if (projectFilesRequestRef.current === requestId) setProjectFiles(files);
+    } catch (err) {
+      console.warn('加载项目资料失败:', err);
+      if (projectFilesRequestRef.current === requestId) setProjectFiles([]);
+    } finally {
+      if (projectFilesRequestRef.current === requestId) setProjectFilesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      projectFilesRequestRef.current += 1;
+      setProjectFiles([]);
+      setProjectFilesProjectId(null);
+      setProjectFilesLoading(false);
+      return;
+    }
+    loadProjectFiles(activeProjectId);
+  }, [activeProjectId, loadProjectFiles]);
+
+  const openProject = (projectId: string) => {
+    navigationRequestRef.current += 1;
+    setActiveProjectId(projectId);
+    setActiveView(ViewType.PROJECT);
+  };
+
+  const createProject = async (input: { name: string; description?: string; instructions?: string }) => {
+    setCreatingProject(true);
+    try {
+      const created = await api.createProject(input);
+      setProjects(prev => [created, ...prev.filter(project => project.id !== created.id)]);
+      setCreateProjectOpen(false);
+      openProject(created.id);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '创建项目失败');
+    } finally {
+      setCreatingProject(false);
+    }
+  };
+
+  const saveProject = async (patch: { name: string; description: string; instructions: string }) => {
+    if (!activeProjectId) return;
+    setSavingProject(true);
+    try {
+      const updated = await api.patchProject(activeProjectId, patch);
+      setProjects(prev => prev.map(project => project.id === updated.id ? updated : project));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '保存项目失败');
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
+  const deleteProject = async () => {
+    if (!activeProjectId) return;
+    const deletedId = activeProjectId;
+    try {
+      await api.deleteProject(deletedId);
+      setProjects(prev => prev.filter(project => project.id !== deletedId));
+      setSessions(prev => prev.map(session => session.projectId === deletedId ? { ...session, projectId: null } : session));
+      setActiveProjectId(null);
+      setActiveView(ViewType.HOME);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '删除项目失败');
+    }
+  };
+
+  const moveSession = async (sessionId: string, projectId: string | null) => {
+    try {
+      await api.patchSession(sessionId, { project_id: projectId });
+      setSessions(prev => prev.map(session => session.id === sessionId
+        ? { ...session, projectId, updatedAt: Date.now() }
+        : session));
+      if (activeView === ViewType.CHAT && activeSessionId === sessionId) setActiveProjectId(projectId);
+      await refreshProjects();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '移动会话失败');
+    }
+  };
+
+  const uploadProjectFile = async (file: File) => {
+    if (!activeProjectId) return;
+    try {
+      await api.uploadProjectFile(activeProjectId, file);
+      await loadProjectFiles(activeProjectId);
+      await refreshProjects();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : `上传 ${file.name} 失败`);
+    }
+  };
+
+  const deleteProjectFile = async (fileId: string) => {
+    if (!activeProjectId) return;
+    if (!window.confirm('删除这份项目资料？')) return;
+    try {
+      await api.deleteProjectFile(activeProjectId, fileId);
+      await loadProjectFiles(activeProjectId);
+      await refreshProjects();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '删除项目资料失败');
+    }
+  };
+
+  const importSessionFileToProject = async (path: string, displayName: string) => {
+    const sessionId = activeSession?.id;
+    const projectId = activeSession?.projectId;
+    if (!sessionId || !projectId) {
+      throw new Error('当前会话未归属项目，不能加入项目资料');
+    }
+    await api.importProjectFile(projectId, {
+      session_id: sessionId,
+      path,
+      display_name: displayName,
+    });
+    await Promise.all([
+      loadProjectFiles(projectId),
+      refreshProjects(),
+    ]);
   };
 
   const { activeReferences, activeThinkingLog } = useMemo(() => {
@@ -394,7 +597,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
       content: `Finalized draft in **${executingAction?.label}**. Intelligence record updated.`,
       timestamp: Date.now()
     };
-    addMessageToActiveSession(commitMsg);
+    addMessageToSession(activeSessionId, commitMsg);
     setExecutingAction(null);
   };
 
@@ -443,11 +646,18 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     <div className="flex h-screen w-full overflow-hidden text-gray-900 font-sans">
       <Sidebar 
         activeView={activeView}
-        onNavigate={setActiveView}
+        onNavigate={(view) => {
+          navigationRequestRef.current += 1;
+          setActiveView(view);
+        }}
         sessions={sessions}
+        projects={projects}
+        activeProjectId={activeView === ViewType.CHAT ? activeSession?.projectId ?? null : activeProjectId}
         activeSessionId={activeSessionId}
         onSelectSession={(id) => { selectSession(id); }}
-        onNewChat={() => createNewSession()}
+        onNewChat={() => createNewSession({ projectId: null })}
+        onNewProject={() => setCreateProjectOpen(true)}
+        onSelectProject={openProject}
         onDeleteSession={deleteSession}
         currentUser={currentUser!}
         onLogout={handleLogout}
@@ -466,20 +676,46 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         ) : (
           <>
             {activeView === ViewType.HOME && (
-              <HomeView onStartSkill={createNewSession} skills={systemSkills} />
+              <HomeView
+                onStartSkill={(skillId) => createNewSession({ skillId, projectId: null })}
+                skills={systemSkills}
+              />
             )}
+
+        {activeView === ViewType.PROJECT && activeProject && (
+          <ProjectView
+            project={activeProject}
+            sessions={sessions.filter(session => session.projectId === activeProject.id)}
+            files={projectFilesProjectId === activeProject.id ? projectFiles : []}
+            filesLoading={projectFilesLoading}
+            saving={savingProject}
+            onNewChat={() => createNewSession({ projectId: activeProject.id })}
+            onOpenSession={selectSession}
+            onMoveSession={moveSession}
+            onSave={saveProject}
+            onDelete={deleteProject}
+            onUploadFile={uploadProjectFile}
+            onDeleteFile={deleteProjectFile}
+            onRefreshFiles={() => loadProjectFiles(activeProject.id)}
+          />
+        )}
 
         {activeView === ViewType.CHAT && (
           <div className="flex h-full w-full overflow-hidden">
              <ChatArea 
                 session={activeSession}
                 skills={allSkills}
-                onSendMessage={addMessageToActiveSession}
+                onSendMessage={addMessageToSession}
                 onUpdateMessage={updateAssistantMessage}
                 onToggleReferences={() => setRightPanelOpen(!rightPanelOpen)}
                 rightPanelOpen={rightPanelOpen}
                 onExecuteAction={setExecutingAction}
                 onUpdateSessionSkill={updateSessionSkill}
+                project={activeSessionProject}
+                projects={projects}
+                onMoveSession={(projectId) => activeSessionId ? moveSession(activeSessionId, projectId) : Promise.resolve()}
+                onOpenProject={openProject}
+                onImportProjectFile={activeSessionProject && !activeSessionProject.archived_at ? importSessionFileToProject : undefined}
                 harness={harness}
                 browserContext={browserContext}
              />
@@ -488,6 +724,12 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
                references={activeReferences}
                thinkingLog={activeThinkingLog}
                sessionId={activeSessionId}
+               project={activeSessionProject}
+               projectFiles={projectFilesProjectId === activeSessionProject?.id ? projectFiles : []}
+               projectFilesLoading={projectFilesLoading}
+               onOpenProject={activeSessionProject ? () => openProject(activeSessionProject.id) : undefined}
+               onRefreshProjectFiles={activeSessionProject ? () => loadProjectFiles(activeSessionProject.id) : undefined}
+               onImportProjectFile={activeSessionProject && !activeSessionProject.archived_at ? importSessionFileToProject : undefined}
                onClose={() => setRightPanelOpen(false)}
                isFetching={activeSession?.messages.some(m => m.role === 'assistant' && m.executionSteps?.some(s => s.status === 'running'))}
              />
@@ -497,7 +739,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
 
         {activeView === ViewType.SKILLS && (
           <SkillManager
-            onSelectSkill={(skill) => createNewSession(skill.id)}
+            onSelectSkill={(skill) => createNewSession({ skillId: skill.id, projectId: null })}
             onViewDetail={(skill) => {
               setDetailSkill(skill);
               setActiveView(ViewType.SKILL_DETAIL);
@@ -515,7 +757,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
             }}
             onUseSkill={(skill) => {
               setDetailSkill(null);
-              createNewSession(skill.id);
+              createNewSession({ skillId: skill.id, projectId: null });
             }}
             onDeleted={() => {
               refreshSkills();
@@ -563,6 +805,12 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
           </div>
         )}
       </main>
+      <CreateProjectModal
+        open={createProjectOpen}
+        creating={creatingProject}
+        onClose={() => setCreateProjectOpen(false)}
+        onCreate={createProject}
+      />
     </div>
   );
 };

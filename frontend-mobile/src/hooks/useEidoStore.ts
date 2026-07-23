@@ -6,7 +6,7 @@ import {
   BACKEND_URL,
   INITIAL_CHAT_STATE,
 } from '../shared';
-import type { ChatSession, Message, Skill } from '../shared';
+import type { ChatSession, CreateSessionOptions, Message, Project, Skill } from '../shared';
 import type { AgentRuntime } from '../runtime/types';
 
 export type MobileTab = 'chat' | 'skills' | 'me';
@@ -43,6 +43,7 @@ function removeStorage(key: string) {
 function fixStaleRunningSteps(session: ChatSession): ChatSession {
   return {
     ...session,
+    projectId: session.projectId ?? null,
     messages: session.messages.map((msg) => ({
       ...msg,
       executionSteps: msg.executionSteps?.map((step) =>
@@ -74,6 +75,8 @@ export interface EidoStore {
   setTab: (t: MobileTab) => void;
 
   sessions: ChatSession[];
+  projects: Project[];
+  projectsEnabled: boolean;
   activeSessionId: string | null;
   activeSession: ChatSession | null;
 
@@ -87,12 +90,14 @@ export interface EidoStore {
   setHarness: (h: string) => void;
 
   refreshSessions: () => Promise<void>;
-  selectSession: (id: string) => Promise<void>;
+  refreshProjects: () => Promise<void>;
+  selectSession: (id: string) => Promise<boolean>;
   openChat: (id: string) => Promise<void>;
-  createNewSession: (skillId?: string) => Promise<void>;
+  createNewSession: (options?: CreateSessionOptions) => Promise<void>;
+  moveSession: (id: string, projectId: string | null) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
-  addMessage: (msg: Message) => void;
-  updateMessage: (id: string, updates: Partial<Message>) => void;
+  addMessage: (sessionId: string, msg: Message) => void;
+  updateMessage: (sessionId: string, id: string, updates: Partial<Message>) => void;
   updateSessionSkill: (skillId: string) => void;
   logout: () => void;
 }
@@ -110,12 +115,19 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
   const [authRequired, setAuthRequired] = useState(false);
   const [authChecking, setAuthChecking] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ user_id: string; username: string } | null>(null);
-  const [tab, setTab] = useState<MobileTab>('chat');
+  const [tab, setTabState] = useState<MobileTab>('chat');
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   // 用 ref 读取当前会话 id，避免在 setState updater 内嵌套 setState（StrictMode 下会重复执行副作用）
   const activeSessionIdRef = useRef<string | null>(null);
+  const navigationRequestRef = useRef(0);
+  const projectsRequestRef = useRef(0);
+  const setTab = useCallback((nextTab: MobileTab) => {
+    navigationRequestRef.current += 1;
+    setTabState(nextTab);
+  }, []);
   // 落地初始化只执行一次（避免 StrictMode 双调导致重复创建空会话）
   const bootstrappedRef = useRef(false);
   const localStoreReadyRef = useRef(false);
@@ -210,6 +222,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     if (!authChecked || authRequired || bootstrappedRef.current) return;
     bootstrappedRef.current = true;
     (async () => {
+      const requestId = ++navigationRequestRef.current;
       try {
         if (localMode) {
           const raw = localStorage.getItem(localSessionsKey);
@@ -223,6 +236,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
               ? cachedId
               : localSessions[0]?.id ?? null;
           if (targetId) {
+            if (navigationRequestRef.current !== requestId) return;
             activeSessionIdRef.current = targetId;
             setActiveSessionId(targetId);
           } else {
@@ -233,7 +247,12 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
 
         const list = await api.listSessions();
         const summaries = list.map(summaryToSession);
-        setSessions(summaries);
+        setSessions((prev) => {
+          if (navigationRequestRef.current === requestId) return summaries;
+          const known = new Set(prev.map((session) => session.id));
+          return [...prev, ...summaries.filter((session) => !known.has(session.id))];
+        });
+        if (navigationRequestRef.current !== requestId) return;
 
         const cachedId = readStorage<string | null>(ACTIVE_SESSION_KEY, null);
         const targetId =
@@ -246,11 +265,14 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
             const detail = await api.getSession(targetId);
             const hydrated = fixStaleRunningSteps(hydrateSession(detail));
             setSessions((prev) => prev.map((s) => (s.id === targetId ? hydrated : s)));
+            if (navigationRequestRef.current !== requestId) return;
             activeSessionIdRef.current = targetId;
             setActiveSessionId(targetId);
           } catch {
-            removeStorage(ACTIVE_SESSION_KEY);
-            await createNewSession();
+            if (navigationRequestRef.current === requestId) {
+              removeStorage(ACTIVE_SESSION_KEY);
+              await createNewSession();
+            }
           }
         } else {
           // 无任何历史会话：自动创建一个，落地即可直接聊天
@@ -283,11 +305,31 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     }
   }, [agentRuntime, localMode]);
 
+  const refreshProjects = useCallback(async () => {
+    const requestId = ++projectsRequestRef.current;
+    if (localMode) {
+      if (projectsRequestRef.current === requestId) setProjects([]);
+      return;
+    }
+    try {
+      // 归档项目不再接收新资料，但其既有会话仍需出现在导航中并可继续使用上下文。
+      const result = await api.listProjects({ include_archived: true });
+      if (projectsRequestRef.current === requestId) setProjects(result);
+    } catch (error) {
+      console.warn('加载项目失败:', error);
+    }
+  }, [localMode]);
+
   useEffect(() => {
     if (!authChecked || authRequired) return;
     setSkillsLoading(true);
     refreshSkills().finally(() => setSkillsLoading(false));
   }, [authChecked, authRequired, refreshSkills]);
+
+  useEffect(() => {
+    if (!authChecked || authRequired) return;
+    refreshProjects();
+  }, [authChecked, authRequired, refreshProjects]);
 
   const activeSession = useMemo(
     () => sessions.find((s) => s.id === activeSessionId) || null,
@@ -318,7 +360,9 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
 
   const selectSession = useCallback(
     async (id: string) => {
+      const requestId = ++navigationRequestRef.current;
       const target = sessions.find((s) => s.id === id);
+      if (!target) return false;
       if (!localMode && target && target.messages.length === 0) {
         try {
           const detail = await api.getSession(id);
@@ -326,29 +370,35 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
           setSessions((prev) => prev.map((s) => (s.id === id ? hydrated : s)));
         } catch (err) {
           console.error('加载会话消息失败:', err);
-          return;
+          return false;
         }
       }
+      if (navigationRequestRef.current !== requestId) return false;
       activeSessionIdRef.current = id;
       setActiveSessionId(id);
+      return true;
     },
     [localMode, sessions]
   );
 
   const openChat = useCallback(
     async (id: string) => {
-      await selectSession(id);
-      setTab('chat');
+      if (await selectSession(id)) setTab('chat');
     },
     [selectSession]
   );
 
-  const createNewSession = useCallback(async (skillId?: string) => {
+  const createNewSession = useCallback(async (options: CreateSessionOptions = {}) => {
+    const requestId = ++navigationRequestRef.current;
+    const { skillId } = options;
     try {
       if (localMode) {
         const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
           : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.slice(0, 12);
+        // Bind the new local conversation to the OpenCode directory visible at
+        // creation time. Later global /path changes must not migrate it.
+        await agentRuntime?.prepareSession?.(id);
         const initialMessages: Message[] = INITIAL_CHAT_STATE.map((message, index) => ({
           ...message,
           id: `${id}-init-${index}`,
@@ -357,18 +407,24 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         const localSession: ChatSession = {
           id,
           title: '新建会话',
+          projectId: null,
           skillId,
           messages: initialMessages,
           updatedAt: Date.now(),
         };
         setSessions((prev) => [localSession, ...prev]);
-        activeSessionIdRef.current = id;
-        setActiveSessionId(id);
-        setTab('chat');
+        if (navigationRequestRef.current === requestId) {
+          activeSessionIdRef.current = id;
+          setActiveSessionId(id);
+          setTab('chat');
+        }
         return;
       }
 
-      const created = await api.createSession({ skill_id: skillId ?? null });
+      const created = await api.createSession({
+        skill_id: skillId ?? null,
+        project_id: options.projectId ?? null,
+      });
       const initialMessages: Message[] = INITIAL_CHAT_STATE.map((m, i) => ({
         ...m,
         id: `${created.id}-init-${i}`,
@@ -377,18 +433,36 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
       const newSession: ChatSession = {
         id: created.id,
         title: created.title || '新建会话',
+        projectId: created.project_id ?? options.projectId ?? null,
         skillId: created.skill_id || skillId,
         messages: initialMessages,
         updatedAt: Date.parse(created.updated_at) || Date.now(),
       };
       setSessions((prev) => [newSession, ...prev]);
-      activeSessionIdRef.current = newSession.id;
-      setActiveSessionId(newSession.id);
-      setTab('chat');
+      if (navigationRequestRef.current === requestId) {
+        activeSessionIdRef.current = newSession.id;
+        setActiveSessionId(newSession.id);
+        setTab('chat');
+      }
+      refreshProjects();
     } catch (err) {
       console.error('创建会话失败:', err);
     }
-  }, [localMode]);
+  }, [agentRuntime, localMode, refreshProjects]);
+
+  const moveSession = useCallback(async (id: string, projectId: string | null) => {
+    if (localMode) return;
+    try {
+      await api.patchSession(id, { project_id: projectId });
+      setSessions((prev) => prev.map((session) => session.id === id
+        ? { ...session, projectId, updatedAt: Date.now() }
+        : session));
+      await refreshProjects();
+    } catch (error) {
+      console.error('移动会话失败:', error);
+      throw error;
+    }
+  }, [localMode, refreshProjects]);
 
   const deleteSession = useCallback(
     async (id: string) => {
@@ -404,6 +478,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
       }
       const remaining = sessions.filter((s) => s.id !== id);
       setSessions(remaining);
+      if (!localMode) refreshProjects();
       // 删除的是当前会话：自动切到最近一条，无则置空
       if (activeSessionIdRef.current === id) {
         const next = remaining[0];
@@ -415,16 +490,14 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         }
       }
     },
-    [agentRuntime, localMode, sessions, openChat]
+    [agentRuntime, localMode, sessions, openChat, refreshProjects]
   );
 
-  const addMessage = useCallback((msg: Message) => {
-    const curId = activeSessionIdRef.current;
-    if (!curId) return;
+  const addMessage = useCallback((sessionId: string, msg: Message) => {
     let titleToPatch: string | null = null;
     setSessions((prev) =>
       prev.map((s) => {
-        if (s.id !== curId) return s;
+        if (s.id !== sessionId) return s;
         const messages = [...s.messages, msg];
         let title = s.title;
         const isFirstUserMsg = msg.role === 'user' && (s.title === '新建会话' || !s.title);
@@ -441,11 +514,11 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
       })
     );
     if (titleToPatch && !localMode) {
-      api.patchSession(curId, { title: titleToPatch }).catch((err) => console.warn('更新标题失败:', err));
+      api.patchSession(sessionId, { title: titleToPatch }).catch((err) => console.warn('更新标题失败:', err));
     }
     if (msg.role === 'system' && !localMode) {
       api
-        .appendMessage(curId, {
+        .appendMessage(sessionId, {
           id: msg.id,
           role: msg.role,
           content: msg.content,
@@ -455,12 +528,10 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     }
   }, [localMode]);
 
-  const updateMessage = useCallback((id: string, updates: Partial<Message>) => {
-    const curId = activeSessionIdRef.current;
-    if (!curId) return;
+  const updateMessage = useCallback((sessionId: string, id: string, updates: Partial<Message>) => {
     setSessions((prev) =>
       prev.map((s) =>
-        s.id === curId
+        s.id === sessionId
           ? { ...s, messages: s.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)) }
           : s
       )
@@ -490,6 +561,8 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     tab,
     setTab,
     sessions,
+    projects,
+    projectsEnabled: !localMode,
     activeSessionId,
     activeSession,
     systemSkills,
@@ -500,9 +573,11 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     harness,
     setHarness,
     refreshSessions,
+    refreshProjects,
     selectSession,
     openChat,
     createNewSession,
+    moveSession,
     deleteSession,
     addMessage,
     updateMessage,

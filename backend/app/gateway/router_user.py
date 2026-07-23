@@ -72,6 +72,22 @@ async def proxy_sessions_rest(
     return await proxy_request(request, handle, upstream_path=f"/api/v1/sessions/{rest}")
 
 
+# --------------------------- projects --------------------------- #
+
+@router.api_route("/projects/", methods=["GET", "POST"])
+async def proxy_projects_root(request: Request, user_id: str = Depends(resolve_user_id)):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path="/api/v1/projects/")
+
+
+@router.api_route("/projects/{rest:path}", methods=["GET", "POST", "PATCH", "DELETE", "PUT"])
+async def proxy_projects_rest(
+    rest: str, request: Request, user_id: str = Depends(resolve_user_id)
+):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path=f"/api/v1/projects/{rest}")
+
+
 # --------------------------- workspace --------------------------- #
 
 @router.get("/workspace/file")

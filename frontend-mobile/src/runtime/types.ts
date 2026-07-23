@@ -14,6 +14,8 @@ export interface AgentRuntime {
   label: string;
   isLocal: boolean;
   canDeleteWorkspaceFiles?: boolean;
+  /** Capture immutable per-session runtime state before the first operation. */
+  prepareSession?(sessionId: string): Promise<void>;
   streamChat(
     messages: Message[],
     onChunk: ChatChunkHandler,
@@ -29,7 +31,7 @@ export interface AgentRuntime {
   deleteWorkspaceFile(sessionId: string, path: string): Promise<void>;
   getWorkspaceFileUrl(
     path: string,
-    options?: { download?: boolean; filename?: string; sessionId?: string }
+    options?: { download?: boolean; preview?: boolean; filename?: string; sessionId?: string }
   ): string;
   openWorkspaceFile?(
     path: string,

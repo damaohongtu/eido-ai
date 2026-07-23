@@ -147,6 +147,31 @@ CREATE TABLE chat_messages (
 - 流结束、异常或客户端中断时，后端保存本轮 `assistant` 最终状态
 - 前端只传递 `message.id` / `assistant_message_id` 用于幂等写入，不再主动调用 `/sessions/{id}/messages` 保存聊天内容
 
+### 2.3 Project — 会话之上的个人上下文层
+
+Project v1 在现有关系上增加一层可选归属，不改变消息主链路：
+
+```text
+user
+└── project (可选)
+    ├── instructions + context_revision
+    ├── project files
+    └── chat session
+        ├── messages
+        └── session workspace
+```
+
+`chat_sessions.project_id` 可为空，历史会话无需回填。创建 Chat、上传附件和访问 Session
+Workspace 时仍以 `session_id` 为唯一客户端参数；后端在完成会话归属校验后推导 Project，避免
+客户端同时提交两个可能冲突的 ID。
+
+项目文件存放在 `.eido/projects/<project_id>/files/`，会话目录继续保持
+`.eido/workspaces/<session_id>/`。加入、移出、移动或删除 Project 都不搬动 Session Workspace，
+从而保留历史绝对路径和原生 Agent Session 的 cwd 稳定性。
+
+Project 是用户私有的组织与上下文边界，不是新的跨用户权限边界。完整的 schema、删除语义、
+本机模式边界和发布方案见 [`project-design.md`](project-design.md)。
+
 ---
 
 ## 三、关键数据流
@@ -209,8 +234,10 @@ sequenceDiagram
 | 前端 | `frontend/services/api.ts` | 会话 CRUD + SSE 解析；`streamChat` 不再触发消息保存 |
 | 后端路由 | `backend/app/api/v1/endpoints/chat.py` | `/chat/chat` `/chat/upload`；主聊天链路消息持久化边界 |
 | 后端路由 | `backend/app/api/v1/endpoints/sessions.py` | `/sessions/...` 增删改查；`/messages` 仅用于非主聊天补充写入 |
+| 后端路由 | `backend/app/api/v1/endpoints/projects.py` | Project 元数据、项目文件与会话解绑语义 |
 | 后端路由 | `backend/app/api/v1/endpoints/workspace.py` | `/workspace/file` 隔离访问 |
 | 后端服务 | `backend/app/services/session_workspace.py` | 会话工作区管理（路径白名单 + 安全解析） |
+| 后端服务 | `backend/app/services/project_workspace.py` | 项目共享文件管理；不移动会话目录 |
 | 后端服务 | `backend/app/services/chat_session_store.py` | SQLite 持久化 |
 | 后端服务 | `backend/app/services/claude_skill_service.py` | 切 cwd + 注入技能库绝对路径 |
 
@@ -219,9 +246,11 @@ sequenceDiagram
 ## 五、迁移与兼容性
 
 - 旧的 `uploads/`、`output/`、`outputs/` 全局目录保留（兼容历史数据），新数据一律走 `.eido/workspaces/<sid>/`
-- `/workspace/file` 不带 `session_id` 时仍按全局 WORKSPACE_ROOT 解析（向后兼容历史链接）；带 `session_id` 时要求会话属于当前用户
+- `/workspace/file` 不带 `session_id` 时只允许读取历史 `uploads/`、`output/`、`outputs/` 目录（兼容旧链接且不暴露源码、配置或 `.eido` 数据）；带 `session_id` 时要求会话属于当前用户
 - 浏览器旧版 sessionStorage 中的会话不再恢复，首次打开自动从后端拉取
 - `.eido/workspaces/` 与 SQLite 文件均已加入 `.gitignore`
+- Project 迁移只增加表和 nullable 列；旧会话保持未归类，旧客户端不传 `project_id` 仍可使用
+- 迁移同时检查并修复历史 `chat_messages(id PRIMARY KEY)` 为 `(session_id, id)` 复合主键；不能只依赖 `CREATE TABLE IF NOT EXISTS`
 
 ## 六、风险与权衡
 
@@ -260,8 +289,8 @@ flowchart LR
 
 | 组件 | 职责 |
 |---|---|
-| `eido-gateway` | CAS 鉴权、`SandboxManager` 编排 user 容器、`/chat/**` `/sessions/**` `/workspace/**` 反向代理（含 SSE）、调度 `scheduled_tasks.db`、提供 `/sandbox/warmup` 与 `/sandbox/status` |
-| `eido-user`   | 单纯跑 `uvicorn app.main:app`，承载 `chat / sessions / workspace`，使用 `EIDO_TRUST_GATEWAY=1` 信任 gateway 注入的 `X-Eido-User-Id` + `X-Eido-Gateway-Secret` |
+| `eido-gateway` | CAS 鉴权、`SandboxManager` 编排 user 容器、`/projects/**` `/chat/**` `/sessions/**` `/workspace/**` 反向代理（含 SSE）、调度 `scheduled_tasks.db`、提供 `/sandbox/warmup` 与 `/sandbox/status` |
+| `eido-user`   | 单纯跑 `uvicorn app.main:app`，承载 `projects / chat / sessions / workspace`，使用 `EIDO_TRUST_GATEWAY=1` 信任 gateway 注入的 `X-Eido-User-Id` + `X-Eido-Gateway-Secret` |
 | `sandbox_registry.db` | gateway 持有的 rendezvous 表：`user_id → container_name, host, port, last_active_at, status` |
 | 共享网络 `eido-net` | gateway 与所有 user 容器同处一个 docker bridge 网络，内部以容器名解析（`eido-user-<safe_user_id>:8000`） |
 | 命名卷 `eido-user-<safe>` | per-user 持久化 `/data/chat_sessions.db` 与 `/data/workspaces/`，gc 时只删容器不删卷 |

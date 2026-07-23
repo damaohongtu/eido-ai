@@ -1,5 +1,6 @@
 import type { ExecutionStep, Message, Reference, Skill, WorkspaceFileNode } from '../../frontend-mobile/src/shared';
 import type { AgentRuntime, ChatChunkHandler } from '../../frontend-mobile/src/runtime/types';
+import { resolveSessionBinding } from './local-agent/sessionBinding.js';
 
 export interface LocalAgentSettings {
   mode: 'cloud' | 'local';
@@ -15,8 +16,14 @@ export interface OpenCodeHealth {
 }
 
 interface SessionMapping {
-  providerSessionId: string;
+  providerSessionId?: string;
   directory: string;
+  endpoint?: string;
+}
+
+interface ReadySessionMapping extends SessionMapping {
+  providerSessionId: string;
+  endpoint: string;
 }
 
 interface PendingAttachment {
@@ -213,14 +220,37 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
     await chrome.storage.local.set({ [SESSION_MAP_KEY]: mappings });
   }
 
-  private async ensureSession(sessionId: string, title: string): Promise<SessionMapping & { created: boolean }> {
-    const directory = await this.currentDirectory();
+  private async boundSessionMapping(sessionId: string): Promise<SessionMapping> {
     const mappings = await this.sessionMap();
     const existing = mappings[sessionId];
-    if (existing?.directory === directory) {
+    if (existing?.directory) {
+      const upgraded = resolveSessionBinding(existing, this.baseUrl);
+      if (!existing.endpoint) {
+        await this.setSessionMapping(sessionId, upgraded);
+      }
+      return upgraded;
+    }
+
+    const mapping = resolveSessionBinding(
+      undefined,
+      this.baseUrl,
+      await this.currentDirectory()
+    );
+    await this.setSessionMapping(sessionId, mapping);
+    return mapping;
+  }
+
+  async prepareSession(sessionId: string): Promise<void> {
+    await this.boundSessionMapping(sessionId);
+  }
+
+  private async ensureSession(sessionId: string, title: string): Promise<ReadySessionMapping & { created: boolean }> {
+    const existing = await this.boundSessionMapping(sessionId);
+    const directory = existing.directory;
+    if (existing.providerSessionId) {
       try {
         await this.request(`/session/${encodeURIComponent(existing.providerSessionId)}`, { directory });
-        return { ...existing, created: false };
+        return { ...existing, endpoint: this.baseUrl, created: false } as ReadySessionMapping & { created: boolean };
       } catch {
         // OpenCode may have cleared the session independently.
       }
@@ -231,7 +261,11 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
       body: JSON.stringify({ title: title.slice(0, 80) || 'Eido local session' }),
     });
     const created = await response.json();
-    const mapping = { providerSessionId: created.id, directory };
+    const mapping: ReadySessionMapping = {
+      providerSessionId: created.id,
+      directory,
+      endpoint: this.baseUrl,
+    };
     await this.setSessionMapping(sessionId, mapping);
     return { ...mapping, created: true };
   }
@@ -269,7 +303,7 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
       references
     );
 
-    let mapping: (SessionMapping & { created: boolean }) | null = null;
+    let mapping: (ReadySessionMapping & { created: boolean }) | null = null;
     let eventReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
     const abortSession = () => {
       if (!mapping) return;
@@ -549,6 +583,7 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
 
   async uploadChatFile(file: File, sessionId: string): Promise<{ path: string; name: string }> {
     if (file.size > 20 * 1024 * 1024) throw new Error('文件超过 20 MB 限制');
+    await this.prepareSession(sessionId);
     const id = crypto.randomUUID();
     const pending = this.attachments.get(sessionId) || [];
     pending.push({ id, file });
@@ -585,9 +620,9 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
     return result;
   }
 
-  async listWorkspaceFiles(_sessionId: string): Promise<WorkspaceFileNode[]> {
-    const directory = await this.currentDirectory();
-    return this.listDirectory(directory, '.', 0, { remaining: 300 });
+  async listWorkspaceFiles(sessionId: string): Promise<WorkspaceFileNode[]> {
+    const mapping = await this.boundSessionMapping(sessionId);
+    return this.listDirectory(mapping.directory, '.', 0, { remaining: 300 });
   }
 
   async deleteWorkspaceFile(): Promise<void> {
@@ -617,8 +652,13 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
     window.setTimeout(() => chrome.storage.session.remove(key).catch(() => undefined), 5 * 60 * 1000);
   }
 
-  async openWorkspaceFile(path: string, options?: { download?: boolean; filename?: string }): Promise<void> {
-    const directory = await this.currentDirectory();
+  async openWorkspaceFile(
+    path: string,
+    options?: { download?: boolean; filename?: string; sessionId?: string }
+  ): Promise<void> {
+    if (!options?.sessionId) throw new Error('缺少本机会话 ID，无法确定绑定的项目目录');
+    const mapping = await this.boundSessionMapping(options.sessionId);
+    const directory = mapping.directory;
     const safePath = cleanWorkspacePath(path);
     const response = await this.request('/file/content', { directory, query: { path: safePath } });
     const payload = await response.json();
@@ -659,7 +699,10 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
 
   async respondToConfirmation(sessionId: string, confirmationId: string, approved: boolean): Promise<void> {
     const mapping = (await this.sessionMap())[sessionId];
-    if (!mapping) throw new Error('未找到 OpenCode 会话映射');
+    if (!mapping?.providerSessionId) throw new Error('未找到 OpenCode 会话映射');
+    if (mapping.endpoint && mapping.endpoint !== this.baseUrl) {
+      throw new Error('该本机会话绑定到另一个 OpenCode 地址');
+    }
     await this.request(`/permission/${encodeURIComponent(confirmationId)}/reply`, {
       directory: mapping.directory,
       method: 'POST',
@@ -691,7 +734,7 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
   async deleteSession(sessionId: string): Promise<void> {
     const mappings = await this.sessionMap();
     const mapping = mappings[sessionId];
-    if (mapping) {
+    if (mapping?.providerSessionId && (!mapping.endpoint || mapping.endpoint === this.baseUrl)) {
       try {
         await this.request(`/session/${encodeURIComponent(mapping.providerSessionId)}`, {
           directory: mapping.directory,
@@ -701,6 +744,7 @@ export class OpenCodeLocalRuntime implements AgentRuntime {
         // The provider session may already have been removed.
       }
     }
+    this.attachments.delete(sessionId);
     await this.setSessionMapping(sessionId);
   }
 }

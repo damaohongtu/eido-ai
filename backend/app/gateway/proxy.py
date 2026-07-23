@@ -148,21 +148,20 @@ async def proxy_request(
     response_headers = _filter_response_headers(upstream_resp)
 
     upstream_ct = upstream_resp.headers.get("content-type", "")
-    streaming = is_sse or "text/event-stream" in upstream_ct
-
-    async def upstream_iterator() -> AsyncIterator[bytes]:
-        try:
-            async for chunk in upstream_resp.aiter_raw():
-                if chunk:
-                    yield chunk
-        finally:
-            await upstream_resp.aclose()
+    is_event_stream = is_sse or "text/event-stream" in upstream_ct
+    is_file_response = "content-disposition" in upstream_resp.headers
+    try:
+        content_length = int(upstream_resp.headers.get("content-length", "0"))
+    except ValueError:
+        content_length = 0
+    streaming = is_event_stream or is_file_response or content_length > 1024 * 1024
 
     if streaming:
-        # SSE 必须的几条 header
-        response_headers["Cache-Control"] = "no-cache, no-transform"
-        response_headers["X-Accel-Buffering"] = "no"
-        response_headers.setdefault("Connection", "keep-alive")
+        if is_event_stream:
+            # SSE 必须的几条 header
+            response_headers["Cache-Control"] = "no-cache, no-transform"
+            response_headers["X-Accel-Buffering"] = "no"
+            response_headers.setdefault("Connection", "keep-alive")
 
         async def streaming_iter() -> AsyncIterator[bytes]:
             try:
@@ -171,7 +170,7 @@ async def proxy_request(
                         yield chunk
             finally:
                 await upstream_resp.aclose()
-                # 流结束后再刷一次 last_active_at，避免长 SSE 中途被 GC 回收
+                # 流结束后再刷一次 last_active_at，避免长响应中途被 GC 回收
                 try:
                     from app.gateway.sandbox_manager import get_sandbox_manager
                     get_sandbox_manager().release(handle.user_id)

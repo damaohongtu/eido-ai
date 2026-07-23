@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import AsyncGenerator, Optional
 
 from app.gateway.sandbox_manager import _safe_user_id
+from app.services.conversation_context import format_recent_conversation
+from app.services.project_context import ProjectContext, format_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -96,50 +98,93 @@ class OpenCodeService:
         return "\n".join(f"- {name}: `{path}`" for name, path in sorted(skills.items()))
 
     def _build_prompt(
-        self, text: str, cwd: Path, context: Optional[str], user_id: Optional[str], *, resume: bool
+        self,
+        text: str,
+        cwd: Path,
+        context: Optional[str],
+        user_id: Optional[str],
+        *,
+        resume: bool,
+        project_context: Optional[ProjectContext] = None,
+        conversation_history: str = "",
     ) -> str:
         context_section = ""
         if context and context.strip():
             context_section = f"\n\n---\n## 上一步执行结果（供参考）\n{context.strip()[:4000]}"
+        project_text = format_project_context(project_context)
+        project_section = f"{project_text}\n\n---\n\n" if project_text else ""
+        history_section = (
+            f"{conversation_history}\n\n---\n\n" if conversation_history else ""
+        )
         if resume:
-            return f"## 用户最新请求\n{text}{context_section}"
+            return f"{project_section}## 用户最新请求\n{text}{context_section}"
         return (
             f"当前会话工作区是 `{cwd}`。上传文件位于 `{cwd / 'uploads'}`，"
             f"所有生成产物必须写入 `{cwd / 'outputs'}`。\n\n"
+            f"{project_section}"
             f"## 可用技能\n{self._skills_index(user_id)}\n\n"
             "需要技能时，先使用 skill 工具或读取上面对应的 SKILL.md，并严格遵循技能说明。"
             "不要把产物写到会话工作区之外。\n\n"
+            f"{history_section}"
             f"## 用户最新请求\n{text}{context_section}"
         )
 
     @staticmethod
-    def _load_session_id(user_id: Optional[str], session_id: Optional[str]) -> Optional[str]:
+    def _load_session_id(
+        user_id: Optional[str],
+        session_id: Optional[str],
+        *,
+        project_context: Optional[ProjectContext],
+    ) -> Optional[str]:
         if not (user_id and session_id):
             return None
         try:
             from app.services.chat_session_store import get_chat_session_store
-            return get_chat_session_store().get_opencode_session_id(user_id, session_id)
+            return get_chat_session_store().get_opencode_session_id(
+                user_id,
+                session_id,
+                expected_project_id=project_context.id if project_context else None,
+                expected_context_revision=(
+                    project_context.context_revision if project_context else None
+                ),
+            )
         except Exception as exc:
             logger.warning("读取 opencode_session_id 失败: %s", exc)
             return None
 
     @staticmethod
     def _save_session_id(
-        user_id: Optional[str], session_id: Optional[str], opencode_session_id: str
+        user_id: Optional[str],
+        session_id: Optional[str],
+        opencode_session_id: str,
+        *,
+        project_context: Optional[ProjectContext],
     ) -> None:
         if not (user_id and session_id):
             return
         try:
             from app.services.chat_session_store import get_chat_session_store
-            get_chat_session_store().set_opencode_session_id(
-                user_id, session_id, opencode_session_id
+            saved = get_chat_session_store().set_opencode_session_id(
+                user_id,
+                session_id,
+                opencode_session_id,
+                expected_project_id=project_context.id if project_context else None,
+                expected_context_revision=(
+                    project_context.context_revision if project_context else None
+                ),
             )
+            if not saved:
+                logger.info(
+                    "忽略已过期请求返回的 OpenCode session ID: session=%s",
+                    session_id,
+                )
         except Exception as exc:
             logger.warning("持久化 opencode_session_id 失败: %s", exc)
 
     async def execute_stream(
         self, messages: list, context: Optional[str] = None, *,
         user_id: Optional[str] = None, session_id: Optional[str] = None,
+        project_context: Optional[ProjectContext] = None,
     ) -> AsyncGenerator[str, None]:
         yield _sse({"type": "thinking", "content": "正在通过 OpenCode 分析请求..."})
         yield _sse({"type": "workflow_start", "skill_name": "auto"})
@@ -149,6 +194,7 @@ class OpenCodeService:
             yield _sse({"type": "error", "message": "未找到用户输入"})
             yield "data: [DONE]\n\n"
             return
+        recent_history = format_recent_conversation(messages)
 
         if session_id:
             from app.services.session_workspace import get_session_workspace_manager
@@ -161,8 +207,18 @@ class OpenCodeService:
         else:
             cwd = self.workspace_root
 
-        native_session_id = self._load_session_id(user_id, session_id)
-        prompt = self._build_prompt(text, cwd, context, user_id, resume=bool(native_session_id))
+        native_session_id = self._load_session_id(
+            user_id, session_id, project_context=project_context
+        )
+        prompt = self._build_prompt(
+            text,
+            cwd,
+            context,
+            user_id,
+            resume=bool(native_session_id),
+            project_context=project_context,
+            conversation_history=recent_history,
+        )
         args = [self.binary, "run", "--format", "json", "--auto", "--dir", str(cwd)]
         model = os.environ.get("OPENCODE_MODEL", "").strip()
         if model:
@@ -184,6 +240,8 @@ class OpenCodeService:
             env["EIDO_USER_TOKEN"] = create_user_token(user_id)
         if session_id:
             env["EIDO_SESSION_ID"] = session_id
+        if project_context:
+            env["EIDO_PROJECT_ID"] = project_context.id
 
         queue: asyncio.Queue[object] = asyncio.Queue()
         done = object()
@@ -219,7 +277,12 @@ class OpenCodeService:
                         continue
                     sid = event.get("sessionID")
                     if isinstance(sid, str) and sid:
-                        self._save_session_id(user_id, session_id, sid)
+                        self._save_session_id(
+                            user_id,
+                            session_id,
+                            sid,
+                            project_context=project_context,
+                        )
                     for converted in _convert_event(event):
                         if event.get("type") == "error":
                             state["had_error"] = True

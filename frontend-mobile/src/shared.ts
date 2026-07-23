@@ -9,6 +9,7 @@ export {
   hydrateSession,
   summaryToSession,
   getWorkspaceFileUrl,
+  getProjectFileUrl,
 } from '@shared/services/api';
 export type {
   PersistedSession,
@@ -25,6 +26,9 @@ export type {
   SkillAction,
   Message,
   ChatSession,
+  Project,
+  ProjectFile,
+  CreateSessionOptions,
   Reference,
   ExecutionStep,
   Tool,
@@ -32,3 +36,10 @@ export type {
   ScheduledTask,
 } from '@shared/types';
 export { skillCanManage } from '@shared/types';
+export {
+  isProjectOutputPath,
+  isSupportedProjectMaterial,
+  canPreviewInBrowser,
+  canRenderAsBrowserImage,
+  shouldForceWorkspaceDownload,
+} from '@shared/utils/projectFiles';

@@ -54,3 +54,5 @@ config.json
 .eido/scheduled_tasks.db
 .eido/scheduled_tasks.db-shm
 .eido/scheduled_tasks.db-wal
+
+.eido

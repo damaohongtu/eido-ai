@@ -1,6 +1,7 @@
 """
 Main FastAPI application entrypoint.
 """
+import asyncio
 import shutil
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -189,6 +190,10 @@ def create_application() -> FastAPI:
         from app.services.skill_management_service import init_skill_management_service
         from app.services.scheduled_task_store import ScheduledTaskStore
         from app.services.chat_session_store import init_chat_session_store
+        from app.services.project_workspace import (
+            get_project_workspace_manager,
+            retry_pending_storage_cleanup,
+        )
         from app.services.session_workspace import get_session_workspace_manager
         from app.services import scheduler_service
         from app.api.v1.endpoints import tasks as tasks_ep
@@ -246,12 +251,53 @@ def create_application() -> FastAPI:
                 logger.info(f"✓ 会话工作区根目录: {ws.root}")
             except Exception as e:
                 logger.error(f"✗ 会话工作区初始化失败: {e}", exc_info=True)
+                raise
 
             try:
-                init_chat_session_store()
+                project_ws = get_project_workspace_manager()
+                logger.info(f"✓ 项目资料根目录: {project_ws.root}")
+            except Exception as e:
+                logger.error(f"✗ 项目资料工作区初始化失败: {e}", exc_info=True)
+                raise
+
+            try:
+                chat_store = init_chat_session_store()
                 logger.info("✓ 会话存储 (ChatSessionStore) 初始化完成")
+                cleanup = retry_pending_storage_cleanup(chat_store)
+                if cleanup["completed"] or cleanup["failed"] or cleanup["missing"]:
+                    logger.info(
+                        "项目存储对账: completed=%s failed=%s missing=%s",
+                        cleanup["completed"],
+                        cleanup["failed"],
+                        cleanup["missing"],
+                    )
+
+                async def project_cleanup_loop() -> None:
+                    while True:
+                        await asyncio.sleep(300)
+                        try:
+                            result = await asyncio.to_thread(
+                                retry_pending_storage_cleanup,
+                                chat_store,
+                                reconcile_orphans=False,
+                            )
+                            if result["completed"] or result["failed"]:
+                                logger.info(
+                                    "项目存储周期清理: completed=%s failed=%s",
+                                    result["completed"],
+                                    result["failed"],
+                                )
+                        except asyncio.CancelledError:
+                            raise
+                        except Exception:
+                            logger.exception("项目存储周期清理异常")
+
+                app.state.project_storage_cleanup_task = asyncio.create_task(
+                    project_cleanup_loop()
+                )
             except Exception as e:
                 logger.error(f"✗ 会话存储初始化失败: {e}", exc_info=True)
+                raise
 
         # ---------- 定时任务调度（gateway 与 local 需要；user 容器不跑调度）---------- #
         if not is_user_runtime:
@@ -276,6 +322,14 @@ def create_application() -> FastAPI:
 
     @app.on_event("shutdown")
     async def shutdown_event():
+        cleanup_task = getattr(app.state, "project_storage_cleanup_task", None)
+        if cleanup_task is not None:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
+
         from app.services import scheduler_service
         scheduler_service.shutdown_scheduler()
         logger.info("Scheduler stopped")

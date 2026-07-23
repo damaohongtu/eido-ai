@@ -1,12 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Reference } from '../types';
-import { api, getWorkspaceFileUrl, WorkspaceFileNode } from '../services/api';
+import { Project, ProjectFile, Reference } from '../types';
+import { api, getProjectFileUrl, getWorkspaceFileUrl, WorkspaceFileNode } from '../services/api';
+import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../utils/projectFiles';
 
 interface ReferenceAreaProps {
   references: Reference[];
   thinkingLog?: string[];
   sessionId?: string;
+  project?: Project | null;
+  projectFiles?: ProjectFile[];
+  projectFilesLoading?: boolean;
+  onOpenProject?: () => void;
+  onRefreshProjectFiles?: () => void;
+  onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
   onClose: () => void;
   isFetching?: boolean;
 }
@@ -78,10 +85,16 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
   references,
   thinkingLog = [],
   sessionId,
+  project,
+  projectFiles = [],
+  projectFilesLoading,
+  onOpenProject,
+  onRefreshProjectFiles,
+  onImportProjectFile,
   onClose,
   isFetching,
 }) => {
-  const [tab, setTab] = useState<'process' | 'refs' | 'files'>('process');
+  const [tab, setTab] = useState<'process' | 'refs' | 'files' | 'project'>('process');
   const logBottomRef = useRef<HTMLDivElement>(null);
   const [fileTree, setFileTree] = useState<WorkspaceFileNode[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
@@ -111,6 +124,13 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
       loadFileTree();
     }
   }, [tab, sessionId]);
+
+  useEffect(() => {
+    if (tab === 'project' && project) onRefreshProjectFiles?.();
+    if (tab === 'project' && !project) setTab('process');
+    // callback identity is intentionally ignored; project id is the fetch boundary.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, project?.id]);
 
   return (
     <aside className="w-96 border-l border-gray-200 flex flex-col h-full animate-in slide-in-from-right duration-500 shadow-lg z-20 bg-white">
@@ -164,6 +184,21 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
         >
           会话文件
         </button>
+        {project ? (
+          <button
+            onClick={() => setTab('project')}
+            className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-colors ${
+              tab === 'project'
+                ? 'text-gray-800 border-b-2 border-gray-500'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            项目资料
+            {projectFiles.length > 0 ? (
+              <span className="ml-1 rounded-full bg-gray-200 px-1.5 py-0.5 text-[9px]">{projectFiles.length}</span>
+            ) : null}
+          </button>
+        ) : null}
         <button
           onClick={() => setTab('refs')}
           className={`flex-1 py-2.5 text-[11px] font-black uppercase tracking-widest transition-colors ${
@@ -246,6 +281,45 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
             )}
           </div>
         )}
+
+        {/* ── 项目资料 ── */}
+        {tab === 'project' && project ? (
+          <div className="p-4">
+            <div className="mb-4 rounded-xl border border-gray-200 bg-white p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-gray-800">📁 {project.name}</div>
+                  <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-gray-500">
+                    {project.description || '项目说明与资料会由服务端加入本项目会话的上下文。'}
+                  </div>
+                </div>
+                <button onClick={onOpenProject} className="shrink-0 rounded-lg bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200">管理</button>
+              </div>
+            </div>
+            {projectFilesLoading ? (
+              <div className="py-12 text-center text-xs text-gray-400">加载中…</div>
+            ) : projectFiles.length === 0 ? (
+              <div className="py-12 text-center">
+                <div className="text-2xl">📚</div>
+                <div className="mt-2 text-xs font-bold text-gray-500">暂无项目资料</div>
+                <button onClick={onOpenProject} className="mt-3 text-xs font-bold text-gray-700 underline">前往项目上传</button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {projectFiles.map(file => (
+                  <div key={file.id} className="rounded-xl border border-gray-200 bg-white p-3">
+                    <div className="truncate text-xs font-bold text-gray-800">{file.display_name}</div>
+                    <div className="mt-1 text-[10px] text-gray-400">{file.media_type || '文件'} · {(file.size_bytes / 1024).toFixed(file.size_bytes >= 1024 ? 1 : 0)} KB</div>
+                    <div className="mt-2 flex gap-2">
+                      <a href={getProjectFileUrl(project.id, file.id)} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-gray-600 hover:underline">打开</a>
+                      <a href={getProjectFileUrl(project.id, file.id, { download: true })} className="text-[10px] font-bold text-gray-600 hover:underline">下载</a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {/* ── 引用来源 ── */}
         {tab === 'refs' && (
@@ -343,6 +417,10 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
                   });
                 }}
                 onRefresh={loadFileTree}
+                projectId={project?.id}
+                projectName={project?.name}
+                importDisabled={Boolean(isFetching)}
+                onImportProjectFile={onImportProjectFile}
               />
             )}
           </div>
@@ -372,6 +450,10 @@ interface FileTreeViewProps {
   expanded: Set<string>;
   onToggleExpand: (path: string) => void;
   onRefresh: () => void;
+  projectId?: string;
+  projectName?: string;
+  importDisabled?: boolean;
+  onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
 }
 
 function getFileIcon(name: string): string {
@@ -388,10 +470,26 @@ function getFileIcon(name: string): string {
   return '📄';
 }
 
-const FileTreeView: React.FC<FileTreeViewProps> = ({ nodes, sessionId, expanded, onToggleExpand, onRefresh }) => {
+const FileTreeView: React.FC<FileTreeViewProps> = ({
+  nodes,
+  sessionId,
+  expanded,
+  onToggleExpand,
+  onRefresh,
+  projectId,
+  projectName,
+  importDisabled,
+  onImportProjectFile,
+}) => {
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [importStatus, setImportStatus] = useState<Record<string, 'adding' | 'added'>>({});
+
+  useEffect(() => {
+    setImportStatus({});
+  }, [sessionId, projectId]);
 
   const handleDelete = async (path: string) => {
+    if (importDisabled) return;
     setDeleting(path);
     try {
       await api.deleteWorkspaceFile(sessionId, path);
@@ -400,6 +498,22 @@ const FileTreeView: React.FC<FileTreeViewProps> = ({ nodes, sessionId, expanded,
       // ignore
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleImport = async (node: WorkspaceFileNode) => {
+    if (!onImportProjectFile || importStatus[node.path]) return;
+    setImportStatus(prev => ({ ...prev, [node.path]: 'adding' }));
+    try {
+      await onImportProjectFile(node.path, node.name);
+      setImportStatus(prev => ({ ...prev, [node.path]: 'added' }));
+    } catch (error) {
+      setImportStatus(prev => {
+        const next = { ...prev };
+        delete next[node.path];
+        return next;
+      });
+      window.alert(error instanceof Error ? error.message : '加入项目资料失败');
     }
   };
 
@@ -423,19 +537,36 @@ const FileTreeView: React.FC<FileTreeViewProps> = ({ nodes, sessionId, expanded,
 
           {!isDir && !isDeleting && (
             <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-              <a
-                href={getWorkspaceFileUrl(node.path, { sessionId })}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="p-1 hover:bg-gray-200 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
-                title="预览"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </a>
+              {onImportProjectFile && isSupportedProjectMaterial(node.path, node.name, sessionId) && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleImport(node); }}
+                  disabled={importDisabled || Boolean(importStatus[node.path])}
+                  className="rounded-md px-1.5 py-1 text-[9px] font-bold text-gray-600 hover:bg-gray-200 disabled:text-gray-400"
+                  title={importDisabled ? '会话执行完成后可加入项目资料' : `加入「${projectName || ''}」项目资料`}
+                >
+                  {importStatus[node.path] === 'adding'
+                    ? '加入中'
+                    : importStatus[node.path] === 'added'
+                      ? '已加入'
+                      : '加入项目'}
+                </button>
+              )}
+              {!shouldForceWorkspaceDownload(node.path) && (
+                <a
+                  href={getWorkspaceFileUrl(node.path, { sessionId })}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-1 hover:bg-gray-200 rounded-md text-gray-400 hover:text-gray-600 transition-colors"
+                  title="预览"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </a>
+              )}
               <a
                 href={getWorkspaceFileUrl(node.path, { download: true, filename: node.name, sessionId })}
                 onClick={(e) => e.stopPropagation()}
@@ -448,8 +579,9 @@ const FileTreeView: React.FC<FileTreeViewProps> = ({ nodes, sessionId, expanded,
               </a>
               <button
                 onClick={(e) => { e.stopPropagation(); handleDelete(node.path); }}
-                className="p-1 hover:bg-red-100 rounded-md text-gray-400 hover:text-red-500 transition-colors"
-                title="删除"
+                disabled={importDisabled}
+                className="p-1 hover:bg-red-100 rounded-md text-gray-400 hover:text-red-500 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                title={importDisabled ? '会话执行完成后可删除文件' : '删除'}
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

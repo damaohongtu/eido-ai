@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Popup, Dialog, SpinLoading, Empty, Toast } from 'antd-mobile';
+import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../shared';
 import type { WorkspaceFileNode } from '../shared';
 import type { AgentRuntime } from '../runtime/types';
 
@@ -22,13 +23,27 @@ interface FilesPanelProps {
   visible: boolean;
   onClose: () => void;
   agentRuntime: AgentRuntime;
+  projectId?: string;
+  projectName?: string;
+  importDisabled?: boolean;
+  onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
 }
 
-const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, agentRuntime }) => {
+const FilesPanel: React.FC<FilesPanelProps> = ({
+  sessionId,
+  visible,
+  onClose,
+  agentRuntime,
+  projectId,
+  projectName,
+  importDisabled,
+  onImportProjectFile,
+}) => {
   const [tree, setTree] = useState<WorkspaceFileNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [projectImportStatus, setProjectImportStatus] = useState<Record<string, 'adding' | 'added'>>({});
 
   const load = useCallback(() => {
     if (!sessionId) return;
@@ -44,6 +59,10 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, ag
     if (visible) load();
   }, [visible, load]);
 
+  useEffect(() => {
+    setProjectImportStatus({});
+  }, [sessionId, projectId]);
+
   const toggle = (path: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -54,6 +73,7 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, ag
   };
 
   const handleDelete = async (node: WorkspaceFileNode) => {
+    if (importDisabled) return;
     const ok = await Dialog.confirm({
       content: `删除文件「${node.name}」？`,
       confirmText: '删除',
@@ -84,6 +104,23 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, ag
     }
   };
 
+  const handleImport = async (node: WorkspaceFileNode) => {
+    if (!onImportProjectFile || projectImportStatus[node.path]) return;
+    setProjectImportStatus((prev) => ({ ...prev, [node.path]: 'adding' }));
+    try {
+      await onImportProjectFile(node.path, node.name);
+      setProjectImportStatus((prev) => ({ ...prev, [node.path]: 'added' }));
+      Toast.show({ content: `已加入「${projectName || '当前'}」项目资料` });
+    } catch (error) {
+      setProjectImportStatus((prev) => {
+        const next = { ...prev };
+        delete next[node.path];
+        return next;
+      });
+      Toast.show({ content: error instanceof Error ? error.message : '加入项目资料失败' });
+    }
+  };
+
   const renderNode = (node: WorkspaceFileNode, depth: number): React.ReactNode => {
     const isDir = node.type === 'directory';
     const isExpanded = expanded.has(node.path);
@@ -109,6 +146,20 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, ag
           ) : (
             !isDir && (
               <div className="flex shrink-0 items-center gap-1">
+                {onImportProjectFile && isSupportedProjectMaterial(node.path, node.name, sessionId) ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleImport(node); }}
+                    disabled={importDisabled || Boolean(projectImportStatus[node.path])}
+                    className="rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-700 active:bg-gray-200 disabled:text-gray-400"
+                  >
+                    {projectImportStatus[node.path] === 'adding'
+                      ? '加入中…'
+                      : projectImportStatus[node.path] === 'added'
+                        ? '已加入'
+                        : '加入项目'}
+                  </button>
+                ) : null}
                 {agentRuntime.openWorkspaceFile ? (
                   <>
                     <button
@@ -126,15 +177,17 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, ag
                   </>
                 ) : (
                   <>
-                    <a
-                      href={agentRuntime.getWorkspaceFileUrl(node.path, { sessionId })}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
-                    >
-                      预览
-                    </a>
+                    {!shouldForceWorkspaceDownload(node.path) && (
+                      <a
+                        href={agentRuntime.getWorkspaceFileUrl(node.path, { sessionId })}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-600 active:bg-gray-200"
+                      >
+                        预览
+                      </a>
+                    )}
                     <a
                       href={agentRuntime.getWorkspaceFileUrl(node.path, { download: true, filename: node.name, sessionId })}
                       onClick={(e) => e.stopPropagation()}
@@ -150,7 +203,9 @@ const FilesPanel: React.FC<FilesPanelProps> = ({ sessionId, visible, onClose, ag
                       e.stopPropagation();
                       handleDelete(node);
                     }}
-                    className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-red-500 active:bg-red-50"
+                    disabled={importDisabled}
+                    className="rounded-lg px-2.5 py-1 text-[11px] font-semibold text-red-500 active:bg-red-50 disabled:text-gray-300"
+                    title={importDisabled ? '会话执行完成后可删除文件' : '删除'}
                   >
                     删除
                   </button>

@@ -46,9 +46,11 @@ config.json
 
 # Eido session 持久化与隔离工作区
 .eido/workspaces/
+.eido/projects/
 .eido/chat_sessions.db
 .eido/chat_sessions.db-shm
 .eido/chat_sessions.db-wal
+.eido/chat_sessions.backup-*.db
 .eido/scheduled_tasks.db
 .eido/scheduled_tasks.db-shm
 .eido/scheduled_tasks.db-wal

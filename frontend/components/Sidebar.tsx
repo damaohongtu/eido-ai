@@ -1,15 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ViewType, ChatSession } from '../types';
+import { ViewType, ChatSession, Project } from '../types';
 import { getAssetUrl } from '../config';
 
 interface SidebarProps {
   activeView: ViewType;
   onNavigate: (view: ViewType) => void;
   sessions: ChatSession[];
+  projects: Project[];
+  activeProjectId: string | null;
   activeSessionId: string | null;
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
+  onNewProject: () => void;
+  onSelectProject: (id: string) => void;
   onDeleteSession: (id: string) => void;
   /** 当前登录用户（来自 /api/v1/auth/me） */
   currentUser: { user_id: string; username: string };
@@ -31,9 +35,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeView,
   onNavigate,
   sessions,
+  projects,
+  activeProjectId,
   activeSessionId,
   onSelectSession,
   onNewChat,
+  onNewProject,
+  onSelectProject,
   onDeleteSession,
   currentUser,
   onLogout,
@@ -85,6 +93,12 @@ const Sidebar: React.FC<SidebarProps> = ({
     { value: 'opencode', short: 'OC', label: 'OpenCode' },
   ];
 
+  const unassignedSessions = sessions.filter(session => !session.projectId);
+  const knownProjectIds = new Set(projects.map(project => project.id));
+  const unavailableProjectSessions = sessions.filter(
+    session => Boolean(session.projectId) && !knownProjectIds.has(session.projectId as string)
+  );
+
   return (
     <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
       {/* ---- Top: logo + new chat + nav (shrink-0) ---- */}
@@ -122,31 +136,108 @@ const Sidebar: React.FC<SidebarProps> = ({
           />
         </nav>
 
-        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-2">历史记录</div>
+        <div className="flex items-center justify-between px-2">
+          <div className="text-xs font-bold uppercase tracking-wider text-gray-500">项目</div>
+          <button
+            type="button"
+            onClick={onNewProject}
+            className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            title="新建项目"
+          >
+            +
+          </button>
+        </div>
       </div>
 
-      {/* ---- Middle: scrollable history list (flex-1 + overflow-y-auto) ---- */}
-      <div className="flex-1 overflow-y-auto px-6 space-y-1 custom-scrollbar min-h-0">
-        {sessions.length === 0 ? (
-          <div className="px-3 py-4 text-sm text-gray-500 italic">暂无会话</div>
-        ) : (
-          sessions.map(s => (
-            <div
-              key={s.id}
-              className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-all ${activeSessionId === s.id ? 'bg-gray-200 text-gray-900' : 'hover:bg-gray-100 text-gray-600'
-                }`}
-              onClick={() => onSelectSession(s.id)}
-            >
-              <div className="truncate text-sm flex-1 font-medium">{s.title}</div>
+      {/* ---- Middle: projects + grouped sessions ---- */}
+      <div className="custom-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto px-6 pb-3">
+        {projects.length === 0 ? (
+          <button onClick={onNewProject} className="w-full rounded-lg px-3 py-3 text-left text-xs text-gray-400 hover:bg-gray-50 hover:text-gray-600">
+            暂无项目，点击创建
+          </button>
+        ) : projects.map(project => {
+          const projectSessions = sessions.filter(session => session.projectId === project.id);
+          const expanded = activeProjectId === project.id;
+          return (
+            <div key={project.id} className="mb-1">
               <button
-                onClick={(e) => { e.stopPropagation(); onDeleteSession(s.id); }}
-                className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
+                type="button"
+                onClick={() => onSelectProject(project.id)}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors ${expanded && activeView === ViewType.PROJECT ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                <span className="text-sm">{project.archived_at ? '📦' : (expanded ? '📂' : '📁')}</span>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                  {project.name}{project.archived_at ? '（已归档）' : ''}
+                </span>
+                <span className="text-[10px] font-bold text-gray-400">{projectSessions.length}</span>
               </button>
+              {expanded ? (
+                <div className="ml-4 mt-1 space-y-0.5 border-l border-gray-200 pl-2">
+                  {projectSessions.length === 0 ? (
+                    <div className="px-2 py-2 text-[11px] text-gray-400">暂无会话</div>
+                  ) : projectSessions.map(session => (
+                    <div
+                      key={session.id}
+                      onClick={() => onSelectSession(session.id)}
+                      className={`group flex cursor-pointer items-center rounded-lg px-2 py-1.5 ${activeSessionId === session.id ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:bg-gray-100'}`}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium">{session.title}</span>
+                      <button
+                        onClick={(event) => { event.stopPropagation(); onDeleteSession(session.id); }}
+                        className="p-1 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                        title="删除会话"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          ))
-        )}
+          );
+        })}
+
+        {unavailableProjectSessions.length > 0 ? (
+          <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 py-1">
+            <div className="px-3 py-2 text-[10px] font-bold text-amber-700">项目列表暂不可用</div>
+            {unavailableProjectSessions.map(session => (
+              <div
+                key={session.id}
+                onClick={() => onSelectSession(session.id)}
+                className={`group flex cursor-pointer items-center rounded-lg px-3 py-2 ${activeSessionId === session.id ? 'bg-amber-100 text-gray-900' : 'text-gray-600 hover:bg-amber-100/70'}`}
+              >
+                <span className="min-w-0 flex-1 truncate text-xs font-medium">{session.title}</span>
+                <button
+                  onClick={(event) => { event.stopPropagation(); onDeleteSession(session.id); }}
+                  className="p-1 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+                  title="删除会话"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="px-2 pb-1 pt-4 text-xs font-bold uppercase tracking-wider text-gray-500">未归属对话</div>
+        {unassignedSessions.length === 0 ? (
+          <div className="px-3 py-3 text-xs italic text-gray-400">暂无会话</div>
+        ) : unassignedSessions.map(session => (
+          <div
+            key={session.id}
+            className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 transition-all ${activeSessionId === session.id ? 'bg-gray-200 text-gray-900' : 'text-gray-600 hover:bg-gray-100'}`}
+            onClick={() => onSelectSession(session.id)}
+          >
+            <div className="min-w-0 flex-1 truncate text-sm font-medium">{session.title}</div>
+            <button
+              onClick={(event) => { event.stopPropagation(); onDeleteSession(session.id); }}
+              className="p-1 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100"
+              title="删除会话"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        ))}
       </div>
 
       {/* ---- Harness toggle (shrink-0) ---- */}

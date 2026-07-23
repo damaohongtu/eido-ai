@@ -51,7 +51,7 @@ const SkillsView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ st
       actions: [
         [
           { key: 'close', text: '关闭' },
-          { key: 'use', text: '使用该技能', bold: true, onClick: () => createNewSession(skill.id) },
+          { key: 'use', text: '使用该技能', bold: true, onClick: () => createNewSession({ skillId: skill.id, projectId: null }) },
         ],
       ],
     });
@@ -78,7 +78,7 @@ const SkillsView: React.FC<{ store: EidoStore; onOpenMenu: () => void }> = ({ st
             <SkillCard
               key={s.id}
               skill={s}
-              onUse={() => createNewSession(s.id)}
+              onUse={() => createNewSession({ skillId: s.id, projectId: null })}
               onDetail={() => showDetail(s)}
             />
           ))

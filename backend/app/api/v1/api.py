@@ -12,7 +12,7 @@ user 沙箱容器内：路由聚合走 _user_only_router()，仅保留 chat / se
 from fastapi import APIRouter
 
 from app.core.config import settings
-from app.api.v1.endpoints import auth, chat, sessions, tasks, workflow, skills, workspace
+from app.api.v1.endpoints import auth, chat, projects, sessions, tasks, workflow, skills, workspace
 
 
 def _is_user_sandbox_runtime() -> bool:
@@ -31,6 +31,7 @@ if _is_user_sandbox_runtime():
     # eido-user 容器：仅暴露业务执行路由
     api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
     api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
+    api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
     api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
 elif _is_gateway_sandbox_mode():
     # eido-gateway：业务路由用反代，其它路由直连
@@ -46,6 +47,7 @@ else:
     api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
     api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
     api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
+    api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
     api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
     api_router.include_router(workflow.router, prefix="/workflow", tags=["workflow"])
     api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
@@ -55,4 +57,3 @@ else:
     @api_router.post("/sandbox/warmup", tags=["sandbox"])
     async def _warmup_local():
         return {"ready": True, "mode": "local"}
-

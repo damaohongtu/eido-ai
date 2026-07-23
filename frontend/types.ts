@@ -2,10 +2,40 @@
 export enum ViewType {
   HOME = 'home',
   CHAT = 'chat',
+  PROJECT = 'project',
   SKILLS = 'skills',
   SKILL_DETAIL = 'skill_detail',
   /** 定时自动任务 */
   SCHEDULED_TASKS = 'scheduled_tasks',
+}
+
+/** 长期项目容器：聚合会话、共享说明和项目资料。 */
+export interface Project {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  context_revision: number;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  last_activity_at: string;
+  session_count: number;
+}
+
+/** 项目共享资料元数据；文件内容通过 projects 文件接口读取。 */
+export interface ProjectFile {
+  id: string;
+  project_id: string;
+  display_name: string;
+  media_type: string | null;
+  size_bytes: number;
+  sha256: string;
+  source_session_id: string | null;
+  created_at: string;
+  /** 上传或晋升响应携带；列表响应可省略。 */
+  context_revision?: number;
 }
 
 /** 后端 /api/v1/tasks 定时任务 */
@@ -159,7 +189,13 @@ export interface Reference {
 export interface ChatSession {
   id: string;
   title: string;
+  projectId: string | null;
   skillId?: string;
   messages: Message[];
   updatedAt: number;
+}
+
+export interface CreateSessionOptions {
+  skillId?: string;
+  projectId?: string | null;
 }

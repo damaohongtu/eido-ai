@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatSession, Message, Skill } from '../shared';
 import { eidoCloudRuntime } from '../runtime/eidoCloudRuntime';
 import type { AgentRuntime } from '../runtime/types';
@@ -19,8 +19,8 @@ interface UseChatSendArgs {
   session: ChatSession | null;
   skills: Skill[];
   harness: string;
-  addMessage: (msg: Message) => void;
-  updateMessage: (id: string, updates: Partial<Message>) => void;
+  addMessage: (sessionId: string, msg: Message) => void;
+  updateMessage: (sessionId: string, id: string, updates: Partial<Message>) => void;
   browserContext?: string;
   agentRuntime?: AgentRuntime;
 }
@@ -43,8 +43,12 @@ export function useChatSend({
   const abortRef = useRef<AbortController | null>(null);
   const thinkingLogsRef = useRef<Record<string, string[]>>({});
 
+  useEffect(() => () => {
+    abortRef.current?.abort();
+  }, []);
+
   const makeUpdater = useCallback(
-    (assistantId: string) => {
+    (sessionId: string, assistantId: string) => {
       thinkingLogsRef.current[assistantId] = [];
       return (
         content: string,
@@ -58,7 +62,7 @@ export function useChatSend({
           const log = thinkingLogsRef.current[assistantId];
           if (log && log[log.length - 1] !== thinking) log.push(thinking);
         }
-        updateMessage(assistantId, {
+        updateMessage(sessionId, assistantId, {
           content,
           thinking,
           thinkingLog: [...(thinkingLogsRef.current[assistantId] || [])],
@@ -73,14 +77,13 @@ export function useChatSend({
   );
 
   const runSingle = useCallback(
-    async (msgs: Message[], assistantId: string, localAgentHint?: string) => {
-      if (!session) return;
+    async (sessionId: string, msgs: Message[], assistantId: string, localAgentHint?: string) => {
       abortRef.current = new AbortController();
       try {
         await agentRuntime.streamChat(
           msgs,
-          makeUpdater(assistantId),
-          session.id,
+          makeUpdater(sessionId, assistantId),
+          sessionId,
           assistantId,
           browserContext || undefined,
           agentRuntime.isLocal ? localAgentHint : undefined,
@@ -91,12 +94,11 @@ export function useChatSend({
         delete thinkingLogsRef.current[assistantId];
       }
     },
-    [session, harness, makeUpdater, browserContext, agentRuntime]
+    [harness, makeUpdater, browserContext, agentRuntime]
   );
 
   const runPipeline = useCallback(
-    async (baseMessages: Message[], orderedSkills: Skill[]) => {
-      if (!session) return;
+    async (sessionId: string, baseMessages: Message[], orderedSkills: Skill[]) => {
       let previousOutput = '';
       let contextMessages = [...baseMessages];
       abortRef.current = new AbortController();
@@ -112,10 +114,10 @@ export function useChatSend({
           timestamp: Date.now(),
           references: [],
         };
-        addMessage(placeholder);
+        addMessage(sessionId, placeholder);
 
         let finalContent = '';
-        const updater = makeUpdater(assistantId);
+        const updater = makeUpdater(sessionId, assistantId);
         try {
           await agentRuntime.streamChat(
             contextMessages,
@@ -123,7 +125,7 @@ export function useChatSend({
               finalContent = content;
               updater(content, thinking, steps, confirmation, references, mermaid);
             },
-            session.id,
+            sessionId,
             assistantId,
             [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
             skill.id,
@@ -139,7 +141,7 @@ export function useChatSend({
         contextMessages = [...contextMessages, { ...placeholder, content: finalContent }];
       }
     },
-    [session, harness, addMessage, makeUpdater, browserContext, agentRuntime]
+    [harness, addMessage, makeUpdater, browserContext, agentRuntime]
   );
 
   const buildContentWithAttachments = (text: string, attachments: Attachment[]): string => {
@@ -159,6 +161,8 @@ export function useChatSend({
     async (rawText: string, attachments: Attachment[]) => {
       const hasContent = rawText.trim() || attachments.length > 0;
       if (!hasContent || isTyping || !session) return;
+      // 固定本轮的目标会话；抽屉切换不会改变异步流式结果的归属。
+      const targetSessionId = session.id;
 
       const textForMention = rawText.trim() || '请分析';
       const mentionedSkills = skills
@@ -174,16 +178,16 @@ export function useChatSend({
         content,
         timestamp: Date.now(),
       };
-      addMessage(userMsg);
+      addMessage(targetSessionId, userMsg);
 
       const baseMessages = [...session.messages, userMsg];
       setIsTyping(true);
       try {
         if (mentionedSkills.length >= 2) {
-          await runPipeline(baseMessages, mentionedSkills);
+          await runPipeline(targetSessionId, baseMessages, mentionedSkills);
         } else {
           const assistantId = createMessageId('assistant');
-          addMessage({
+          addMessage(targetSessionId, {
             id: assistantId,
             role: 'assistant',
             content: '',
@@ -191,7 +195,7 @@ export function useChatSend({
             timestamp: Date.now(),
             references: [],
           });
-          await runSingle(baseMessages, assistantId, mentionedSkills[0]?.id || session.skillId);
+          await runSingle(targetSessionId, baseMessages, assistantId, mentionedSkills[0]?.id || session.skillId);
         }
       } catch (err) {
         console.error('执行失败:', err);
@@ -213,7 +217,7 @@ export function useChatSend({
       const confirmation = message?.pendingConfirmation;
       if (!confirmation) return;
       await agentRuntime.respondToConfirmation(session.id, confirmation.toolId, approved);
-      updateMessage(messageId, {
+      updateMessage(session.id, messageId, {
         pendingConfirmation: undefined,
         thinking: approved ? '已允许本次操作，继续执行...' : '已拒绝本次操作，等待 Agent 调整方案...',
       });

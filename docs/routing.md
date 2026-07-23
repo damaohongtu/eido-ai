@@ -26,7 +26,7 @@ The resolved `user_id` string is the routing key for everything downstream.
 
 The API router is wired differently depending on which process is running:
 
-| Process | What it runs | Routes for chat/sessions/workspace |
+| Process | What it runs | Routes for projects/chat/sessions/workspace |
 |---------|-------------|-----------------------------------|
 | **eido-gateway** (`EIDO_SANDBOX_MODE=docker`) | Auth + proxy only | → `router_user` (proxy to user container) |
 | **eido-user container** (`EIDO_TRUST_GATEWAY=1`) | Business logic only | → Direct uvicorn handlers |
@@ -126,7 +126,7 @@ Browser (Alice)                   Browser (Bob)
      │   └── Session cookie → "alice@example.com"    "bob@example.com"
      │
      ├── api.py: route dispatch
-     │   └── /chat/* → router_user (proxy)
+     │   └── /projects/*, /chat/*, /sessions/*, /workspace/* → router_user (proxy)
      │
      ├── router_user.py:
      │   └── ensure_running("alice@example.com")
@@ -140,10 +140,10 @@ Browser (Alice)                   Browser (Bob)
      │
      ├──→ [eido-user-alice-... :8000]
      │       └── auth.py: verify gateway secret + bound user_id
-     │       └── direct uvicorn handler (chat/sessions/workspace)
+     │       └── direct uvicorn handler (projects/chat/sessions/workspace)
      │
      └──→ [eido-user-bob-... :8000]
              └── (same verification chain)
 ```
 
-The key design principle: **user_id is the single routing key**. It flows from CAS login → session → `get_current_user_id()` → `sandbox_registry.db` → container DNS name → proxy target. At no point can a client influence which container they're routed to — the gateway owns the identity-resolution and container-mapping chain end-to-end.
+The key design principle: **user_id is the single routing key**. It flows from CAS login → session → `get_current_user_id()` → `sandbox_registry.db` → container DNS name → proxy target. At no point can a client influence which container they're routed to — the gateway owns the identity-resolution and container-mapping chain end-to-end. Projects remain private to that routed user container; adding collaborative projects would require a separate central ownership and ACL design.

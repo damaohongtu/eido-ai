@@ -17,8 +17,10 @@ from fastapi.responses import StreamingResponse
 
 from app.core.auth import get_current_user_id
 from app.core.config import settings
-from app.schemas.chat import ChatRequest
+from app.schemas.chat import ChatRequest, Message as ChatMessage
+from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
+from app.services.project_context import load_project_context
 from app.services.session_workspace import (
     get_session_workspace_manager,
     validate_session_id,
@@ -174,6 +176,8 @@ async def chat_completion(
 
     要求请求体携带 session_id，agent cwd 会切到对应 session 工作区。
     """
+    execution_guard = None
+    stream_owns_guard = False
     try:
         if not request.messages:
             raise HTTPException(status_code=400, detail="消息列表为空")
@@ -210,8 +214,62 @@ async def chat_completion(
         )
 
         store = get_chat_session_store()
-        if store.get_session(user_id, request.session_id) is None:
+        session = store.get_session(user_id, request.session_id)
+        if session is None:
             raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+
+        guard = get_chat_execution_guard()
+        locked_project_id = session.get("project_id")
+        if not guard.try_acquire(
+            request.session_id, project_id=locked_project_id
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="该会话正在执行或所属项目正在变更，请稍后重试",
+            )
+        execution_guard = guard
+
+        # session 快照是在 guard 之外读取的。加锁后重新读取，确保我们持有的
+        # Project 共享租约与数据库中的当前归属完全一致；移动/删除若抢先完成，
+        # 本次请求返回 409，由客户端按新归属重试。
+        locked_session = store.get_session(user_id, request.session_id)
+        if locked_session is None:
+            raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+        if locked_session.get("project_id") != locked_project_id:
+            raise HTTPException(status_code=409, detail="会话所属项目已变化，请重试")
+
+        # Project 只能由已验证归属的 session 推导，避免 session/project 组合越权。
+        project_context = load_project_context(user_id, request.session_id)
+        if (
+            project_context
+            and project_context.applied_context_revision
+            != project_context.context_revision
+        ):
+            # Revision 变化后原生 provider / OpenHarness 记忆可能仍含旧项目资料。
+            # 先驱逐内存 engine，再原子清理 provider SID 并绑定本次快照。
+            try:
+                from app.services.open_harness_service import get_open_harness_service
+
+                open_harness = get_open_harness_service()
+                if open_harness is not None:
+                    open_harness.reset_session(request.session_id)
+            except Exception as exc:
+                logger.error(
+                    "刷新项目上下文缓存失败 session=%s: %s",
+                    request.session_id,
+                    exc,
+                    exc_info=True,
+                )
+                raise HTTPException(status_code=503, detail="项目上下文刷新失败，请重试") from exc
+
+            prepared = store.prepare_project_context(
+                user_id,
+                request.session_id,
+                project_context.id,
+                project_context.context_revision,
+            )
+            if prepared is None:
+                raise HTTPException(status_code=409, detail="项目上下文已变化，请重试")
 
         # 归属校验通过后再确保 session 工作区目录已创建
         get_session_workspace_manager().session_root(request.session_id)
@@ -226,16 +284,25 @@ async def chat_completion(
                 content=latest.content,
                 extra={},
             )
+        # 原生 provider 会话可能因 Project 移动/更新而重建。始终从服务端持久化
+        # 历史构造执行输入，避免信任客户端伪造历史，也能在重建时恢复上下文。
+        execution_messages = [
+            ChatMessage(id=item["id"], role=item["role"], content=item["content"])
+            for item in store.list_messages(
+                request.session_id, user_id=user_id, limit=80
+            )
+        ]
 
         async def stream_with_persistence():
             state: dict[str, Any] = {"content": ""}
             assistant_message_id = request.assistant_message_id or uuid.uuid4().hex[:12]
             try:
                 async for event in svc.execute_stream(
-                    request.messages,
+                    execution_messages,
                     request.context,
                     user_id=user_id,
                     session_id=request.session_id,
+                    project_context=project_context,
                 ):
                     payload = _parse_sse_payload(event)
                     if payload:
@@ -264,14 +331,20 @@ async def chat_completion(
                         )
                     except Exception as e:
                         logger.error(f"保存 assistant 消息失败: {e}", exc_info=True)
+                execution_guard.release(request.session_id)
 
-        return StreamingResponse(stream_with_persistence(), media_type="text/event-stream")
+        response = StreamingResponse(stream_with_persistence(), media_type="text/event-stream")
+        stream_owns_guard = True
+        return response
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"聊天处理异常: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if execution_guard is not None and not stream_owns_guard:
+            execution_guard.release(request.session_id)
 
 
 @router.get("/health")

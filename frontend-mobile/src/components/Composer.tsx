@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Popup, Toast } from 'antd-mobile';
 import type { Skill } from '../shared';
 import type { Attachment } from '../hooks/useChatSend';
@@ -32,6 +32,15 @@ const Composer: React.FC<ComposerProps> = ({
   const [mentionFilter, setMentionFilter] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const currentSessionIdRef = useRef(sessionId);
+  currentSessionIdRef.current = sessionId;
+
+  useEffect(() => {
+    setInput('');
+    setAttachments([]);
+    setMentionOpen(false);
+    if (fileRef.current) fileRef.current.value = '';
+  }, [sessionId]);
 
   const filteredSkills = skills.filter((s) =>
     s.name.toLowerCase().includes(mentionFilter.toLowerCase())
@@ -65,17 +74,21 @@ const Composer: React.FC<ComposerProps> = ({
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
+    const targetSessionId = sessionId;
     setUploading(true);
     try {
       for (let i = 0; i < files.length; i++) {
+        if (currentSessionIdRef.current !== targetSessionId) break;
         const f = files[i];
         const ext = f.name.toLowerCase().slice(f.name.lastIndexOf('.'));
         if (!ALLOWED_EXT.includes(ext)) {
           Toast.show({ content: `不支持的格式: ${f.name}` });
           continue;
         }
-        const { path } = await agentRuntime.uploadChatFile(f, sessionId);
-        setAttachments((prev) => [...prev, { name: f.name, path }]);
+        const { path } = await agentRuntime.uploadChatFile(f, targetSessionId);
+        if (currentSessionIdRef.current === targetSessionId) {
+          setAttachments((prev) => [...prev, { name: f.name, path }]);
+        }
       }
     } catch (err) {
       Toast.show({ content: `上传失败: ${err}` });

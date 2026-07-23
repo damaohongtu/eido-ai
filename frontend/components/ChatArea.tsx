@@ -3,13 +3,14 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference } from '../types';
+import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference, Project } from '../types';
 import { api, getWorkspaceFileUrl } from '../services/api';
+import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../utils/projectFiles';
 import Mermaid from './Mermaid';
 
 const DOWNLOADABLE_FILE_EXTENSIONS = [
-  'md', 'pdf', 'csv', 'xls', 'xlsx', 'html', 'htm', 'txt', 'json',
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'
+  'md', 'pdf', 'csv', 'xlsx', 'xls', 'html', 'htm', 'txt', 'json',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'docx', 'doc', 'pptx', 'ppt'
 ];
 const DOWNLOADABLE_FILE_SOURCE =
   `((?:/|(?:outputs?|uploads|\\.claude/skills/[^\\s/]+/output)/)[^\\s"'()\`<>]+\\.(?:${DOWNLOADABLE_FILE_EXTENSIONS.join('|')}))`;
@@ -17,7 +18,7 @@ const DOWNLOADABLE_FILE_PATTERN = new RegExp(DOWNLOADABLE_FILE_SOURCE, 'gi');
 const SINGLE_DOWNLOADABLE_FILE_PATTERN = new RegExp(`^${DOWNLOADABLE_FILE_SOURCE}$`, 'i');
 const FILE_LINK_PATTERN = /\[[^\]]+\]\(([^)\s]+)\)/g;
 const GENERATED_FILE_HINT_PATTERN = new RegExp(
-  `(?:File created successfully at:|写入文件:|写入到文件:|保存为图片:|已保存为图片:|已导出到:|导出到:|生成文件:|输出文件:|保存到:|结果文件:)\s*(${DOWNLOADABLE_FILE_SOURCE})`,
+  `(?:File created successfully at:|写入文件:|写入到文件:|保存为图片:|已保存为图片:|已导出到:|导出到:|生成文件:|输出文件:|保存到:|结果文件:)\\s*(${DOWNLOADABLE_FILE_SOURCE})`,
   'gi'
 );
 const IMAGE_FILE_PATTERN = /\.(png|jpg|jpeg|gif|webp|svg)$/i;
@@ -82,12 +83,17 @@ function isWorkspaceFileLink(href?: string): boolean {
 interface ChatAreaProps {
   session: ChatSession | null;
   skills: Skill[];
-  onSendMessage: (msg: Message) => void;
-  onUpdateMessage: (id: string, updates: Partial<Message>) => void;
+  onSendMessage: (sessionId: string, msg: Message) => void;
+  onUpdateMessage: (sessionId: string, id: string, updates: Partial<Message>) => void;
   onToggleReferences: () => void;
   rightPanelOpen: boolean;
   onExecuteAction: (action: SkillAction) => void;
   onUpdateSessionSkill?: (skillId: string) => void;
+  project: Project | null;
+  projects: Project[];
+  onMoveSession: (projectId: string | null) => Promise<void>;
+  onOpenProject: (projectId: string) => void;
+  onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
   harness: string;
   browserContext?: string;
 }
@@ -101,6 +107,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   rightPanelOpen,
   onExecuteAction,
   onUpdateSessionSkill,
+  project,
+  projects,
+  onMoveSession,
+  onOpenProject,
+  onImportProjectFile,
   harness,
   browserContext,
 }) => {
@@ -108,6 +119,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [attachments, setAttachments] = useState<{ name: string; path: string }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [projectImportStatus, setProjectImportStatus] = useState<Record<string, 'adding' | 'added'>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mentionMenu, setMentionMenu] = useState<{ visible: boolean; filter: string; index: number; pos: { top: number; left: number } }>({
     visible: false,
@@ -120,9 +132,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const mentionMenuRef = useRef<HTMLDivElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const previousSessionIdRef = useRef<string | null>(null);
+  const currentSessionIdRef = useRef<string | null>(session?.id ?? null);
+  currentSessionIdRef.current = session?.id ?? null;
   const abortControllerRef = useRef<AbortController | null>(null);
   // 每条 assistant 消息的 thinking 事件累积日志：msgId → string[]
   const thinkingLogsRef = useRef<Record<string, string[]>>({});
+
+  useEffect(() => () => {
+    // 离开聊天页时停止仍在运行的请求，避免控制器随组件卸载丢失后出现同会话并发。
+    abortControllerRef.current?.abort();
+  }, []);
 
   const getTextareaEl = () => {
     const ref = inputRef.current;
@@ -152,12 +171,35 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         // 切换到其他会话时清空输入
         setInput('');
       }
+      // 附件已上传到原会话工作区，绝不能跨会话复用路径。
+      setAttachments([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }, [session]);
+
+  useEffect(() => {
+    setProjectImportStatus({});
+  }, [session?.id, project?.id]);
 
   const activeSkill = useMemo(() => 
     session?.skillId ? skills.find(s => s.id === session.skillId) : null
   , [session?.skillId, skills]);
+
+  const importGeneratedFile = async (file: GeneratedFile) => {
+    if (!onImportProjectFile || !project || projectImportStatus[file.path]) return;
+    setProjectImportStatus(prev => ({ ...prev, [file.path]: 'adding' }));
+    try {
+      await onImportProjectFile(file.path, file.name);
+      setProjectImportStatus(prev => ({ ...prev, [file.path]: 'added' }));
+    } catch (error) {
+      setProjectImportStatus(prev => {
+        const next = { ...prev };
+        delete next[file.path];
+        return next;
+      });
+      window.alert(error instanceof Error ? error.message : `加入 ${project.name} 项目资料失败`);
+    }
+  };
 
   const filteredSkills = useMemo(() => {
     return skills.filter(s => s.name.toLowerCase().includes(mentionMenu.filter.toLowerCase()));
@@ -219,7 +261,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   };
 
   /** 构建单条消息的 thinking 累积回调 */
-  const makeUpdater = (assistantId: string) => {
+  const makeUpdater = (sessionId: string, assistantId: string) => {
     thinkingLogsRef.current[assistantId] = [];
     return (content: string, thinking: string, steps?: any, confirmation?: any, references?: any, mermaid?: string) => {
       if (thinking) {
@@ -228,7 +270,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           log.push(thinking);
         }
       }
-      onUpdateMessage(assistantId, {
+      onUpdateMessage(sessionId, assistantId, {
         content,
         thinking,
         thinkingLog: [...thinkingLogsRef.current[assistantId]],
@@ -242,18 +284,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   /** 单次执行：无论是否有技能提示，统一交由后端 claude_agent_sdk 自动规划 */
   const runSingleSkill = async (
+    sessionId: string,
     msgs: Message[],
     assistantId: string,
     context?: string,
     skillHint?: string
   ) => {
-    if (!session) return;
     abortControllerRef.current = new AbortController();
     try {
       await api.streamChat(
         msgs,
-        makeUpdater(assistantId),
-        session.id,
+        makeUpdater(sessionId, assistantId),
+        sessionId,
         assistantId,
         context,
         skillHint ?? undefined,
@@ -271,8 +313,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   };
 
   /** 多技能串行流水线：每个技能独立生成一条 assistant 消息，前一步输出传给下一步 */
-  const runPipeline = async (baseMessages: Message[], orderedSkills: typeof skills) => {
-    if (!session) return;
+  const runPipeline = async (sessionId: string, baseMessages: Message[], orderedSkills: typeof skills) => {
     let previousOutput = '';
     let contextMessages = [...baseMessages];
     abortControllerRef.current = new AbortController();
@@ -289,10 +330,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         timestamp: Date.now(),
         references: []
       };
-      onSendMessage(placeholder);
+      onSendMessage(sessionId, placeholder);
 
       let finalContent = '';
-      const updater = makeUpdater(assistantId);
+      const updater = makeUpdater(sessionId, assistantId);
       try {
         await api.streamChat(
           contextMessages,
@@ -300,7 +341,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             finalContent = content;
             updater(content, thinking, steps, confirmation, references, mermaid);
           },
-          session.id,
+          sessionId,
           assistantId,
           [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
           skill.id,
@@ -324,18 +365,23 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       console.warn('未选择会话，无法上传文件');
       return;
     }
+    const targetSessionId = session.id;
     const allowed = ['.md', '.pdf', '.csv', '.xls', '.xlsx'];
     setUploading(true);
     try {
       for (let i = 0; i < files.length; i++) {
+        if (currentSessionIdRef.current !== targetSessionId) break;
         const f = files[i];
         const ext = f.name.toLowerCase().slice(f.name.lastIndexOf('.'));
         if (!allowed.includes(ext)) {
           console.warn(`跳过不支持格式: ${f.name}`);
           continue;
         }
-        const { path } = await api.uploadChatFile(f, session.id);
-        setAttachments(prev => [...prev, { name: f.name, path }]);
+        const { path } = await api.uploadChatFile(f, targetSessionId);
+        // 上传请求不能取消；切会话后丢弃旧会话返回的路径，防止附件串入新会话。
+        if (currentSessionIdRef.current === targetSessionId) {
+          setAttachments(prev => [...prev, { name: f.name, path }]);
+        }
       }
     } catch (err) {
       console.error('上传失败:', err);
@@ -362,7 +408,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const hasContent = input.trim() || attachments.length > 0;
-    if (!hasContent || isTyping) return;
+    if (!hasContent || isTyping || !session) return;
+    // 整次异步执行固定写回发起时的会话，切换侧栏不会改变目标。
+    const targetSessionId = session.id;
 
     // 按在文本中出现的位置顺序，找出所有被 @ 提及的技能
     const textForMention = input.trim() || '请分析';
@@ -383,7 +431,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
     setInput('');
     setAttachments([]);
-    onSendMessage(userMsg);
+    onSendMessage(targetSessionId, userMsg);
 
     const baseMessages = [...(session?.messages || []), userMsg];
     setIsTyping(true);
@@ -391,11 +439,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     try {
       if (mentionedSkills.length >= 2) {
         // 多技能流水线
-        await runPipeline(baseMessages, mentionedSkills);
+        await runPipeline(targetSessionId, baseMessages, mentionedSkills);
       } else {
         // 单次执行（有或无 @mention 均交由后端自动规划）
         const assistantId = createMessageId('assistant');
-        onSendMessage({
+        onSendMessage(targetSessionId, {
           id: assistantId,
           role: 'assistant',
           content: '',
@@ -403,7 +451,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           timestamp: Date.now(),
           references: []
         });
-        await runSingleSkill(baseMessages, assistantId, browserContext || undefined);
+        await runSingleSkill(targetSessionId, baseMessages, assistantId, browserContext || undefined);
       }
     } catch (err) {
       console.error('执行失败:', err);
@@ -432,13 +480,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   };
 
   const handleConfirmation = async (approved: boolean, messageId: string) => {
+    if (!session) return;
+    const targetSessionId = session.id;
     if (approved) {
       const msg = session?.messages.find(m => m.id === messageId);
       if (msg) {
         const updatedSteps = msg.executionSteps?.map(s => 
           s.status === 'waiting' ? { ...s, status: 'completed' as const, description: 'Access granted by user.' } : s
         );
-        onUpdateMessage(messageId, { 
+        onUpdateMessage(targetSessionId, messageId, {
           pendingConfirmation: undefined,
           executionSteps: updatedSteps,
           thinking: "Access granted. Re-engaging evidence collection protocols..." 
@@ -450,13 +500,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         
         setIsTyping(true);
         try {
-          await runSingleSkill(updatedMessages, messageId, browserContext || undefined);
+          await runSingleSkill(targetSessionId, updatedMessages, messageId, browserContext || undefined);
         } finally {
           setIsTyping(false);
         }
       }
     } else {
-      onUpdateMessage(messageId, { 
+      onUpdateMessage(targetSessionId, messageId, {
         pendingConfirmation: undefined,
         thinking: "Workflow halted. Data access denied by user." 
       });
@@ -507,6 +557,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     img({ node, src, alt, ...props }: any) {
       // 外部 URL 和 data URL 直接使用；本地/工作区路径通过 API 代理预览
       const isExternal = src?.startsWith('http://') || src?.startsWith('https://') || src?.startsWith('data:');
+      if (!isExternal && src && shouldForceWorkspaceDownload(src)) {
+        const filename = src.split('/').pop() || 'download';
+        return (
+          <a href={getWorkspaceFileUrl(src, { download: true, filename, sessionId: session?.id })}>
+            下载文件：{alt || filename}
+          </a>
+        );
+      }
       const imgSrc = isExternal ? src : (src ? getWorkspaceFileUrl(src, { sessionId: session?.id }) : src);
       if (!imgSrc) return null;
       return (
@@ -528,11 +586,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         const normalizedPath = normalizeWorkspacePath(href);
         if (!normalizedPath) return <span>{children}</span>;
         const filename = normalizedPath.split('/').pop() || 'download';
+        const forceDownload = shouldForceWorkspaceDownload(normalizedPath);
         return (
           <span className="inline-flex items-center gap-2 my-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
             <a
-              href={getWorkspaceFileUrl(normalizedPath, { sessionId: session?.id })}
-              target="_blank"
+              href={getWorkspaceFileUrl(normalizedPath, {
+                download: forceDownload,
+                filename,
+                sessionId: session?.id,
+              })}
+              target={forceDownload ? undefined : '_blank'}
               rel="noopener noreferrer"
               className="font-semibold text-gray-700 hover:text-gray-900 hover:underline"
             >
@@ -570,13 +633,44 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full relative">
-      <header className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center space-x-3">
-          <h2 className="font-bold text-lg text-gray-800">{session.title}</h2>
+      <header className="min-h-16 border-b border-gray-200 flex items-center justify-between gap-4 px-6 py-2 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+        <div className="min-w-0">
+          {project ? (
+            <button
+              type="button"
+              onClick={() => onOpenProject(project.id)}
+              className="mb-0.5 block max-w-full truncate text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-gray-700"
+              title={`打开项目 ${project.name}`}
+            >
+              📁 {project.name} / 会话
+            </button>
+          ) : (
+            <div className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-gray-400">未归属对话</div>
+          )}
+          <h2 className="truncate font-bold text-lg text-gray-800">{session.title}</h2>
         </div>
-        <button onClick={onToggleReferences} className={`p-2 rounded-lg transition-colors ${rightPanelOpen ? 'text-gray-700 bg-gray-200' : 'text-gray-500 hover:bg-gray-100'}`}>
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-500">
+            <span>项目</span>
+            <select
+              value={project?.id || ''}
+              disabled={isTyping}
+              onChange={(event) => onMoveSession(event.target.value || null).catch(() => undefined)}
+              className="max-w-40 bg-transparent text-xs font-semibold text-gray-700 outline-none disabled:opacity-50"
+              title={isTyping ? '执行中不能移动会话' : '移动会话到项目'}
+            >
+              <option value="">未归属</option>
+              {projects.filter(item => !item.archived_at || item.id === project?.id).map(item => (
+                <option key={item.id} value={item.id} disabled={Boolean(item.archived_at)}>
+                  {item.name}{item.archived_at ? '（已归档）' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button onClick={onToggleReferences} className={`p-2 rounded-lg transition-colors ${rightPanelOpen ? 'text-gray-700 bg-gray-200' : 'text-gray-500 hover:bg-gray-100'}`}>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </button>
+        </div>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
@@ -647,7 +741,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                   <div className="space-y-2">
                     {generatedFiles.map(file => (
                       <div key={file.path} className="rounded-xl bg-gray-50 px-3 py-3">
-                        {file.isImage && (
+                        {file.isImage && !shouldForceWorkspaceDownload(file.path) && (
                           <a
                             href={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
                             target="_blank"
@@ -668,14 +762,31 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                           <div className="truncate text-xs text-gray-500">{file.path}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <a
-                            href={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 hover:border-gray-400 hover:text-gray-900"
-                          >
-                            {file.isImage ? '查看' : '打开'}
-                          </a>
+                          {onImportProjectFile && isSupportedProjectMaterial(file.path, file.name, session.id) && (
+                            <button
+                              type="button"
+                              onClick={() => importGeneratedFile(file)}
+                              disabled={isTyping || Boolean(projectImportStatus[file.path])}
+                              className="rounded-lg border border-gray-700 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
+                              title={isTyping ? '会话执行完成后可加入项目资料' : `加入「${project?.name || ''}」项目资料`}
+                            >
+                              {projectImportStatus[file.path] === 'adding'
+                                ? '加入中...'
+                                : projectImportStatus[file.path] === 'added'
+                                  ? '已加入项目'
+                                  : '加入项目资料'}
+                            </button>
+                          )}
+                          {!shouldForceWorkspaceDownload(file.path) && (
+                            <a
+                              href={getWorkspaceFileUrl(file.path, { sessionId: session?.id })}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-600 hover:border-gray-400 hover:text-gray-900"
+                            >
+                              {file.isImage ? '查看' : '打开'}
+                            </a>
+                          )}
                           <a
                             href={getWorkspaceFileUrl(file.path, { download: true, filename: file.name, sessionId: session?.id })}
                             className="rounded-lg bg-gray-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-gray-800"

@@ -11,6 +11,9 @@ import os
 from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional
 
+from app.services.conversation_context import format_recent_conversation
+from app.services.project_context import ProjectContext, format_project_context
+
 logger = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL_SEC = 12.0
@@ -58,7 +61,7 @@ class OpenHarnessService:
     def __init__(self, skills_dir: Path, workspace_root: Path):
         self.skills_dir = skills_dir
         self.workspace_root = workspace_root
-        self._engines: Dict[str, object] = {}  # session_id → QueryEngine
+        self._engines: Dict[tuple[str, Optional[str], Optional[int]], object] = {}
         self._ensure_oh()
 
     # ------------------------------------------------------------------ #
@@ -68,6 +71,7 @@ class OpenHarnessService:
     async def execute_stream(
         self, messages: list, context: Optional[str] = None,
         *, user_id: Optional[str] = None, session_id: Optional[str] = None,
+        project_context: Optional[ProjectContext] = None,
     ) -> AsyncGenerator[str, None]:
         logger.info(
             f"▶ OH execute_stream | msgs={len(messages)}"
@@ -94,11 +98,27 @@ class OpenHarnessService:
             yield "data: [DONE]\n\n"
             return
 
+        engine_key = (
+            session_id or "_",
+            project_context.id if project_context else None,
+            project_context.context_revision if project_context else None,
+        )
+        prompt_sections: list[str] = []
+        project_text = format_project_context(project_context)
+        if project_text:
+            prompt_sections.append(project_text)
+        if engine_key not in self._engines:
+            recent_history = format_recent_conversation(messages)
+            if recent_history:
+                prompt_sections.append(recent_history)
+        prompt_sections.append(f"## 用户最新请求\n\n{text}")
+        text = "\n\n---\n\n".join(prompt_sections)
+
         # 管道上下文附加到用户消息
         if context and context.strip():
             text = f"{text}\n\n---\n## 上一步执行结果（供参考）\n\n{context.strip()[:4000]}"
 
-        engine = self._get_engine(session_id or "_", cwd, user_id)
+        engine = self._get_engine(engine_key, cwd, user_id)
 
         # 流式执行 + 心跳
         async def stream_events():
@@ -141,7 +161,9 @@ class OpenHarnessService:
                 ev = await queue.get()
                 if ev is _DONE:
                     break
-                if isinstance(ev, str) and '"type":"error"' in ev:
+                if isinstance(ev, str) and (
+                    '"type":"error"' in ev or '"type": "error"' in ev
+                ):
                     had_error = True
                 yield ev
             if not had_error:
@@ -163,12 +185,17 @@ class OpenHarnessService:
     #  Engine                                                              #
     # ------------------------------------------------------------------ #
 
-    def _get_engine(self, session_id: str, cwd: Path, user_id: Optional[str]):
-        if session_id in self._engines:
-            return self._engines[session_id]
+    def _get_engine(
+        self,
+        engine_key: tuple[str, Optional[str], Optional[int]],
+        cwd: Path,
+        user_id: Optional[str],
+    ):
+        if engine_key in self._engines:
+            return self._engines[engine_key]
 
         engine = self._build_engine(str(cwd), user_id)
-        self._engines[session_id] = engine
+        self._engines[engine_key] = engine
         return engine
 
     def _build_engine(self, cwd: str, user_id: Optional[str]):
@@ -231,6 +258,14 @@ class OpenHarnessService:
             if hasattr(engine, "clear"):
                 engine.clear()
         self._engines.clear()
+
+    def reset_session(self, session_id: str) -> None:
+        """Drop cached native context after a session changes Project."""
+        keys = [key for key in self._engines if key[0] == session_id]
+        for key in keys:
+            engine = self._engines.pop(key, None)
+            if engine is not None and hasattr(engine, "clear"):
+                engine.clear()
 
 
 # ------------------------------------------------------------------ #

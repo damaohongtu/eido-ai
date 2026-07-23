@@ -378,6 +378,14 @@ class SandboxManager:
             "AUTH_DISABLED": "True",
             "WORKSPACE_ROOT": "/workspace",
             "EIDO_GATEWAY_SECRET": settings.EIDO_GATEWAY_SECRET,
+            "EIDO_PROJECT_MAX_FILES": str(settings.EIDO_PROJECT_MAX_FILES),
+            "EIDO_PROJECT_MAX_BYTES": str(settings.EIDO_PROJECT_MAX_BYTES),
+            "EIDO_USER_PROJECT_MAX_FILES": str(
+                settings.EIDO_USER_PROJECT_MAX_FILES
+            ),
+            "EIDO_USER_PROJECT_MAX_BYTES": str(
+                settings.EIDO_USER_PROJECT_MAX_BYTES
+            ),
         }
         # 透传 LLM 凭据
         for k in (

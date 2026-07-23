@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Toast } from 'antd-mobile';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { isSupportedProjectMaterial, shouldForceWorkspaceDownload } from '../shared';
 import type { Message } from '../shared';
 import type { AgentRuntime } from '../runtime/types';
 import {
@@ -16,6 +18,10 @@ interface MessageItemProps {
   isTyping: boolean;
   userName?: string;
   agentRuntime: AgentRuntime;
+  projectId?: string;
+  projectName?: string;
+  projectImportDisabled?: boolean;
+  onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
   onConfirm?: (approved: boolean) => void;
 }
 
@@ -104,10 +110,36 @@ const MessageItem: React.FC<MessageItemProps> = ({
   isTyping,
   userName,
   agentRuntime,
+  projectId,
+  projectName,
+  projectImportDisabled,
+  onImportProjectFile,
   onConfirm,
 }) => {
   const isUser = message.role === 'user';
   const generatedFiles = message.role === 'assistant' ? extractGeneratedFiles(message) : [];
+  const [projectImportStatus, setProjectImportStatus] = useState<Record<string, 'adding' | 'added'>>({});
+
+  useEffect(() => {
+    setProjectImportStatus({});
+  }, [projectId]);
+
+  const importGeneratedFile = async (path: string, name: string) => {
+    if (!onImportProjectFile || projectImportStatus[path]) return;
+    setProjectImportStatus((prev) => ({ ...prev, [path]: 'adding' }));
+    try {
+      await onImportProjectFile(path, name);
+      setProjectImportStatus((prev) => ({ ...prev, [path]: 'added' }));
+      Toast.show({ content: `已加入「${projectName || '当前'}」项目资料` });
+    } catch (error) {
+      setProjectImportStatus((prev) => {
+        const next = { ...prev };
+        delete next[path];
+        return next;
+      });
+      Toast.show({ content: error instanceof Error ? error.message : '加入项目资料失败' });
+    }
+  };
 
   const openLocalFile = (path: string, download = false, filename?: string) => {
     agentRuntime.openWorkspaceFile?.(path, {
@@ -130,6 +162,18 @@ const MessageItem: React.FC<MessageItemProps> = ({
           >
             查看图片：{alt || src.split('/').pop() || '图片'}
           </button>
+        );
+      }
+      if (!isExternal && src && shouldForceWorkspaceDownload(src)) {
+        const filename = src.split('/').pop() || 'download';
+        return (
+          <a href={agentRuntime.getWorkspaceFileUrl(src, {
+            download: true,
+            filename,
+            sessionId: sessionId || undefined,
+          })}>
+            下载文件：{alt || filename}
+          </a>
         );
       }
       const imgSrc = isExternal
@@ -218,7 +262,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-500">生成文件</div>
             {generatedFiles.map((file) => (
               <div key={file.path} className="rounded-xl bg-gray-50 p-2.5">
-                {file.isImage && !agentRuntime.openWorkspaceFile && (
+                {file.isImage && !agentRuntime.openWorkspaceFile && !shouldForceWorkspaceDownload(file.path) && (
                   <a
                     href={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
                     target="_blank"
@@ -238,6 +282,20 @@ const MessageItem: React.FC<MessageItemProps> = ({
                     <div className="truncate text-sm font-semibold text-gray-800">{file.name}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {onImportProjectFile && isSupportedProjectMaterial(file.path, file.name, sessionId || undefined) ? (
+                      <button
+                        type="button"
+                        onClick={() => importGeneratedFile(file.path, file.name)}
+                        disabled={projectImportDisabled || Boolean(projectImportStatus[file.path])}
+                        className="rounded-lg border border-gray-700 bg-white px-2.5 py-1 text-xs font-bold text-gray-700 disabled:border-gray-300 disabled:text-gray-400"
+                      >
+                        {projectImportStatus[file.path] === 'adding'
+                          ? '加入中…'
+                          : projectImportStatus[file.path] === 'added'
+                            ? '已加入'
+                            : '加入项目'}
+                      </button>
+                    ) : null}
                     {agentRuntime.openWorkspaceFile ? (
                       <>
                         <button
@@ -257,14 +315,16 @@ const MessageItem: React.FC<MessageItemProps> = ({
                       </>
                     ) : (
                       <>
-                        <a
-                          href={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-600"
-                        >
-                          {file.isImage ? '查看' : '打开'}
-                        </a>
+                        {!shouldForceWorkspaceDownload(file.path) && (
+                          <a
+                            href={agentRuntime.getWorkspaceFileUrl(file.path, { sessionId: sessionId || undefined })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-600"
+                          >
+                            {file.isImage ? '查看' : '打开'}
+                          </a>
+                        )}
                         <a
                           href={agentRuntime.getWorkspaceFileUrl(file.path, { download: true, filename: file.name, sessionId: sessionId || undefined })}
                           className="rounded-lg bg-gray-700 px-2.5 py-1 text-xs font-bold text-white"

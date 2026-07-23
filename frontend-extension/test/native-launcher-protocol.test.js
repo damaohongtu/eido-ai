@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildNativeLauncherRequest,
+  nativeLauncherTimeout,
   normalizeNativeLauncherError,
 } from '../public/native-launcher-protocol.js';
 
@@ -41,4 +42,18 @@ test('maps Chrome host errors to stable error codes', () => {
     normalizeNativeLauncherError(new Error('Specified native messaging host not found.')).code,
     'NATIVE_HOST_NOT_FOUND'
   );
+  assert.deepEqual(
+    normalizeNativeLauncherError({ message: 'Specified native messaging host not found.' }),
+    {
+      ok: false,
+      code: 'NATIVE_HOST_NOT_FOUND',
+      message: 'Specified native messaging host not found.',
+    }
+  );
+});
+
+test('allows interactive directory selection more time than native probes', () => {
+  assert.equal(nativeLauncherTimeout('ping'), 10000);
+  assert.equal(nativeLauncherTimeout('launch'), 45000);
+  assert.equal(nativeLauncherTimeout('select_directory'), 5 * 60 * 1000);
 });

@@ -9,6 +9,18 @@ import (
 	"github.com/eido-ai/eido-opencode-launcher/internal/protocol"
 )
 
+const (
+	defaultRequestTimeout   = 20 * time.Second
+	directoryRequestTimeout = 5 * time.Minute
+)
+
+func requestTimeout(command string) time.Duration {
+	if command == "select_directory" {
+		return directoryRequestTimeout
+	}
+	return defaultRequestTimeout
+}
+
 func main() {
 	request, err := protocol.ReadRequest(os.Stdin)
 	if err != nil {
@@ -17,7 +29,7 @@ func main() {
 		})
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout(request.Command))
 	defer cancel()
 	response := launcher.App{Platform: launcher.SystemPlatform{}}.Handle(ctx, request)
 	_ = protocol.WriteResponse(os.Stdout, response)

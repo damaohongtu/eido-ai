@@ -1,6 +1,14 @@
 export const NATIVE_LAUNCHER_HOST = 'ai.eido.opencode_launcher';
 export const NATIVE_LAUNCHER_PROTOCOL = 1;
 
+const NATIVE_TIMEOUTS = Object.freeze({
+  ping: 10000,
+  detect: 10000,
+  status: 10000,
+  launch: 45000,
+  select_directory: 5 * 60 * 1000,
+});
+
 const MESSAGE_TYPES = Object.freeze({
   EIDO_NATIVE_LAUNCHER_PING: 'ping',
   EIDO_OPENCODE_DETECT: 'detect',
@@ -13,6 +21,10 @@ function protocolError(code, message) {
   const error = new Error(message);
   error.code = code;
   return error;
+}
+
+export function nativeLauncherTimeout(command) {
+  return NATIVE_TIMEOUTS[command] || 15000;
 }
 
 function optionalString(value, name, maxLength) {
@@ -57,7 +69,18 @@ export function buildNativeLauncherRequest(message) {
 }
 
 export function normalizeNativeLauncherError(error) {
-  const message = error instanceof Error ? error.message : String(error || '本机启动组件调用失败');
+  let message = '本机启动组件调用失败';
+  if (error instanceof Error || typeof error?.message === 'string') {
+    message = error.message;
+  } else if (typeof error === 'string') {
+    message = error;
+  } else if (error) {
+    try {
+      message = JSON.stringify(error);
+    } catch {
+      message = String(error);
+    }
+  }
   let code = error?.code || 'NATIVE_HOST_ERROR';
   if (/native messaging host.*not found|specified native messaging host/i.test(message)) {
     code = 'NATIVE_HOST_NOT_FOUND';

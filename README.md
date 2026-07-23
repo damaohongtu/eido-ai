@@ -95,6 +95,7 @@ flowchart LR
 | `frontend/` | 桌面 Web 工作台，默认入口 `/ai-eido/` |
 | `frontend-mobile/` | 移动端 H5，默认入口 `/ai-eido/m/`，并为插件提供窄屏布局基础 |
 | `frontend-extension/` | Chrome Manifest V3 插件，在浏览器右侧 Side Panel 运行 |
+| `native-launcher/` | 插件按需唤起 OpenCode 的 Go Native Host 与 macOS 图形安装器 |
 | `docker/` | Dockerfile、Compose profiles、Nginx/Supervisor 配置和部署说明 |
 | `docs/` | 架构、API、技能密钥保护、模型与沙盒等专题文档 |
 | `skill-example/` | 技能开发示例 |
@@ -188,7 +189,7 @@ VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
 
 ### 6. 使用本机 OpenCode
 
-本机模式仅复用 Eido 用户认证，不调用 Eido 的聊天、会话、技能、文件、任务或沙盒接口。安装 OpenCode 与 Eido Native Launcher 后，可在插件“我的设置 -> 执行位置”中选择“本机”，选择项目文件夹并点击“尝试唤起 OpenCode”。插件会自动探测、启动并连接本机服务。
+本机模式仅复用 Eido 用户认证，不调用 Eido 的聊天、会话、技能、文件、任务或沙盒接口。安装 OpenCode 后，可在插件“我的设置 -> 执行位置”中选择“本机”；首次使用点击“安装启动组件”，通过签名、公证的 macOS Installer 完成一次安装。随后选择项目文件夹并点击“尝试唤起 OpenCode”，插件会自动探测、启动并连接本机服务。
 
 开发环境也可以手工启动 OpenCode：
 

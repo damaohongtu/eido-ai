@@ -17,12 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         supervisor \
         logrotate \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install claude CLI via npmmirror (Taobao)
-RUN npm install -g @anthropic-ai/claude-code --registry https://registry.npmmirror.com
+RUN npm install -g @anthropic-ai/claude-code@2.1.218 --registry https://registry.npmmirror.com
 
 # Install Python dependencies via Aliyun PyPI mirror
 WORKDIR /app

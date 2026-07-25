@@ -248,11 +248,15 @@ async def chat_completion(
             # Revision 变化后原生 provider / OpenHarness 记忆可能仍含旧项目资料。
             # 先驱逐内存 engine，再原子清理 provider SID 并绑定本次快照。
             try:
+                from app.services.claude_skill_service import get_claude_skill_service
                 from app.services.open_harness_service import get_open_harness_service
 
                 open_harness = get_open_harness_service()
                 if open_harness is not None:
                     open_harness.reset_session(request.session_id)
+                claude_service = get_claude_skill_service()
+                if claude_service is not None and claude_service is not open_harness:
+                    claude_service.reset_session(request.session_id)
             except Exception as exc:
                 logger.error(
                     "刷新项目上下文缓存失败 session=%s: %s",

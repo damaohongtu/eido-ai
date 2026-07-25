@@ -89,6 +89,21 @@ docker run --rm \
 升级后先确认 `/data/chat_sessions.db` 存在、历史会话可读取，再删除旧容器和本地备份。
 若旧部署本来就 bind-mount 了 `.eido`，应从对应宿主目录导入，不要从空容器层覆盖它。
 
+### Anthropic 官方 API（推荐）
+
+```bash
+docker run -d -p 80:80 \
+  -e ANTHROPIC_API_KEY=<your_claude_console_api_key> \
+  -e EIDO_DATA_ROOT=/data \
+  -v /path/to/.claude:/workspace/.claude \
+  -v eido-data:/data \
+  -v ~/eido-logs/app:/var/log/eido/app \
+  damaohongtu/eido:latest
+```
+
+Agent SDK 后端需要非交互式 API 凭据，宿主机上的 `claude /login` 不会作为
+容器或 Eido 第三方服务的认证方式。
+
 ### MiniMax
 
 ```bash

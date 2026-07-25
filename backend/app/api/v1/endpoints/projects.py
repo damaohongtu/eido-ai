@@ -428,14 +428,19 @@ async def delete_project(project_id: str, user_id: str = Depends(get_current_use
                 project_id,
             )
         try:
+            from app.services.claude_skill_service import get_claude_skill_service
             from app.services.open_harness_service import get_open_harness_service
 
             open_harness = get_open_harness_service()
+            claude_service = get_claude_skill_service()
             if open_harness is not None:
                 for session in affected_sessions:
                     open_harness.reset_session(session["id"])
+            if claude_service is not None and claude_service is not open_harness:
+                for session in affected_sessions:
+                    claude_service.reset_session(session["id"])
         except Exception:
-            logger.exception("删除项目后驱逐 OpenHarness 会话失败 project=%s", project_id)
+            logger.exception("删除项目后驱逐 agent 会话失败 project=%s", project_id)
         return {
             "deleted": True,
             "sessions_preserved": True,

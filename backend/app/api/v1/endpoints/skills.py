@@ -200,6 +200,10 @@ async def upload_skill(
             meta = _save_md_skill(
                 content, file.filename or "skill.md", target_root, user_id
             )
+        svc.invalidate_skill_cache(
+            user_id=user_id,
+            system=(meta.owner_type == "system"),
+        )
         return _meta_to_response(meta, viewer_user_id=user_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

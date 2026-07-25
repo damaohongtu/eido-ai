@@ -334,6 +334,15 @@ def create_application() -> FastAPI:
         scheduler_service.shutdown_scheduler()
         logger.info("Scheduler stopped")
 
+        try:
+            from app.services.claude_skill_service import get_claude_skill_service
+
+            claude_service = get_claude_skill_service()
+            if claude_service is not None:
+                await claude_service.shutdown()
+        except Exception:
+            logger.exception("关闭 Claude SDK session pool 失败")
+
         # gateway 关停 sandbox idle gc + httpx client
         if (settings.EIDO_SANDBOX_MODE or "").lower() == "docker" and not settings.EIDO_TRUST_GATEWAY:
             try:

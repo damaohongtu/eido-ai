@@ -387,15 +387,10 @@ class SandboxManager:
                 settings.EIDO_USER_PROJECT_MAX_BYTES
             ),
         }
-        # 透传 LLM 凭据
+        # 透传 Claude provider 配置。Settings 同时支持进程环境和 backend/.env，
+        # 避免本地启动 gateway 时因 .env 未 export 而丢失凭据。
+        env.update(settings.claude_agent_env)
         for k in (
-            "ANTHROPIC_BASE_URL",
-            "ANTHROPIC_API_KEY",
-            "ANTHROPIC_AUTH_TOKEN",
-            "ANTHROPIC_MODEL",
-            "ANTHROPIC_SMALL_FAST_MODEL",
-            "API_TIMEOUT_MS",
-            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
             "OPENCODE_MODEL",
             "OPENCODE_CONFIG",
             "OPENCODE_CONFIG_CONTENT",
@@ -467,7 +462,7 @@ class SandboxManager:
             },
         )
         logger.info(f"启动 user 容器 user={user_id} name={name} image={settings.EIDO_USER_IMAGE}")
-        c = self._docker.containers.run(**kwargs)
+        self._docker.containers.run(**kwargs)
         host = name  # docker DNS：容器名即可解析
         self._upsert_row(user_id, safe, name, host)
         return self._build_handle_from_row(user_id)

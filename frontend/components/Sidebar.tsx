@@ -164,7 +164,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const harnessOptions = [
     { value: 'claude_code', short: 'CC', label: 'Claude Code' },
-    { value: 'open_harness', short: 'OH', label: 'OpenHarness' },
+    // { value: 'open_harness', short: 'OH', label: 'OpenHarness' },
     { value: 'opencode', short: 'OC', label: 'OpenCode' },
   ];
 

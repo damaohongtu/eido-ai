@@ -92,14 +92,14 @@ const ThinkTrace: React.FC<{ message: Message }> = ({ message }) => {
                             : 'border-gray-300'
                     }`}
                   />
-                  <div className="text-[11px] font-bold text-gray-700">@{step.label}</div>
-                  <div className="text-[10px] leading-tight text-gray-500">{step.description}</div>
+                  <div className="break-words [overflow-wrap:anywhere] text-[11px] font-bold text-gray-700">@{step.label}</div>
+                  <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[10px] leading-tight text-gray-500">{step.description}</div>
                 </div>
               ))}
             </div>
           )}
           {message.thinking && (
-            <p className="text-[11px] italic text-gray-500">"{message.thinking}"</p>
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[11px] italic text-gray-500">"{message.thinking}"</p>
           )}
         </div>
       )}

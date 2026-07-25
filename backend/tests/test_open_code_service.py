@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import sqlite3
 
 from app.services.chat_session_store import ChatSessionStore
@@ -7,11 +8,29 @@ from app.services.open_code_service import (
     OpenCodeService,
     _convert_event,
     _latest_user_text,
+    _log_complete_output,
 )
 
 
 def _payload(frame: str) -> dict:
     return json.loads(frame.removeprefix("data: ").strip())
+
+
+def test_complete_opencode_output_is_logged_in_ordered_chunks(caplog):
+    content = "x" * 9000 + "\ncomplete-tail"
+    with caplog.at_level(logging.INFO, logger="app.services.open_code_service"):
+        _log_complete_output("stdout", content)
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("[OpenCode/stdout chunk=")
+    ]
+    assert len(messages) == 3
+    assert "chunk=1/3" in messages[0]
+    assert "chunk=3/3" in messages[-1]
+    assert "complete-tail" in messages[-1]
+    assert "\\n" in messages[-1]
 
 
 def test_convert_opencode_json_events():
@@ -20,9 +39,59 @@ def test_convert_opencode_json_events():
 
     tool = _convert_event({
         "type": "tool_use",
-        "part": {"tool": "bash", "state": {"status": "completed"}},
+        "part": {
+            "tool": "bash",
+            "state": {
+                "status": "completed",
+                "input": {"command": "python analyze.py sales.csv"},
+                "title": "Analyzed sales.csv",
+                "output": "3 rows processed",
+                "time": {"start": 1000, "end": 2250},
+            },
+        },
     })
-    assert _payload(tool[0]) == {"type": "thinking", "content": "✓ 工具完成: bash"}
+    tool_content = _payload(tool[0])["content"]
+    assert "✓ 工具完成: bash" in tool_content
+    assert "python analyze.py sales.csv" in tool_content
+    assert "Analyzed sales.csv" in tool_content
+    assert "3 rows processed" in tool_content
+    assert "耗时: 1.25s" in tool_content
+
+    write = _convert_event({
+        "type": "tool_use",
+        "part": {
+            "tool": "write",
+            "state": {
+                "status": "completed",
+                "input": {"filePath": "outputs/report.html", "content": "private" * 1000},
+                "title": "Wrote outputs/report.html",
+                "output": "File written successfully",
+            },
+        },
+    })
+    write_content = _payload(write[0])["content"]
+    assert "文件: outputs/report.html" in write_content
+    assert "内容: 7000 字符" in write_content
+    assert "privateprivate" not in write_content
+
+    process_state = {"step_number": 0}
+    started = _convert_event({"type": "step_start", "part": {}}, process_state)
+    assert "第 1 个推理步骤" in _payload(started[0])["content"]
+    finished = _convert_event(
+        {
+            "type": "step_finish",
+            "part": {
+                "reason": "tool-calls",
+                "cost": 0.0012,
+                "tokens": {"input": 100, "output": 20, "reasoning": 5},
+            },
+        },
+        process_state,
+    )
+    finish_content = _payload(finished[0])["content"]
+    assert "第 1 个推理步骤完成" in finish_content
+    assert "Token: 125" in finish_content
+    assert "费用: $0.001200" in finish_content
 
     error = _convert_event({
         "type": "error",
@@ -97,3 +166,31 @@ def test_execute_stream_runs_cli_and_converts_output(tmp_path):
     assert {"type": "content", "content": "ok"} in payloads
     assert payloads[-1]["type"] == "workflow_complete"
     assert events[-1] == "data: [DONE]\n\n"
+
+
+def test_execute_stream_accepts_json_line_larger_than_streamreader_limit(tmp_path):
+    fake = tmp_path / "fake-opencode-large-event"
+    fake.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "assert '--thinking' in sys.argv\n"
+        "print(json.dumps({'type': 'text', 'part': {'text': 'x' * 100_000}}))\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    service = OpenCodeService(tmp_path / "skills", tmp_path, binary=str(fake))
+
+    async def collect():
+        return [
+            event
+            async for event in service.execute_stream(
+                [{"role": "user", "content": "analyze csv"}]
+            )
+        ]
+
+    events = asyncio.run(collect())
+    payloads = [_payload(event) for event in events if event.startswith("data: {")]
+    content = next(payload for payload in payloads if payload.get("type") == "content")
+    assert len(content["content"]) == 100_000
+    assert payloads[-1]["type"] == "workflow_complete"
+    assert not any(payload.get("type") == "error" for payload in payloads)

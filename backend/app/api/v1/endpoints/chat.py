@@ -12,11 +12,12 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.auth import get_current_user_id
 from app.core.config import settings
+from app.core.logging_context import reset_session_id, set_session_id
 from app.schemas.chat import ChatRequest, Message as ChatMessage
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
@@ -123,13 +124,14 @@ def _parse_sse_payload(event: str) -> dict[str, Any] | None:
         try:
             return json.loads(data_str)
         except json.JSONDecodeError:
-            logger.debug(f"忽略无法解析的 SSE: {data_str[:120]}")
+            logger.debug("忽略无法解析的 SSE: %s", data_str)
             return None
     return None
 
 
 @router.post("/upload")
 async def upload_chat_file(
+    raw_request: Request,
     file: UploadFile = File(...),
     session_id: str = Form(..., description="会话 ID，文件将隔离写入 session 工作区"),
     user_id: str = Depends(get_current_user_id),
@@ -139,37 +141,43 @@ async def upload_chat_file(
     支持 .md/.pdf/.csv/.xls/.xlsx，最大 20 MB。文件写入 `.eido/workspaces/<session_id>/uploads/`，
     返回的绝对路径供 agent 读取。
     """
+    session_token = set_session_id(session_id)
+    raw_request.state.session_id = session_id
     try:
-        validate_session_id(session_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        try:
+            validate_session_id(session_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
-    if get_chat_session_store().get_session(user_id, session_id) is None:
-        raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+        if get_chat_session_store().get_session(user_id, session_id) is None:
+            raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
 
-    ext = Path(file.filename or "").suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"仅支持 .md/.pdf/.csv/.xls/.xlsx 格式，当前: {ext or '无扩展名'}"
-        )
-    content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="文件大小超过 20 MB 限制")
+        ext = Path(file.filename or "").suffix.lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"仅支持 .md/.pdf/.csv/.xls/.xlsx 格式，当前: {ext or '无扩展名'}"
+            )
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="文件大小超过 20 MB 限制")
 
-    ws = get_session_workspace_manager()
-    upload_dir = ws.uploads_dir(session_id)
-    safe_name = f"{uuid.uuid4().hex[:8]}_{Path(file.filename or 'file').name}"
-    out_path = upload_dir / safe_name
-    out_path.write_bytes(content)
-    abs_path = str(out_path.resolve())
-    logger.info(f"[{user_id}][session={session_id}] 上传文件: {file.filename} -> {abs_path}")
-    return {"path": abs_path, "name": file.filename or safe_name}
+        ws = get_session_workspace_manager()
+        upload_dir = ws.uploads_dir(session_id)
+        safe_name = f"{uuid.uuid4().hex[:8]}_{Path(file.filename or 'file').name}"
+        out_path = upload_dir / safe_name
+        out_path.write_bytes(content)
+        abs_path = str(out_path.resolve())
+        logger.info(f"[{user_id}][session={session_id}] 上传文件: {file.filename} -> {abs_path}")
+        return {"path": abs_path, "name": file.filename or safe_name}
+    finally:
+        reset_session_id(session_token)
 
 
 @router.post("/chat")
 async def chat_completion(
     request: ChatRequest,
+    raw_request: Request,
     user_id: str = Depends(get_current_user_id),
 ):
     """统一聊天入口：根据 AGENT_HARNESS 配置选择执行后端，流式返回。
@@ -178,6 +186,7 @@ async def chat_completion(
     """
     execution_guard = None
     stream_owns_guard = False
+    request_session_token = None
     try:
         if not request.messages:
             raise HTTPException(status_code=400, detail="消息列表为空")
@@ -187,6 +196,8 @@ async def chat_completion(
             validate_session_id(request.session_id)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        request_session_token = set_session_id(request.session_id)
+        raw_request.state.session_id = request.session_id
 
         harness_type = (request.harness or "").strip().lower() or settings.AGENT_HARNESS.strip().lower()
 
@@ -298,6 +309,7 @@ async def chat_completion(
         ]
 
         async def stream_with_persistence():
+            stream_session_token = set_session_id(request.session_id)
             state: dict[str, Any] = {"content": ""}
             assistant_message_id = request.assistant_message_id or uuid.uuid4().hex[:12]
             try:
@@ -335,7 +347,10 @@ async def chat_completion(
                         )
                     except Exception as e:
                         logger.error(f"保存 assistant 消息失败: {e}", exc_info=True)
-                execution_guard.release(request.session_id)
+                try:
+                    execution_guard.release(request.session_id)
+                finally:
+                    reset_session_id(stream_session_token)
 
         response = StreamingResponse(stream_with_persistence(), media_type="text/event-stream")
         stream_owns_guard = True
@@ -349,6 +364,8 @@ async def chat_completion(
     finally:
         if execution_guard is not None and not stream_owns_guard:
             execution_guard.release(request.session_id)
+        if request_session_token is not None:
+            reset_session_id(request_session_token)
 
 
 @router.get("/health")

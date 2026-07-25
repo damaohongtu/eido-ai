@@ -14,7 +14,7 @@ const MeView: React.FC<{
   const displayName = currentUser?.username?.trim() || currentUser?.user_id || '用户';
   const harnessOptions = [
     { value: 'claude_code', short: 'CC', label: 'Claude Code' },
-    { value: 'open_harness', short: 'OH', label: 'OpenHarness' },
+    // { value: 'open_harness', short: 'OH', label: 'OpenHarness' },
     { value: 'opencode', short: 'OC', label: 'OpenCode' },
   ];
   const harnessLabel = harnessOptions.find(option => option.value === harness)?.label || 'Claude Code';

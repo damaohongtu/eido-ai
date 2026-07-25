@@ -19,6 +19,10 @@ RUN apt-get -o Acquire::Retries=5 update \
         ca-certificates \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
+    && if ! command -v npm >/dev/null 2>&1; then \
+        apt-get -o Acquire::Retries=5 update \
+        && apt-get -o Acquire::Retries=5 install -y --no-install-recommends npm; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g @anthropic-ai/claude-code@2.1.218 opencode-ai --registry https://registry.npmmirror.com

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import sys
 import types
 from pathlib import Path
@@ -8,8 +9,78 @@ import pytest
 from pydantic import SecretStr
 
 from app.core.config import settings
+from app.core.logging_context import reset_session_id, set_session_id
 from app.services.claude_skill_service import ClaudeSkillService
 from app.services.project_context import ProjectContext
+
+
+def test_sdk_message_logging_keeps_complete_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+):
+    class AssistantMessage:
+        pass
+
+    class ResultMessage:
+        pass
+
+    class SystemMessage:
+        pass
+
+    class TextBlock:
+        pass
+
+    class ThinkingBlock:
+        pass
+
+    class ToolResultBlock:
+        pass
+
+    class ToolUseBlock:
+        pass
+
+    class UserMessage:
+        pass
+
+    sdk_module = types.ModuleType("claude_agent_sdk")
+    sdk_module.__path__ = []
+    sdk_types = types.ModuleType("claude_agent_sdk.types")
+    for message_type in (
+        AssistantMessage,
+        ResultMessage,
+        SystemMessage,
+        TextBlock,
+        ThinkingBlock,
+        ToolResultBlock,
+        ToolUseBlock,
+        UserMessage,
+    ):
+        setattr(sdk_types, message_type.__name__, message_type)
+    sdk_module.types = sdk_types
+    monkeypatch.setitem(sys.modules, "claude_agent_sdk", sdk_module)
+    monkeypatch.setitem(sys.modules, "claude_agent_sdk.types", sdk_types)
+
+    long_tail = "完整日志结尾"
+    text_block = TextBlock()
+    text_block.text = "正文" + "x" * 300 + "\n" + long_tail
+    tool_block = ToolUseBlock()
+    tool_block.name = "Bash"
+    tool_block.input = {"command": "echo " + "y" * 300 + long_tail}
+    assistant = AssistantMessage()
+    assistant.content = [text_block, tool_block]
+
+    service = ClaudeSkillService(tmp_path / "skills", tmp_path)
+    session_token = set_session_id("session-log-test")
+    try:
+        with caplog.at_level(logging.INFO, logger="app.services.claude_skill_service"):
+            service._log_message(assistant)
+    finally:
+        reset_session_id(session_token)
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("[Assistant/Text]" in message and long_tail in message for message in messages)
+    assert any("[Tool/Call]" in message and long_tail in message for message in messages)
+    assert not any("…" in message for message in messages)
+    assert all(record.session_id == "session-log-test" for record in caplog.records)
 
 
 def _write_skill(root: Path, skill_id: str, *, name: str, description: str) -> Path:

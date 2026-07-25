@@ -400,6 +400,36 @@ def test_workspace_display_filename_cannot_override_real_media_type(
     assert "content-security-policy" not in response.headers
 
 
+def test_workspace_markdown_preview_is_rendered_and_inert(
+    project_api: ProjectApiHarness,
+):
+    session = _create_session(project_api, title="Markdown preview")
+    session_id = session["id"]
+    output = project_api.session_workspaces.outputs_dir(session_id) / "report.md"
+    output.write_text(
+        "# Report\n\n| Item | Value |\n| --- | ---: |\n| Revenue | 42 |\n\n"
+        "<script>document.title='unsafe'</script>\n",
+        encoding="utf-8",
+    )
+    params = {"session_id": session_id, "path": "outputs/report.md"}
+
+    ordinary = project_api.client.get("/api/v1/workspace/file", params=params)
+    assert ordinary.headers["content-type"].startswith("text/markdown")
+    assert ordinary.text.startswith("# Report")
+
+    previewed = project_api.client.get(
+        "/api/v1/workspace/file", params={**params, "preview": "true"}
+    )
+    assert previewed.status_code == 200, previewed.text
+    assert previewed.headers["content-type"].startswith("text/html")
+    assert previewed.headers["content-disposition"] == "inline"
+    assert "script-src 'none'" in previewed.headers["content-security-policy"]
+    assert "<h1>Report</h1>" in previewed.text
+    assert "<table>" in previewed.text
+    assert "<script>document.title='unsafe'</script>" not in previewed.text
+    assert "&lt;script&gt;" in previewed.text
+
+
 def test_delete_project_unbinds_but_preserves_session_messages_and_workspace(
     project_api: ProjectApiHarness,
 ):
@@ -649,6 +679,15 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
     assert fetched.content == b"# Shared context\n"
     assert fetched.headers["content-type"].startswith("text/markdown")
     assert fetched.headers["x-content-type-options"] == "nosniff"
+
+    previewed_markdown = project_api.client.get(
+        f"/api/v1/projects/{project_id}/files/{uploaded['id']}",
+        params={"preview": "true"},
+    )
+    assert previewed_markdown.status_code == 200, previewed_markdown.text
+    assert previewed_markdown.headers["content-type"].startswith("text/html")
+    assert "<h1>Shared context</h1>" in previewed_markdown.text
+    assert "script-src 'none'" in previewed_markdown.headers["content-security-policy"]
 
     session = _create_session(
         project_api, title="Source session", project_id=project_id

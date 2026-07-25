@@ -25,6 +25,7 @@ from app.services.chat_session_store import (
 from app.services.file_preview import (
     file_content_disposition,
     file_response_security_headers,
+    markdown_preview_response,
 )
 from app.services.project_workspace import (
     PROJECT_FILE_EXTENSIONS,
@@ -658,6 +659,8 @@ async def get_project_file(
         if not path.exists() or not path.is_file():
             raise HTTPException(status_code=404, detail="项目资料文件不存在")
         extension = Path(record["display_name"]).suffix.lower()
+        if preview and not download and extension == ".md":
+            return markdown_preview_response(path, record["display_name"])
         response = _LeaseFileResponse(
             path,
             media_type=record.get("media_type") or "application/octet-stream",

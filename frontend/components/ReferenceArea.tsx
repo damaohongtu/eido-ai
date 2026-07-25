@@ -31,7 +31,7 @@ type LogEntryKind =
 
 function classifyEntry(text: string): LogEntryKind {
   if (text.startsWith('✓ 工具完成')) return 'tool_ok';
-  if (text.startsWith('✗ 工具出错')) return 'tool_error';
+  if (text.startsWith('✗ 工具出错') || text.startsWith('✗ 工具失败')) return 'tool_error';
   if (
     text.startsWith('读取文件:') ||
     text.startsWith('执行命令:') ||
@@ -252,10 +252,10 @@ const ReferenceArea: React.FC<ReferenceAreaProps> = ({
                       />
 
                       {/* 条目卡片 */}
-                      <div className="bg-white rounded-xl border border-gray-200 px-3 py-2 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-start gap-2">
+                      <div className="min-w-0 max-w-full overflow-hidden bg-white rounded-xl border border-gray-200 px-3 py-2 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex min-w-0 max-w-full items-start gap-2">
                           <span className="text-sm shrink-0 mt-0.5">{meta.icon}</span>
-                          <p className={`text-[11px] font-medium leading-relaxed break-words ${meta.text}`}>
+                          <p className={`min-w-0 max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[11px] font-medium leading-relaxed ${meta.text}`}>
                             {entry}
                           </p>
                         </div>

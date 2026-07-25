@@ -18,6 +18,7 @@ from app.services.chat_session_store import get_chat_session_store
 from app.services.file_preview import (
     file_content_disposition,
     file_response_security_headers,
+    markdown_preview_response,
 )
 from app.services.session_workspace import (
     get_session_workspace_manager,
@@ -128,6 +129,9 @@ async def get_workspace_file(
         raise HTTPException(status_code=400, detail="不是文件")
 
     ext = resolved.suffix.lower()
+    if preview and not download and ext == ".md":
+        return markdown_preview_response(resolved, filename or resolved.name)
+
     # Starlette otherwise guesses from ``filename``.  That value is only a
     # Content-Disposition display name and must never be able to turn a safe
     # file such as report.txt into an inline text/html response.

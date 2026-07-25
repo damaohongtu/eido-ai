@@ -17,6 +17,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse, Response
 
 from app.core.config import settings
+from app.core.logging_context import TRACE_ID_HEADER, get_trace_id
 from app.gateway.sandbox_manager import SandboxHandle
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,9 @@ async def proxy_request(
         upstream_url = f"{upstream_url}?{request.url.query}"
 
     headers = inject_trust_headers(_filter_request_headers(request), handle.user_id)
+    # The gateway may have generated the ID when the client did not supply one.
+    # Forward the resolved value so gateway and user-runtime logs correlate.
+    headers[TRACE_ID_HEADER] = get_trace_id()
     method = request.method.upper()
 
     accept = request.headers.get("accept", "")

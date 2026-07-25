@@ -55,6 +55,14 @@ SYSTEM_SUBDIR = "system"
 USERS_SUBDIR = "users"
 
 
+def _serialize_log_value(value: object) -> str:
+    """Serialize complete log payloads without letting unusual SDK values break a run."""
+    try:
+        return json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError, RecursionError):
+        return repr(value)
+
+
 def _parse_frontmatter(content: str) -> tuple[dict, str]:
     """解析 YAML frontmatter，返回 (metadata, body)。
 
@@ -1128,7 +1136,7 @@ class ClaudeSkillService:
     # ------------------------------------------------------------------ #
 
     def _log_message(self, message: object) -> None:
-        """将 SDK 消息写入日志，便于后端实时追踪执行过程"""
+        """将完整 SDK 消息写入日志，便于按 traceId 追踪执行过程。"""
         try:
             from claude_agent_sdk.types import (  # type: ignore
                 AssistantMessage,
@@ -1146,13 +1154,21 @@ class ClaudeSkillService:
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if isinstance(block, TextBlock):
-                    preview = block.text[:120].replace("\n", " ")
-                    logger.info(f"  [Assistant/Text] {preview}{'…' if len(block.text) > 120 else ''}")
+                    logger.info(
+                        "  [Assistant/Text] %s",
+                        _serialize_log_value(block.text),
+                    )
                 elif isinstance(block, ThinkingBlock):
-                    preview = block.thinking[:120].replace("\n", " ")
-                    logger.debug(f"  [Assistant/Thinking] {preview}…")
+                    logger.debug(
+                        "  [Assistant/Thinking] %s",
+                        _serialize_log_value(block.thinking),
+                    )
                 elif isinstance(block, ToolUseBlock):
-                    logger.info(f"  [Tool/Call] {block.name} | 参数: {str(block.input)[:120]}")
+                    logger.info(
+                        "  [Tool/Call] %s | 参数: %s",
+                        block.name,
+                        _serialize_log_value(block.input),
+                    )
 
         elif isinstance(message, UserMessage):
             if isinstance(message.content, list):
@@ -1160,12 +1176,19 @@ class ClaudeSkillService:
                     if isinstance(block, ToolResultBlock):
                         raw = block.content
                         content_str = raw if isinstance(raw, str) else str(raw or "")
-                        preview = content_str[:120].replace("\n", " ")
                         status = "ERROR" if block.is_error else "OK"
-                        logger.info(f"  [Tool/Result:{status}] {preview}{'…' if len(content_str) > 120 else ''}")
+                        logger.info(
+                            "  [Tool/Result:%s] %s",
+                            status,
+                            _serialize_log_value(content_str),
+                        )
 
         elif isinstance(message, SystemMessage):
-            logger.info(f"  [System/{message.subtype}] {str(message.data)[:120]}")
+            logger.info(
+                "  [System/%s] %s",
+                message.subtype,
+                _serialize_log_value(message.data),
+            )
 
         elif isinstance(message, ResultMessage):
             cost = f"${message.total_cost_usd:.4f}" if message.total_cost_usd else "N/A"

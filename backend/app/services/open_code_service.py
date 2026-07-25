@@ -273,7 +273,7 @@ class OpenCodeService:
                     try:
                         event = json.loads(raw)
                     except json.JSONDecodeError:
-                        logger.debug("忽略 OpenCode 非 JSON 输出: %s", raw[:240])
+                        logger.debug("忽略 OpenCode 非 JSON 输出: %s", raw)
                         continue
                     sid = event.get("sessionID")
                     if isinstance(sid, str) and sid:

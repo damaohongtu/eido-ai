@@ -115,26 +115,6 @@ const ChatView: React.FC<{
         onBack={onOpenMenu}
         right={
           <div className="flex items-center justify-end gap-3">
-            {projectsEnabled ? (
-              <select
-                value={activeProject?.id || ''}
-                disabled={isTyping}
-                onChange={(event) => {
-                  moveSession(activeSession.id, event.target.value || null).catch((error) => {
-                    Toast.show(error instanceof Error ? error.message : '移动会话失败');
-                  });
-                }}
-                className="max-w-[94px] rounded-lg border border-gray-200 bg-white px-1.5 py-1 text-[11px] font-semibold text-gray-600 outline-none disabled:opacity-50"
-                aria-label="移动会话到项目"
-              >
-                <option value="">未归属</option>
-                {projects.filter((project) => !project.archived_at || project.id === activeProject?.id).map((project) => (
-                  <option key={project.id} value={project.id} disabled={Boolean(project.archived_at)}>
-                    {project.name}{project.archived_at ? '（已归档）' : ''}
-                  </option>
-                ))}
-              </select>
-            ) : null}
             <button
               onClick={() => setFilesOpen(true)}
               className="text-gray-600 active:text-gray-900"
@@ -189,6 +169,29 @@ const ChatView: React.FC<{
         onStop={stop}
         browserContextControl={browserContextControl}
         agentRuntime={agentRuntime}
+        footerControl={projectsEnabled ? (
+          <label className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-gray-500">
+            <span className="shrink-0">项目归属</span>
+            <select
+              value={activeProject?.id || ''}
+              disabled={isTyping}
+              onChange={(event) => {
+                moveSession(activeSession.id, event.target.value || null).catch((error) => {
+                  Toast.show(error instanceof Error ? error.message : '移动会话失败');
+                });
+              }}
+              className="min-w-0 max-w-[180px] rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-semibold text-gray-600 outline-none disabled:opacity-50"
+              aria-label="移动会话到项目"
+            >
+              <option value="">未归属</option>
+              {projects.filter((project) => !project.archived_at || project.id === activeProject?.id).map((project) => (
+                <option key={project.id} value={project.id} disabled={Boolean(project.archived_at)}>
+                  {project.name}{project.archived_at ? '（已归档）' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : undefined}
       />
 
       <FilesPanel

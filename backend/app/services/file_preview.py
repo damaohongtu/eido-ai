@@ -39,13 +39,14 @@ ACTIVE_PREVIEW_MEDIA_TYPES = frozenset(
 # A response-level policy is required because preview URLs can also be opened
 # directly in a new tab, where an iframe's sandbox attribute would not apply.
 # No sandbox capability tokens are granted: in particular, scripts and
-# same-origin access stay disabled.  Static inline styles and embedded images
-# are sufficient for useful report/SVG previews without allowing network I/O.
+# same-origin access stays disabled.  Scripts are allowed inside the opaque
+# sandbox so generated interactive reports can initialize charts, while
+# connect/form/object/frame capabilities remain blocked.
 ACTIVE_PREVIEW_CSP = "; ".join(
     (
-        "sandbox",
+        "sandbox allow-scripts",
         "default-src 'none'",
-        "script-src 'none'",
+        "script-src 'unsafe-inline' https:",
         "connect-src 'none'",
         "form-action 'none'",
         "object-src 'none'",

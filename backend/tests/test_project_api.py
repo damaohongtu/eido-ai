@@ -159,9 +159,9 @@ def _assert_restricted_active_preview(response) -> None:
     assert response.headers["referrer-policy"] == "no-referrer"
     csp = response.headers["content-security-policy"]
     directives = {directive.strip() for directive in csp.split(";")}
-    assert "sandbox" in directives
+    assert "sandbox allow-scripts" in directives
     assert "allow-same-origin" not in csp
-    assert "allow-scripts" not in csp
+    assert "script-src 'unsafe-inline' https:" in directives
     assert "connect-src 'none'" in directives
     assert "form-action 'none'" in directives
     assert "object-src 'none'" in directives

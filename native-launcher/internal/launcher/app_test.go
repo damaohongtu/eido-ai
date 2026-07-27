@@ -9,6 +9,7 @@ import (
 
 type fakePlatform struct {
 	launchInput LaunchInput
+	createdName string
 }
 
 func (fake *fakePlatform) Detect(context.Context) (OpenCodeInfo, error) {
@@ -16,6 +17,10 @@ func (fake *fakePlatform) Detect(context.Context) (OpenCodeInfo, error) {
 }
 func (fake *fakePlatform) SelectDirectory(context.Context, string) (string, bool, error) {
 	return "/tmp/project", true, nil
+}
+func (fake *fakePlatform) CreateDirectory(_ context.Context, _ string, name string) (string, bool, error) {
+	fake.createdName = name
+	return "/tmp/" + name, true, nil
 }
 func (fake *fakePlatform) Launch(_ context.Context, input LaunchInput) (LaunchResult, error) {
 	fake.launchInput = input
@@ -47,6 +52,16 @@ func TestLaunchRejectsNonLoopbackHostname(t *testing.T) {
 		Protocol: 1, Command: "launch", Hostname: "0.0.0.0",
 	}).(map[string]any)
 	if response["code"] != "INVALID_REQUEST" {
+		t.Fatalf("unexpected response: %#v", response)
+	}
+}
+
+func TestCreateDirectoryForwardsName(t *testing.T) {
+	fake := &fakePlatform{}
+	response := App{Platform: fake}.Handle(context.Background(), protocol.Request{
+		Protocol: 1, Command: "create_directory", InitialDirectory: "/tmp", DirectoryName: "research",
+	}).(map[string]any)
+	if response["ok"] != true || response["workspace"] != "/tmp/research" || fake.createdName != "research" {
 		t.Fatalf("unexpected response: %#v", response)
 	}
 }

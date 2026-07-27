@@ -13,7 +13,7 @@ const (
 )
 
 // LauncherVersion is replaced by the release build through -ldflags -X.
-var LauncherVersion = "0.1.2-dev"
+var LauncherVersion = "0.1.3-dev"
 
 type OpenCodeInfo struct {
 	Executable string
@@ -42,6 +42,7 @@ type LaunchResult struct {
 type Platform interface {
 	Detect(context.Context) (OpenCodeInfo, error)
 	SelectDirectory(context.Context, string) (string, bool, error)
+	CreateDirectory(context.Context, string, string) (string, bool, error)
 	Launch(context.Context, LaunchInput) (LaunchResult, error)
 }
 
@@ -63,7 +64,7 @@ func (app App) Handle(ctx context.Context, request protocol.Request) any {
 		return map[string]any{
 			"ok": true, "protocol": ProtocolVersion, "launcherVersion": LauncherVersion,
 			"platform":     runtime.GOOS + "-" + runtime.GOARCH,
-			"capabilities": []string{"detect", "select_directory", "launch"},
+			"capabilities": []string{"detect", "select_directory", "create_directory", "launch"},
 		}
 	case "detect":
 		info, err := app.Platform.Detect(ctx)
@@ -79,6 +80,15 @@ func (app App) Handle(ctx context.Context, request protocol.Request) any {
 			return failure("DIRECTORY_SELECTOR_FAILED", err.Error())
 		}
 		return map[string]any{"ok": true, "selected": selected, "workspace": workspace}
+	case "create_directory":
+		workspace, created, err := app.Platform.CreateDirectory(ctx, request.InitialDirectory, request.DirectoryName)
+		if err != nil {
+			if coded, ok := err.(CodedError); ok {
+				return failure(coded.Code, coded.Message)
+			}
+			return failure("DIRECTORY_CREATE_FAILED", err.Error())
+		}
+		return map[string]any{"ok": true, "created": created, "workspace": workspace}
 	case "launch":
 		if request.Hostname != "127.0.0.1" {
 			return failure("INVALID_REQUEST", "hostname must be 127.0.0.1")

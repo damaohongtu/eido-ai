@@ -1,17 +1,40 @@
 #!/bin/zsh
 set -euo pipefail
 
-if [[ $# -lt 1 || $# -gt 2 ]]; then
-  print -u2 "usage: $0 EXTENSION_ID [GO_BINARY]"
+if [[ $# -lt 1 ]]; then
+  print -u2 "usage: $0 EXTENSION_ID [EXTENSION_ID ...] [--go-binary PATH]"
   exit 2
 fi
 
-EXTENSION_ID="$1"
-GO_BINARY="${2:-$(command -v go || true)}"
-if [[ ! "$EXTENSION_ID" =~ '^[a-p]{32}$' ]]; then
-  print -u2 "invalid Chrome extension ID"
+EXTENSION_IDS=()
+GO_BINARY="${GO_BINARY:-$(command -v go || true)}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --go-binary)
+      [[ $# -ge 2 ]] || { print -u2 "missing value for --go-binary"; exit 2; }
+      GO_BINARY="$2"
+      shift 2
+      ;;
+    *)
+      # Backward compatibility: the former second positional argument could be a Go binary path.
+      if [[ "$1" =~ '^[a-p]{32}$' ]]; then
+        EXTENSION_IDS+=("$1")
+        shift
+      elif [[ ${#EXTENSION_IDS[@]} -eq 1 && -x "$1" ]]; then
+        GO_BINARY="$1"
+        shift
+      else
+        print -u2 "invalid Chrome extension ID or option: $1"
+        exit 2
+      fi
+      ;;
+  esac
+done
+if [[ ${#EXTENSION_IDS[@]} -eq 0 ]]; then
+  print -u2 "at least one Chrome extension ID is required"
   exit 2
 fi
+EXTENSION_IDS=("${(@u)EXTENSION_IDS}")
 if [[ -z "$GO_BINARY" || ! -x "$GO_BINARY" ]]; then
   print -u2 "Go is required to build the development launcher"
   exit 2
@@ -30,18 +53,24 @@ pushd "$PROJECT_DIR" >/dev/null
 popd >/dev/null
 chmod 0700 "$INSTALL_BIN"
 
+ALLOWED_ORIGINS=""
+for extension_id in "${EXTENSION_IDS[@]}"; do
+  [[ -n "$ALLOWED_ORIGINS" ]] && ALLOWED_ORIGINS+=","$'\n'
+  ALLOWED_ORIGINS+="    \"chrome-extension://$extension_id/\""
+done
+
 cat > "$HOST_MANIFEST" <<JSON
 {
   "name": "ai.eido.opencode_launcher",
-  "description": "Launch OpenCode for the Eido extension",
+  "description": "Launch OpenCode for authorized Chrome extensions",
   "path": "$INSTALL_BIN",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://$EXTENSION_ID/"
+$ALLOWED_ORIGINS
   ]
 }
 JSON
 chmod 0600 "$HOST_MANIFEST"
 
-print "Eido OpenCode Launcher installed for extension $EXTENSION_ID"
+print "Eido OpenCode Launcher installed for ${#EXTENSION_IDS[@]} authorized extension(s): ${EXTENSION_IDS[*]}"
 print "Reload the extension from chrome://extensions before testing."

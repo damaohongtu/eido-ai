@@ -8,7 +8,11 @@ on:
         required: true
         type: string
       extension_id:
-        description: Fixed Chrome extension ID; leave empty to use the repository secret
+        description: Fixed Eido Chrome extension ID; leave empty to use the repository secret
+        required: false
+        type: string
+      smartbrowser_extension_id:
+        description: Fixed SmartBrowser Chrome extension ID; leave empty to use the repository secret
         required: false
         type: string
   push:
@@ -32,6 +36,7 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
       RELEASE_EXTENSION_ID: ${{ secrets.EIDO_CHROME_EXTENSION_ID }}
+      RELEASE_SMARTBROWSER_EXTENSION_ID: ${{ secrets.SMARTBROWSER_CHROME_EXTENSION_ID }}
 
     steps:
       - name: Check out repository
@@ -50,6 +55,7 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
           INPUT_EXTENSION_ID: ${{ inputs.extension_id }}
+          INPUT_SMARTBROWSER_EXTENSION_ID: ${{ inputs.smartbrowser_extension_id }}
         run: |
           VERSION="$INPUT_VERSION"
           if [[ -z "$VERSION" && "$GITHUB_REF_TYPE" == "tag" ]]; then
@@ -59,10 +65,16 @@ jobs:
           if [[ -z "$EXTENSION_ID" ]]; then
             EXTENSION_ID="$RELEASE_EXTENSION_ID"
           fi
+          SMARTBROWSER_EXTENSION_ID="$INPUT_SMARTBROWSER_EXTENSION_ID"
+          if [[ -z "$SMARTBROWSER_EXTENSION_ID" ]]; then
+            SMARTBROWSER_EXTENSION_ID="$RELEASE_SMARTBROWSER_EXTENSION_ID"
+          fi
           [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]] || { echo "Invalid version" >&2; exit 2; }
           [[ "$EXTENSION_ID" =~ ^[a-p]{32}$ ]] || { echo "Invalid or missing extension ID" >&2; exit 2; }
+          [[ "$SMARTBROWSER_EXTENSION_ID" =~ ^[a-p]{32}$ ]] || { echo "Invalid or missing SmartBrowser extension ID" >&2; exit 2; }
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "EXTENSION_ID=$EXTENSION_ID" >> "$GITHUB_ENV"
+          echo "SMARTBROWSER_EXTENSION_ID=$SMARTBROWSER_EXTENSION_ID" >> "$GITHUB_ENV"
 
       - name: Import Developer ID certificates
         run: |
@@ -104,6 +116,7 @@ jobs:
         run: |
           native-launcher/installers/macos/build-package.sh \
             --extension-id "$EXTENSION_ID" \
+            --extension-id "$SMARTBROWSER_EXTENSION_ID" \
             --version "$VERSION"
           cp "native-launcher/dist/Eido-OpenCode-Launcher-$VERSION.pkg" \
             native-launcher/dist/Eido-OpenCode-Launcher-macOS.pkg

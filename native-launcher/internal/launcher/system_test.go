@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -28,6 +29,14 @@ func TestCanonicalWorkspace(t *testing.T) {
 	}
 	if _, err := canonicalWorkspace(file); err == nil {
 		t.Fatal("expected regular file to be rejected")
+	}
+}
+
+func TestCreateDirectoryRejectsTraversalNameBeforeOpeningPicker(t *testing.T) {
+	_, _, err := (SystemPlatform{}).CreateDirectory(context.Background(), t.TempDir(), "../escape")
+	coded, ok := err.(CodedError)
+	if !ok || coded.Code != "DIRECTORY_NAME_INVALID" {
+		t.Fatalf("unexpected error: %#v", err)
 	}
 }
 

@@ -63,11 +63,40 @@ func opencodeCandidates() []string {
 }
 
 func (SystemPlatform) SelectDirectory(ctx context.Context, initial string) (string, bool, error) {
-	selected, ok, err := selectDirectory(ctx, initial)
+	selected, ok, err := selectDirectory(ctx, initial, "选择 OpenCode 项目文件夹")
 	if err != nil || !ok {
 		return "", ok, err
 	}
 	canonical, err := canonicalWorkspace(selected)
+	if err != nil {
+		return "", false, err
+	}
+	return canonical, true, nil
+}
+
+func (SystemPlatform) CreateDirectory(ctx context.Context, initial, name string) (string, bool, error) {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, "\x00\r\n") {
+		return "", false, CodedError{Code: "DIRECTORY_NAME_INVALID", Message: "directory name is invalid"}
+	}
+	parent, selected, err := selectDirectory(ctx, initial, "选择新项目的父文件夹")
+	if err != nil || !selected {
+		return "", selected, err
+	}
+	parent, err = canonicalWorkspace(parent)
+	if err != nil {
+		return "", false, err
+	}
+	workspace := filepath.Join(parent, name)
+	if _, err := os.Stat(workspace); err == nil {
+		return "", false, CodedError{Code: "DIRECTORY_EXISTS", Message: "a file or directory with the same name already exists"}
+	} else if !os.IsNotExist(err) {
+		return "", false, CodedError{Code: "DIRECTORY_CREATE_FAILED", Message: "directory cannot be inspected"}
+	}
+	if err := os.Mkdir(workspace, 0755); err != nil {
+		return "", false, CodedError{Code: "DIRECTORY_CREATE_FAILED", Message: "directory could not be created"}
+	}
+	canonical, err := canonicalWorkspace(workspace)
 	if err != nil {
 		return "", false, err
 	}

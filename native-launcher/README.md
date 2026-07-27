@@ -1,6 +1,8 @@
 # Eido OpenCode Native Launcher
 
-一次性 Chrome Native Messaging Host。它只检测 OpenCode、打开 macOS 项目目录选择器并启动 `opencode serve`；不监听本机端口，不代理聊天，也不接收网页、Prompt、附件或项目文件内容。
+一次性 Chrome Native Messaging Host。它只检测 OpenCode、打开 macOS 项目目录选择器、在用户选定的父目录下创建项目文件夹并启动 `opencode serve`；不监听本机端口，不代理聊天，也不接收网页、Prompt、附件或项目文件内容。
+
+协议 `create_directory` 只接受不含路径分隔符的单段文件夹名；父目录必须由用户在系统选择器中显式确认，Launcher 不接受前端直接指定任意创建目标路径。
 
 ## 普通用户安装
 
@@ -34,7 +36,8 @@ GitHub Actions 工作流 [`.github/workflows/native-launcher-macos-release.yml`]
 
 | Secret | 内容 |
 | --- | --- |
-| `EIDO_CHROME_EXTENSION_ID` | Chrome Web Store 正式扩展的固定 32 位 ID |
+| `EIDO_CHROME_EXTENSION_ID` | Eido Chrome Web Store 正式扩展的固定 32 位 ID |
+| `SMARTBROWSER_CHROME_EXTENSION_ID` | SmartBrowser Chrome Web Store 正式扩展的固定 32 位 ID |
 | `MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64` | Developer ID Application 证书与私钥的 Base64 P12 |
 | `MACOS_DEVELOPER_ID_INSTALLER_P12_BASE64` | Developer ID Installer 证书与私钥的 Base64 P12 |
 | `MACOS_CERTIFICATE_PASSWORD` | 两个 P12 的导出密码 |
@@ -51,7 +54,9 @@ GitHub Actions 工作流 [`.github/workflows/native-launcher-macos-release.yml`]
 native-launcher-v0.1.2
 ```
 
-也可以从 Actions 页面手工运行工作流并填写数字版本。正式包始终绑定一个精确扩展 ID；Native Messaging 不允许通配符来源。
+也可以从 Actions 页面手工运行工作流并填写数字版本及两个扩展 ID。正式包把每个调用方都写成精确来源；Native Messaging 不允许通配符来源。
+
+同一个安装包、同一个 `ai.eido.opencode_launcher` host 可以同时服务 Eido 和 SmartBrowser。Launcher 的进程、协议和安装路径没有分叉，只有 `allowed_origins` 同时列出两个发布扩展的固定 ID。
 
 ## 本地验证安装包
 
@@ -60,7 +65,8 @@ native-launcher-v0.1.2
 ```bash
 GO_BINARY=/path/to/go \
   ./installers/macos/build-package.sh \
-  --extension-id EXTENSION_ID \
+  --extension-id EIDO_EXTENSION_ID \
+  --extension-id SMARTBROWSER_EXTENSION_ID \
   --version 0.1.2 \
   --unsigned
 ```
@@ -72,7 +78,8 @@ GO_BINARY=/path/to/go \
 ```bash
 ./installers/macos/verify-package.sh \
   dist/Eido-OpenCode-Launcher-0.1.2.pkg \
-  EXTENSION_ID \
+  --extension-id EIDO_EXTENSION_ID \
+  --extension-id SMARTBROWSER_EXTENSION_ID \
   --require-signed
 ```
 
@@ -90,9 +97,9 @@ go build ./cmd/eido-opencode-launcher
 从 `chrome://extensions` 复制已加载开发版插件的 32 位 ID，然后执行：
 
 ```bash
-./installers/macos/install-dev.sh EXTENSION_ID
+./installers/macos/install-dev.sh EIDO_EXTENSION_ID SMARTBROWSER_EXTENSION_ID
 ```
 
-开发脚本将 Launcher 安装到当前用户目录，并生成只允许该开发扩展 ID 调用的 Host Manifest。它与正式 `.pkg` 分发相互独立，仅供开发调试。
+也可以只传当前正在调试的一个 ID；单 ID 调用保持兼容。开发脚本将 Launcher 安装到当前用户目录，并生成只允许所传开发扩展 ID 调用的 Host Manifest。它与正式 `.pkg` 分发相互独立，仅供开发调试。修改授权列表后，需从 `chrome://extensions` 重载扩展。
 
 Launcher 的 stdout 仅用于 Native Messaging 长度前缀 JSON。OpenCode 的 stdout/stderr 写入 `~/Library/Logs/Eido/opencode-<port>.log`。

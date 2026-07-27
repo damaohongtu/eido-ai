@@ -6,7 +6,7 @@ usage() {
 Build the Eido OpenCode Launcher macOS installer.
 
 Usage:
-  build-package.sh --extension-id ID [options]
+  build-package.sh --extension-id ID [--extension-id ID ...] [options]
 
 Options:
   --version VERSION          Numeric package version (default: 0.1.2)
@@ -29,7 +29,7 @@ SCRIPT_DIR="${0:A:h}"
 PROJECT_DIR="${SCRIPT_DIR:h:h}"
 VERSION="0.1.2"
 OUTPUT_DIR="$PROJECT_DIR/dist"
-EXTENSION_ID=""
+EXTENSION_IDS=()
 SIGNED_BUILD=true
 NOTARIZE=true
 
@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --extension-id)
       [[ $# -ge 2 ]] || { print -u2 "missing value for --extension-id"; exit 2; }
-      EXTENSION_ID="$2"
+      EXTENSION_IDS+=("$2")
       shift 2
       ;;
     --version)
@@ -71,10 +71,17 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ ! "$EXTENSION_ID" =~ '^[a-p]{32}$' ]]; then
-  print -u2 "--extension-id must be the fixed 32-character Chrome extension ID"
+if [[ ${#EXTENSION_IDS[@]} -eq 0 ]]; then
+  print -u2 "at least one --extension-id is required"
   exit 2
 fi
+for extension_id in "${EXTENSION_IDS[@]}"; do
+  if [[ ! "$extension_id" =~ '^[a-p]{32}$' ]]; then
+    print -u2 "--extension-id must be a fixed 32-character Chrome extension ID"
+    exit 2
+  fi
+done
+EXTENSION_IDS=("${(@u)EXTENSION_IDS}")
 if [[ ! "$VERSION" =~ '^[0-9]+([.][0-9]+){0,3}$' ]]; then
   print -u2 "--version must contain one to four numeric components"
   exit 2
@@ -142,14 +149,20 @@ HOST_DIR="$PAYLOAD_DIR/Library/Google/Chrome/NativeMessagingHosts"
 mkdir -p "$INSTALL_BIN_DIR" "$HOST_DIR"
 install -m 0755 "$UNIVERSAL_BINARY" "$INSTALL_BIN_DIR/eido-opencode-launcher"
 
+ALLOWED_ORIGINS=""
+for extension_id in "${EXTENSION_IDS[@]}"; do
+  [[ -n "$ALLOWED_ORIGINS" ]] && ALLOWED_ORIGINS+=","$'\n'
+  ALLOWED_ORIGINS+="    \"chrome-extension://$extension_id/\""
+done
+
 cat > "$HOST_DIR/ai.eido.opencode_launcher.json" <<EOF
 {
   "name": "ai.eido.opencode_launcher",
-  "description": "Launch OpenCode for the Eido extension",
+  "description": "Launch OpenCode for authorized Chrome extensions",
   "path": "/Library/Application Support/Eido/bin/eido-opencode-launcher",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://$EXTENSION_ID/"
+$ALLOWED_ORIGINS
   ]
 }
 EOF
@@ -187,7 +200,10 @@ VERIFY_ARGS=()
 if $SIGNED_BUILD; then
   VERIFY_ARGS+=(--require-signed)
 fi
-"$SCRIPT_DIR/verify-package.sh" "$FINAL_PACKAGE" "$EXTENSION_ID" "${VERIFY_ARGS[@]}"
+for extension_id in "${EXTENSION_IDS[@]}"; do
+  VERIFY_ARGS+=(--extension-id "$extension_id")
+done
+"$SCRIPT_DIR/verify-package.sh" "$FINAL_PACKAGE" "${VERIFY_ARGS[@]}"
 
 if $NOTARIZE; then
   print "Submitting package to Apple Notary service..."

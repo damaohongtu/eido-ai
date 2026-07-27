@@ -7,6 +7,6 @@ import (
 	"errors"
 )
 
-func selectDirectory(context.Context, string) (string, bool, error) {
+func selectDirectory(context.Context, string, string) (string, bool, error) {
 	return "", false, errors.New("the graphical directory selector is currently available on macOS only")
 }

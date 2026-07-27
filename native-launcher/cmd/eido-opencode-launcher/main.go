@@ -15,7 +15,7 @@ const (
 )
 
 func requestTimeout(command string) time.Duration {
-	if command == "select_directory" {
+	if command == "select_directory" || command == "create_directory" {
 		return directoryRequestTimeout
 	}
 	return defaultRequestTimeout

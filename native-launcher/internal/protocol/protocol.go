@@ -14,6 +14,7 @@ type Request struct {
 	Protocol          int    `json:"protocol"`
 	Command           string `json:"command"`
 	InitialDirectory  string `json:"initialDirectory,omitempty"`
+	DirectoryName     string `json:"directoryName,omitempty"`
 	Workspace         string `json:"workspace,omitempty"`
 	Hostname          string `json:"hostname,omitempty"`
 	PreferredPort     int    `json:"preferredPort,omitempty"`

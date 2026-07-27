@@ -665,23 +665,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           <h2 className="truncate font-bold text-lg text-gray-800">{session.title}</h2>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <label className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-500">
-            <span>项目</span>
-            <select
-              value={project?.id || ''}
-              disabled={isTyping}
-              onChange={(event) => onMoveSession(event.target.value || null).catch(() => undefined)}
-              className="max-w-40 bg-transparent text-xs font-semibold text-gray-700 outline-none disabled:opacity-50"
-              title={isTyping ? '执行中不能移动会话' : '移动会话到项目'}
-            >
-              <option value="">未归属</option>
-              {projects.filter(item => !item.archived_at || item.id === project?.id).map(item => (
-                <option key={item.id} value={item.id} disabled={Boolean(item.archived_at)}>
-                  {item.name}{item.archived_at ? '（已归档）' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
           <button onClick={onToggleReferences} className={`p-2 rounded-lg transition-colors ${rightPanelOpen ? 'text-gray-700 bg-gray-200' : 'text-gray-500 hover:bg-gray-100'}`}>
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </button>
@@ -945,6 +928,25 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </button>
             )}
+          </div>
+          <div className="mt-2 flex min-w-0 items-center px-1">
+            <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-500">
+              <span className="shrink-0">项目归属</span>
+              <select
+                value={project?.id || ''}
+                disabled={isTyping}
+                onChange={(event) => onMoveSession(event.target.value || null).catch(() => undefined)}
+                className="min-w-0 max-w-56 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700 outline-none hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
+                title={isTyping ? '执行中不能移动会话' : '移动会话到项目'}
+              >
+                <option value="">未归属</option>
+                {projects.filter(item => !item.archived_at || item.id === project?.id).map(item => (
+                  <option key={item.id} value={item.id} disabled={Boolean(item.archived_at)}>
+                    {item.name}{item.archived_at ? '（已归档）' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </form>
       </div>

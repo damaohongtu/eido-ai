@@ -13,6 +13,7 @@ interface ComposerProps {
   onSend: (text: string, attachments: Attachment[]) => void;
   onStop: () => void;
   browserContextControl?: React.ReactNode;
+  footerControl?: React.ReactNode;
   agentRuntime: AgentRuntime;
 }
 
@@ -23,6 +24,7 @@ const Composer: React.FC<ComposerProps> = ({
   onSend,
   onStop,
   browserContextControl,
+  footerControl,
   agentRuntime,
 }) => {
   const [input, setInput] = useState('');
@@ -187,6 +189,12 @@ const Composer: React.FC<ComposerProps> = ({
           </button>
         )}
       </div>
+
+      {footerControl ? (
+        <div className="mt-2 flex min-w-0 items-center px-1">
+          {footerControl}
+        </div>
+      ) : null}
 
       <Popup
         visible={mentionOpen && filteredSkills.length > 0}

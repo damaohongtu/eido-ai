@@ -18,7 +18,7 @@ Chrome Manifest V3 插件版前端，复用 `../frontend-mobile` 的窄屏 React
 
 推荐进入插件“我的设置 -> 执行位置”，选择“本机”，通过系统目录选择器选择项目文件夹，再点击“尝试唤起 OpenCode”。插件通过一次性 Native Launcher 启动服务，启动成功后仍由插件直接访问 OpenCode HTTP/SSE；Launcher 随即退出，不参与聊天。
 
-Native Launcher 需要在系统中完成一次安装和 Chrome 注册。普通用户可在本机设置中点击“安装启动组件”，下载经过签名和公证的 macOS 图形安装器；双击安装并重新打开 Chrome 后即可使用。开发环境安装和正式发布说明见 [`../native-launcher/README.md`](../native-launcher/README.md)。Launcher 不可用时，仍可手工启动 OpenCode：
+Native Launcher 需要在系统中完成一次安装和 Chrome 注册。普通用户可在本机设置中点击“安装启动组件”；插件会在 macOS 下载经过签名和公证的 `.pkg`，在 Windows 下载经过 Authenticode 签名的用户级 `.exe` 安装器。安装并重新打开 Chrome 后即可使用。开发环境安装和正式发布说明见 [`../native-launcher/README.md`](../native-launcher/README.md)。Launcher 不可用时，仍可手工启动 OpenCode：
 
 ```bash
 cd /path/to/project

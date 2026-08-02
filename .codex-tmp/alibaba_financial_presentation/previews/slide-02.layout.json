@@ -1,0 +1,1545 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/23c8z7",
+    "id": "23c8z7",
+    "slide": 2,
+    "layoutId": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Helvetica Neue",
+      "PingFang SC"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7mtkb6ds",
+      "id": "1",
+      "name": "Rounded-Rectangle-5-1",
+      "bbox": [
+        41.33,
+        317.33,
+        374.67,
+        312
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.0"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8n21kbud",
+      "id": "2",
+      "name": "Rounded-Rectangle-6-2",
+      "bbox": [
+        452.67,
+        317.33,
+        374.67,
+        312
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9ob2dgvy",
+      "id": "3",
+      "name": "Rounded-Rectangle-7-3",
+      "bbox": [
+        864.28,
+        317.33,
+        374.67,
+        312
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.2"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/upk3mlcj",
+      "id": "4",
+      "name": "Slide-Number-Placeholder-1-4",
+      "bbox": [
+        1184.18,
+        659.24,
+        54.48,
+        25.33
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.3"
+      },
+      "geometry": "rect",
+      "text": "02",
+      "textPreview": "02",
+      "resolvedFontSize": 13.33,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 13.33,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "right",
+        "verticalAlignment": "bottom",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "02"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "02",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 13.33,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "right",
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "02",
+              "fontSize": 13.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vqtkfqd4",
+      "id": "5",
+      "name": "Title-2-5",
+      "bbox": [
+        41.33,
+        36.12,
+        1197.33,
+        109.97
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.4"
+      },
+      "geometry": "rect",
+      "text": "FY2026 是战略投入年：收入增长，利润与现金流承压",
+      "textPreview": "FY2026 是战略投入年：收入增长，利润与现金流承压",
+      "resolvedFontSize": 38.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 38.67,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "FY2026 是战略投入年：收入增长，利润与现金流承压"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "FY2026 是战略投入年：收入增长，利润与现金流承压",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 1,
+            "fontSize": 38.67,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "top",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "FY2026 是战略投入年：收入增长，利润与现金流承压",
+              "fontSize": 38.67,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wrmlovup",
+      "id": "6",
+      "name": "Content-Placeholder-9-6",
+      "bbox": [
+        73.74,
+        514.5,
+        309.67,
+        86
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.5"
+      },
+      "geometry": "rect",
+      "text": "收入同比\nRMB 1,023.7bn",
+      "textPreview": "收入同比 | RMB 1,023.7bn",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "收入同比"
+          },
+          {
+            "index": 2,
+            "text": "RMB 1,023.7bn"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "收入同比\nRMB 1,023.7bn",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 4.8,
+              "right": 9.6,
+              "bottom": 4.8,
+              "left": 9.6
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "收入同比\nRMB 1,023.7bn",
+              "fontSize": 21.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hsv2hgva",
+      "id": "7",
+      "name": "Content-Placeholder-10-7",
+      "bbox": [
+        896.78,
+        514.5,
+        309.67,
+        86
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.6"
+      },
+      "geometry": "rect",
+      "text": "自由现金流\n由正转负",
+      "textPreview": "自由现金流 | 由正转负",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "自由现金流"
+          },
+          {
+            "index": 2,
+            "text": "由正转负"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "自由现金流\n由正转负",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 4.8,
+              "right": 9.6,
+              "bottom": 4.8,
+              "left": 9.6
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "自由现金流\n由正转负",
+              "fontSize": 21.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/it43alcf",
+      "id": "8",
+      "name": "Content-Placeholder-11-8",
+      "bbox": [
+        485.17,
+        514.5,
+        309.67,
+        86
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.7"
+      },
+      "geometry": "rect",
+      "text": "经调整 EBITA\n同比下降",
+      "textPreview": "经调整 EBITA | 同比下降",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "经调整 EBITA"
+          },
+          {
+            "index": 2,
+            "text": "同比下降"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "经调整 EBITA\n同比下降",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 4.8,
+              "right": 9.6,
+              "bottom": 4.8,
+              "left": 9.6
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "经调整 EBITA\n同比下降",
+              "fontSize": 21.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/jedkjqd0",
+      "id": "9",
+      "name": "Content-Placeholder-9-9",
+      "bbox": [
+        73.74,
+        360,
+        308.67,
+        142.71
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.8"
+      },
+      "geometry": "rect",
+      "text": "+3%",
+      "textPreview": "+3%",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "bottom",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "+3%"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "+3%",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "bottom",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "+3%",
+              "fontSize": 32,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/but0ra1g",
+      "id": "10",
+      "name": "Content-Placeholder-9-10",
+      "bbox": [
+        484.3,
+        360,
+        308.67,
+        142.71
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.9"
+      },
+      "geometry": "rect",
+      "text": "−56%",
+      "textPreview": "−56%",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "bottom",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "−56%"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "−56%",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "bottom",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "−56%",
+              "fontSize": 32,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/atkzi50v",
+      "id": "11",
+      "name": "Content-Placeholder-9-11",
+      "bbox": [
+        898.94,
+        360,
+        308.67,
+        142.71
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.10"
+      },
+      "geometry": "rect",
+      "text": "−RMB46.6bn",
+      "textPreview": "−RMB46.6bn",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "bottom",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "−RMB46.6bn"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "−RMB46.6bn",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "bottom",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "−RMB46.6bn",
+              "fontSize": 32,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/xgbitkjm",
+      "id": "12",
+      "name": "Content-Placeholder-15-12",
+      "bbox": [
+        41.33,
+        119.51,
+        1197.33,
+        167.92
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.11"
+      },
+      "geometry": "rect",
+      "text": "核心判断\n集团规模继续扩张，但即时零售、AI、云基础设施和用户体验投入显著压低当期盈利。下一阶段的关键不只是增长，而是增长能否重新转化为自由现金流。",
+      "textPreview": "核心判断 | 集团规模继续扩张，但即时零售、AI、云基础设施和用户体验投入显著压低当期盈利。下一阶段的关键不只是增长，而是增长能否重新转化为自由现金流。",
+      "resolvedFontSize": 21.33,
+      "resolvedTextStyle": {
+        "fontSize": 21.33,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "核心判断"
+          },
+          {
+            "index": 2,
+            "text": "集团规模继续扩张，但即时零售、AI、云基础设施和用户体验投入显著压低当期盈利。下一阶段的关键不只是增长，而是增长能"
+          },
+          {
+            "index": 3,
+            "text": "否重新转化为自由现金流。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "核心判断",
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 600,
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "核心判断",
+              "fontSize": 21.33,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "集团规模继续扩张，但即时零售、AI、云基础设施和用户体验投入显著压低当期盈利。下一阶段的关键不只是增长，而是增长能否重新转化为自由现金流。",
+          "lineSpacingPercent": 114000,
+          "resolvedTextStyle": {
+            "fontSize": 21.33,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "集团规模继续扩张，但即时零售、AI、云基础设施和用户体验投入显著压低当期盈利。下一阶段的关键不只是增长，而是增长能否重新转化为自由现金流。",
+              "fontSize": 21.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    }
+  ],
+  "composeRuns": [
+    {
+      "index": 1,
+      "frame": {
+        "left": 0,
+        "top": 0,
+        "width": 1280,
+        "height": 720
+      },
+      "baseUnit": 1,
+      "root": {
+        "path": "0",
+        "kind": "layers",
+        "name": "codex-grid-layout-library#slide-19",
+        "requestedSize": {
+          "width": {
+            "mode": "fill",
+            "value": 1
+          },
+          "height": {
+            "mode": "fill",
+            "value": 1
+          }
+        },
+        "intrinsicSize": {
+          "width": 1238.95,
+          "height": 684.57
+        },
+        "frame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "children": [
+          {
+            "path": "0.0",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-5-1",
+            "position": {
+              "left": 41.33,
+              "top": 317.33
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 374.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 312
+              }
+            },
+            "intrinsicSize": {
+              "width": 374.67,
+              "height": 312
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/7mtkb6ds",
+              "id": "1",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.1",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-6-2",
+            "position": {
+              "left": 452.67,
+              "top": 317.33
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 374.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 312
+              }
+            },
+            "intrinsicSize": {
+              "width": 374.67,
+              "height": 312
+            },
+            "frame": {
+              "left": 452.67,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            },
+            "snappedFrame": {
+              "left": 452.67,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/8n21kbud",
+              "id": "2",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.2",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-7-3",
+            "position": {
+              "left": 864.28,
+              "top": 317.33
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 374.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 312
+              }
+            },
+            "intrinsicSize": {
+              "width": 374.67,
+              "height": 312
+            },
+            "frame": {
+              "left": 864.28,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            },
+            "snappedFrame": {
+              "left": 864.28,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/9ob2dgvy",
+              "id": "3",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.3",
+            "kind": "text",
+            "name": "Slide-Number-Placeholder-1-4",
+            "position": {
+              "left": 1184.18,
+              "top": 659.24
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 54.48
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 25.33
+              }
+            },
+            "intrinsicSize": {
+              "width": 54.48,
+              "height": 25.33
+            },
+            "frame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            },
+            "snappedFrame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            },
+            "children": [],
+            "text": "02",
+            "transform": "none",
+            "element": {
+              "aid": "sh/upk3mlcj",
+              "id": "4",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.4",
+            "kind": "text",
+            "name": "Title-2-5",
+            "position": {
+              "left": 41.33,
+              "top": 36.12
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 1197.33
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 109.97
+              }
+            },
+            "intrinsicSize": {
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "children": [],
+            "text": "FY2026 是战略投入年：收入增长，利润与现金流承压",
+            "transform": "none",
+            "element": {
+              "aid": "sh/vqtkfqd4",
+              "id": "5",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.5",
+            "kind": "text",
+            "name": "Content-Placeholder-9-6",
+            "position": {
+              "left": 73.74,
+              "top": 514.5
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 309.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 86
+              }
+            },
+            "intrinsicSize": {
+              "width": 309.67,
+              "height": 86
+            },
+            "frame": {
+              "left": 73.74,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            },
+            "snappedFrame": {
+              "left": 73.74,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            },
+            "children": [],
+            "text": "收入同比\nRMB 1,023.7bn",
+            "transform": "none",
+            "element": {
+              "aid": "sh/wrmlovup",
+              "id": "6",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.6",
+            "kind": "text",
+            "name": "Content-Placeholder-10-7",
+            "position": {
+              "left": 896.78,
+              "top": 514.5
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 309.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 86
+              }
+            },
+            "intrinsicSize": {
+              "width": 309.67,
+              "height": 86
+            },
+            "frame": {
+              "left": 896.78,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            },
+            "snappedFrame": {
+              "left": 896.78,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            },
+            "children": [],
+            "text": "自由现金流\n由正转负",
+            "transform": "none",
+            "element": {
+              "aid": "sh/hsv2hgva",
+              "id": "7",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.7",
+            "kind": "text",
+            "name": "Content-Placeholder-11-8",
+            "position": {
+              "left": 485.17,
+              "top": 514.5
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 309.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 86
+              }
+            },
+            "intrinsicSize": {
+              "width": 309.67,
+              "height": 86
+            },
+            "frame": {
+              "left": 485.17,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            },
+            "snappedFrame": {
+              "left": 485.17,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            },
+            "children": [],
+            "text": "经调整 EBITA\n同比下降",
+            "transform": "none",
+            "element": {
+              "aid": "sh/it43alcf",
+              "id": "8",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.8",
+            "kind": "text",
+            "name": "Content-Placeholder-9-9",
+            "position": {
+              "left": 73.74,
+              "top": 360
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 308.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 142.71
+              }
+            },
+            "intrinsicSize": {
+              "width": 308.67,
+              "height": 142.71
+            },
+            "frame": {
+              "left": 73.74,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            },
+            "snappedFrame": {
+              "left": 73.74,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            },
+            "children": [],
+            "text": "+3%",
+            "transform": "none",
+            "element": {
+              "aid": "sh/jedkjqd0",
+              "id": "9",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.9",
+            "kind": "text",
+            "name": "Content-Placeholder-9-10",
+            "position": {
+              "left": 484.3,
+              "top": 360
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 308.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 142.71
+              }
+            },
+            "intrinsicSize": {
+              "width": 308.67,
+              "height": 142.71
+            },
+            "frame": {
+              "left": 484.3,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            },
+            "snappedFrame": {
+              "left": 484.3,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            },
+            "children": [],
+            "text": "−56%",
+            "transform": "none",
+            "element": {
+              "aid": "sh/but0ra1g",
+              "id": "10",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.10",
+            "kind": "text",
+            "name": "Content-Placeholder-9-11",
+            "position": {
+              "left": 898.94,
+              "top": 360
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 308.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 142.71
+              }
+            },
+            "intrinsicSize": {
+              "width": 308.67,
+              "height": 142.71
+            },
+            "frame": {
+              "left": 898.94,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            },
+            "snappedFrame": {
+              "left": 898.94,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            },
+            "children": [],
+            "text": "−RMB46.6bn",
+            "transform": "none",
+            "element": {
+              "aid": "sh/atkzi50v",
+              "id": "11",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.11",
+            "kind": "text",
+            "name": "Content-Placeholder-15-12",
+            "position": {
+              "left": 41.33,
+              "top": 119.51
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 1197.33
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 167.92
+              }
+            },
+            "intrinsicSize": {
+              "width": 1197.33,
+              "height": 167.92
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 119.51,
+              "width": 1197.33,
+              "height": 167.92
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 119.51,
+              "width": 1197.33,
+              "height": 167.92
+            },
+            "children": [],
+            "text": "核心判断\n集团规模继续扩张，但即时零售、AI、云基础设施和用户体验投入显著压低当期盈利。下一阶段的关键不只是增长，而是增长能否重新转化为自由现金流。",
+            "transform": "none",
+            "element": {
+              "aid": "sh/xgbitkjm",
+              "id": "12",
+              "kind": "shape"
+            }
+          }
+        ],
+        "padding": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "alignItems": "stretch",
+        "justifyItems": "stretch",
+        "contentFrame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "items": [
+          {
+            "path": "0.0",
+            "frame": {
+              "left": 41.33,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            }
+          },
+          {
+            "path": "0.1",
+            "frame": {
+              "left": 452.67,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            }
+          },
+          {
+            "path": "0.2",
+            "frame": {
+              "left": 864.28,
+              "top": 317.33,
+              "width": 374.67,
+              "height": 312
+            }
+          },
+          {
+            "path": "0.3",
+            "frame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            }
+          },
+          {
+            "path": "0.4",
+            "frame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            }
+          },
+          {
+            "path": "0.5",
+            "frame": {
+              "left": 73.74,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            }
+          },
+          {
+            "path": "0.6",
+            "frame": {
+              "left": 896.78,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            }
+          },
+          {
+            "path": "0.7",
+            "frame": {
+              "left": 485.17,
+              "top": 514.5,
+              "width": 309.67,
+              "height": 86
+            }
+          },
+          {
+            "path": "0.8",
+            "frame": {
+              "left": 73.74,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            }
+          },
+          {
+            "path": "0.9",
+            "frame": {
+              "left": 484.3,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            }
+          },
+          {
+            "path": "0.10",
+            "frame": {
+              "left": 898.94,
+              "top": 360,
+              "width": 308.67,
+              "height": 142.71
+            }
+          },
+          {
+            "path": "0.11",
+            "frame": {
+              "left": 41.33,
+              "top": 119.51,
+              "width": 1197.33,
+              "height": 167.92
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,1094 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/6d766b",
+    "id": "6d766b",
+    "slide": 7,
+    "layoutId": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Helvetica Neue",
+      "PingFang SC"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/va9ovutk",
+      "id": "1",
+      "name": "Google-Shape-532-p58-2",
+      "bbox": [
+        1184.18,
+        659.24,
+        54.48,
+        25.33
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.0"
+      },
+      "geometry": "rect",
+      "text": "07",
+      "textPreview": "07",
+      "resolvedFontSize": 13.33,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 13.33,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "right",
+        "verticalAlignment": "bottom",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "07"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "07",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 13.33,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "right",
+            "verticalAlignment": "bottom",
+            "wrap": "square",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "07",
+              "fontSize": 13.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wbi5oza5",
+      "id": "2",
+      "name": "Google-Shape-533-p58-3",
+      "bbox": [
+        41.33,
+        36.12,
+        1197.33,
+        109.97
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1"
+      },
+      "geometry": "rect",
+      "text": "云智能成为最清晰的增长引擎",
+      "textPreview": "云智能成为最清晰的增长引擎",
+      "resolvedFontSize": 38.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 38.67,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "wrap": "square",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "云智能成为最清晰的增长引擎"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "云智能成为最清晰的增长引擎",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 1,
+            "fontSize": 38.67,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "top",
+            "wrap": "square",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "云智能成为最清晰的增长引擎",
+              "fontSize": 38.67,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hcr6x4bq",
+      "id": "3",
+      "name": "Rounded-Rectangle-6-4",
+      "bbox": [
+        657.68,
+        248.8,
+        580.99,
+        172
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.2"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ix07q9sb",
+      "id": "4",
+      "name": "Content-Placeholder-10-5",
+      "bbox": [
+        688.89,
+        279.77,
+        523.56,
+        110.07
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.3"
+      },
+      "geometry": "rect",
+      "text": "核心电商 +9%\n中国电商与国际业务均增长 9%。",
+      "textPreview": "核心电商 +9% | 中国电商与国际业务均增长 9%。",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "核心电商 +9%"
+          },
+          {
+            "index": 2,
+            "text": "中国电商与国际业务均增长 9%。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "核心电商 +9%",
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 500,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "核心电商 +9%",
+              "fontSize": 26.67,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "中国电商与国际业务均增长 9%。",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中国电商与国际业务均增长 9%。",
+              "fontSize": 18.67,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/3y9ozetg",
+      "id": "5",
+      "name": "Rounded-Rectangle-8-6",
+      "bbox": [
+        657.68,
+        41.33,
+        580.99,
+        172
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.4"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4zipsja1",
+      "id": "6",
+      "name": "Content-Placeholder-10-7",
+      "bbox": [
+        688.89,
+        72.3,
+        523.56,
+        110.07
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.5"
+      },
+      "geometry": "rect",
+      "text": "Cloud +34%\nFY2026 收入 RMB158.1bn。",
+      "textPreview": "Cloud +34% | FY2026 收入 RMB158.1bn。",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Cloud +34%"
+          },
+          {
+            "index": 2,
+            "text": "FY2026 收入 RMB158.1bn。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Cloud +34%",
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 500,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "Cloud +34%",
+              "fontSize": 26.67,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "FY2026 收入 RMB158.1bn。",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "FY2026 收入 RMB158.1bn。",
+              "fontSize": 18.67,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/50b61obm",
+      "id": "7",
+      "name": "Rounded-Rectangle-1-8",
+      "bbox": [
+        657.68,
+        460,
+        580.99,
+        172
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.6"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/y1gne5sr",
+      "id": "8",
+      "name": "Content-Placeholder-10-9",
+      "bbox": [
+        688.89,
+        490.97,
+        523.56,
+        110.07
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.7"
+      },
+      "geometry": "rect",
+      "text": "其他业务 −25%\n组合结构收缩，增长更集中。",
+      "textPreview": "其他业务 −25% | 组合结构收缩，增长更集中。",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "其他业务 −25%"
+          },
+          {
+            "index": 2,
+            "text": "组合结构收缩，增长更集中。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "其他业务 −25%",
+          "lineSpacingPercent": 100000,
+          "spaceAfter": 500,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "其他业务 −25%",
+              "fontSize": 26.67,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        },
+        {
+          "index": 2,
+          "text": "组合结构收缩，增长更集中。",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "组合结构收缩，增长更集中。",
+              "fontSize": 18.67,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 9,
+      "kind": "chart",
+      "scope": "slide",
+      "aid": "ch/72hormpo",
+      "id": "9",
+      "bbox": [
+        42.91,
+        110.67,
+        537.97,
+        572.39
+      ],
+      "chartType": "bar"
+    }
+  ],
+  "composeRuns": [
+    {
+      "index": 1,
+      "frame": {
+        "left": 0,
+        "top": 0,
+        "width": 1280,
+        "height": 720
+      },
+      "baseUnit": 1,
+      "root": {
+        "path": "0",
+        "kind": "layers",
+        "name": "codex-grid-layout-library#slide-20",
+        "requestedSize": {
+          "width": {
+            "mode": "fill",
+            "value": 1
+          },
+          "height": {
+            "mode": "fill",
+            "value": 1
+          }
+        },
+        "intrinsicSize": {
+          "width": 1238.67,
+          "height": 684.57
+        },
+        "frame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "children": [
+          {
+            "path": "0.0",
+            "kind": "text",
+            "name": "Google-Shape-532-p58-2",
+            "position": {
+              "left": 1184.18,
+              "top": 659.24
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 54.48
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 25.33
+              }
+            },
+            "intrinsicSize": {
+              "width": 54.48,
+              "height": 25.33
+            },
+            "frame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            },
+            "snappedFrame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            },
+            "children": [],
+            "text": "07",
+            "transform": "none",
+            "element": {
+              "aid": "sh/va9ovutk",
+              "id": "1",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.1",
+            "kind": "text",
+            "name": "Google-Shape-533-p58-3",
+            "position": {
+              "left": 41.33,
+              "top": 36.12
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 1197.33
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 109.97
+              }
+            },
+            "intrinsicSize": {
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "children": [],
+            "text": "云智能成为最清晰的增长引擎",
+            "transform": "none",
+            "element": {
+              "aid": "sh/wbi5oza5",
+              "id": "2",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.2",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-6-4",
+            "position": {
+              "left": 657.68,
+              "top": 248.8
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 580.99
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 172
+              }
+            },
+            "intrinsicSize": {
+              "width": 580.99,
+              "height": 172
+            },
+            "frame": {
+              "left": 657.68,
+              "top": 248.8,
+              "width": 580.99,
+              "height": 172
+            },
+            "snappedFrame": {
+              "left": 657.68,
+              "top": 248.8,
+              "width": 580.99,
+              "height": 172
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/hcr6x4bq",
+              "id": "3",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.3",
+            "kind": "text",
+            "name": "Content-Placeholder-10-5",
+            "position": {
+              "left": 688.89,
+              "top": 279.77
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 523.56
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 110.07
+              }
+            },
+            "intrinsicSize": {
+              "width": 523.56,
+              "height": 110.07
+            },
+            "frame": {
+              "left": 688.89,
+              "top": 279.77,
+              "width": 523.56,
+              "height": 110.07
+            },
+            "snappedFrame": {
+              "left": 688.89,
+              "top": 279.77,
+              "width": 523.56,
+              "height": 110.07
+            },
+            "children": [],
+            "text": "核心电商 +9%\n中国电商与国际业务均增长 9%。",
+            "transform": "none",
+            "element": {
+              "aid": "sh/ix07q9sb",
+              "id": "4",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.4",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-8-6",
+            "position": {
+              "left": 657.68,
+              "top": 41.33
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 580.99
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 172
+              }
+            },
+            "intrinsicSize": {
+              "width": 580.99,
+              "height": 172
+            },
+            "frame": {
+              "left": 657.68,
+              "top": 41.33,
+              "width": 580.99,
+              "height": 172
+            },
+            "snappedFrame": {
+              "left": 657.68,
+              "top": 41.33,
+              "width": 580.99,
+              "height": 172
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/3y9ozetg",
+              "id": "5",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.5",
+            "kind": "text",
+            "name": "Content-Placeholder-10-7",
+            "position": {
+              "left": 688.89,
+              "top": 72.3
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 523.56
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 110.07
+              }
+            },
+            "intrinsicSize": {
+              "width": 523.56,
+              "height": 110.07
+            },
+            "frame": {
+              "left": 688.89,
+              "top": 72.3,
+              "width": 523.56,
+              "height": 110.07
+            },
+            "snappedFrame": {
+              "left": 688.89,
+              "top": 72.3,
+              "width": 523.56,
+              "height": 110.07
+            },
+            "children": [],
+            "text": "Cloud +34%\nFY2026 收入 RMB158.1bn。",
+            "transform": "none",
+            "element": {
+              "aid": "sh/4zipsja1",
+              "id": "6",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.6",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-1-8",
+            "position": {
+              "left": 657.68,
+              "top": 460
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 580.99
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 172
+              }
+            },
+            "intrinsicSize": {
+              "width": 580.99,
+              "height": 172
+            },
+            "frame": {
+              "left": 657.68,
+              "top": 460,
+              "width": 580.99,
+              "height": 172
+            },
+            "snappedFrame": {
+              "left": 657.68,
+              "top": 460,
+              "width": 580.99,
+              "height": 172
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/50b61obm",
+              "id": "7",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.7",
+            "kind": "text",
+            "name": "Content-Placeholder-10-9",
+            "position": {
+              "left": 688.89,
+              "top": 490.97
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 523.56
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 110.07
+              }
+            },
+            "intrinsicSize": {
+              "width": 523.56,
+              "height": 110.07
+            },
+            "frame": {
+              "left": 688.89,
+              "top": 490.97,
+              "width": 523.56,
+              "height": 110.07
+            },
+            "snappedFrame": {
+              "left": 688.89,
+              "top": 490.97,
+              "width": 523.56,
+              "height": 110.07
+            },
+            "children": [],
+            "text": "其他业务 −25%\n组合结构收缩，增长更集中。",
+            "transform": "none",
+            "element": {
+              "aid": "sh/y1gne5sr",
+              "id": "8",
+              "kind": "shape"
+            }
+          }
+        ],
+        "padding": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "alignItems": "stretch",
+        "justifyItems": "stretch",
+        "contentFrame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "items": [
+          {
+            "path": "0.0",
+            "frame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            }
+          },
+          {
+            "path": "0.1",
+            "frame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            }
+          },
+          {
+            "path": "0.2",
+            "frame": {
+              "left": 657.68,
+              "top": 248.8,
+              "width": 580.99,
+              "height": 172
+            }
+          },
+          {
+            "path": "0.3",
+            "frame": {
+              "left": 688.89,
+              "top": 279.77,
+              "width": 523.56,
+              "height": 110.07
+            }
+          },
+          {
+            "path": "0.4",
+            "frame": {
+              "left": 657.68,
+              "top": 41.33,
+              "width": 580.99,
+              "height": 172
+            }
+          },
+          {
+            "path": "0.5",
+            "frame": {
+              "left": 688.89,
+              "top": 72.3,
+              "width": 523.56,
+              "height": 110.07
+            }
+          },
+          {
+            "path": "0.6",
+            "frame": {
+              "left": 657.68,
+              "top": 460,
+              "width": 580.99,
+              "height": 172
+            }
+          },
+          {
+            "path": "0.7",
+            "frame": {
+              "left": 688.89,
+              "top": 490.97,
+              "width": 523.56,
+              "height": 110.07
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

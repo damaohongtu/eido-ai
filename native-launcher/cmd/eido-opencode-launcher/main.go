@@ -23,6 +23,9 @@ func requestTimeout(command string) time.Duration {
 }
 
 func main() {
+	if launcher.RunInteractiveInstallerIfNeeded(os.Args) {
+		return
+	}
 	if len(os.Args) == 4 && os.Args[1] == launcher.DetachedOpenCodeSubcommand {
 		if err := launcher.RunDetachedOpenCodeRequest(os.Args[2], os.Args[3]); err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, "could not launch OpenCode:", err)

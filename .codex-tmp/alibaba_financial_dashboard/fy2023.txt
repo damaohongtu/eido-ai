@@ -1,0 +1,2155 @@
+   Alibaba Group Announces March Quarter and Full Fiscal Year 2023 Results
+Hangzhou, China, May 18, 2023 – Alibaba Group Holding Limited (NYSE: BABA and HKEX: 9988,
+“Alibaba” or “Alibaba Group”) today announced its financial results for the quarter and fiscal year ended
+March 31, 2023.
+
+“In an increasingly complex world, we have proactively transformed our organization to strengthen the
+competitiveness of our businesses through greater independence to address the evolving needs of different
+customers and capture new opportunities,” said Daniel Zhang, Chairman and Chief Executive Officer of
+Alibaba Group. “We are taking concrete steps towards unlocking value from our businesses and are pleased
+to announce that our board has approved a full spin-off of the Cloud Intelligence Group via a stock dividend
+distribution to shareholders, with intention for it to become an independent publicly listed company.”
+
+“We have established a capital management committee at the Alibaba board level to undertake a
+comprehensive capital management plan to enhance shareholder value. Alibaba is committed to improving
+shareholders’ return through the implementation of a robust capital allocation framework,” said Toby Xu,
+Chief Financial Officer of Alibaba Group. “We are delighted to share that our board has approved the
+process to start external financing for Alibaba International Digital Commerce Business Group; exploration
+of IPO for Cainiao Smart Logistics Group; and execution of IPO for Freshippo.”
+
+BUSINESS HIGHLIGHTS
+
+In the quarter ended March 31, 2023:
+
+      Revenue was RMB208,200 million (US$30,316 million), an increase of 2% year-over-year.
+
+      Income from operations was RMB15,240 million (US$2,219 million), a decrease of 9% year-over-
+       year. Excluding the impact of an item discussed in “March Quarter Other Financial Results —
+       Income from operations and operating margin” below, income from operations would have increased
+       by RMB11,569 million year-over-year. Adjusted EBITA, a non-GAAP measurement, increased by
+       60% or RMB9,469 million year-over-year to RMB25,280 million (US$3,681 million), primarily due
+       to an increase in China commerce adjusted EBITA, as well as narrowed adjusted EBITA losses of
+       Local consumer services and Digital media and entertainment.
+
+      Net income attributable to ordinary shareholders was RMB23,516 million (US$3,424 million).
+       Net income was RMB21,996 million (US$3,203 million), compared to net loss of RMB18,357
+       million in the same quarter last year, primarily due to net gains arising from the increases in the
+       market prices of our equity investments in publicly-traded companies, compared to net losses from
+       these investments in the same quarter last year, partly offset by the decrease in share of profit of
+       equity method investees, the increase in impairment of investments and the decrease in income from
+       operations as mentioned above. Except for the share of profit of equity method investees, we
+       excluded these investment related net gains or losses from our non-GAAP measures. Non-GAAP
+       net income was RMB27,375 million (US$3,986 million), an increase of 38% year-over-year.
+
+      Diluted earnings per ADS was RMB9.00 (US$1.31) and diluted earnings per share was
+       RMB1.12 (US$0.16 or HK$1.28). Non-GAAP diluted earnings per ADS was RMB10.71
+       (US$1.56), an increase of 35% year-over-year and non-GAAP diluted earnings per share was
+       RMB1.34 (US$0.20 or HK$1.53), an increase of 35% year-over-year.
+
+
+                                                     1
+      Net cash provided by operating activities was RMB31,401 million (US$4,572 million). Free cash
+       flow, a non-GAAP measurement of liquidity, was RMB32,267 million (US$4,698 million).
+In the fiscal year ended March 31, 2023:
+
+      Revenue was RMB868,687 million (US$126,491 million), an increase of 2% year-over-year.
+
+      Income from operations was RMB100,351 million (US$14,612 million), an increase of 44% year-
+       over-year. Excluding the impact of certain items discussed in “Full Fiscal Year Other Financial
+       Results — Income from operations and operating margin” below, income from operations would
+       have increased by RMB24,143 million year-over-year. Adjusted EBITA, a non-GAAP
+       measurement, increased 13% or RMB17,514 million year-over-year to RMB147,911 million
+       (US$21,538 million), primarily due to narrowed adjusted EBITA losses of Local consumer services,
+       International commerce and Digital media and entertainment, as well as an increase in China
+       commerce adjusted EBITA.
+
+      Net income attributable to ordinary shareholders was RMB72,509 million (US$10,558 million)
+       and net income was RMB65,573 million (US$9,548 million), showing year-over-year increases of
+       17% and 39%, respectively, primarily due to the increase in income from operations and the decrease
+       in net losses arising from changes in the fair values of our equity investments, partly offset by the
+       decrease in share of profit of equity method investees and the increase in impairment of investments.
+       We excluded net gains or losses arising from the changes in fair value and impairment of our
+       investments from our non-GAAP measures. Non-GAAP net income was RMB141,379 million
+       (US$20,586 million), an increase of 4% year-over-year.
+
+      Diluted earnings per ADS was RMB27.46 (US$4.00) and diluted earnings per share was
+       RMB3.43 (US$0.50 or HK$3.92). Non-GAAP diluted earnings per ADS was RMB54.56
+       (US$7.94), an increase of 4% year-over-year and non-GAAP diluted earnings per share was
+       RMB6.82 (US$0.99 or HK$7.79), an increase of 4% year-over-year.
+
+      Net cash provided by operating activities was RMB199,752 million (US$29,086 million). Free
+       cash flow, a non-GAAP measurement of liquidity, was RMB171,663 million (US$24,996 million).
+Reconciliations of GAAP measures to non-GAAP measures presented above are included at the end of this
+results announcement.
+
+BUSINESS AND STRATEGIC UPDATES
+China Commerce
+China commerce segment mainly includes our China commerce retail businesses such as Taobao, Tmall,
+Taobao Deals, Taocaicai, Freshippo, Tmall Supermarket, Sun Art, Tmall Global and Alibaba Health, as well
+as wholesale businesses including 1688.com.
+
+For the quarter ended March 31, 2023, online physical goods GMV on Taobao and Tmall, excluding unpaid
+orders, declined mid-single-digit year-over-year. China’s consumption gradually recovered throughout the
+quarter ended March 31, 2023. In the month of March, online physical goods GMV growth on Taobao and
+Tmall, excluding unpaid orders, turned positive, driven by strong growth of fashion & accessories and
+healthcare categories.
+
+We remain focused on improving the customer value proposition of our Taobao app by (i) increasing media
+content that strengthens consumer engagement, (ii) being more price competitive through more effective
+targeting and introduction of new marketing features and (iii) catering to consumers’ time-sensitive needs
+for high-frequency everyday necessities through our neighborhood retail businesses. In April, we started
+
+
+
+                                                     2
+testing a new interface for Taobao app that aims at increasing front page exposure for livestreaming,
+channels for price competitive products and neighborhood shopping categories.
+
+Taobao Deals, our value-for-money platform, continues to enrich product supply and enhance digital
+consumption experience for price sensitive consumers. For the quarter ended March 31, 2023, paid GMV of
+M2C products grew 26% year-over-year on Taobao and Taobao Deals. Taocaicai continues to drive
+category penetration in high purchase frequency categories of groceries and fresh produce on our China
+retail marketplaces. For the twelve months ended March 31, 2023, 62% of Taocaicai’s annual active
+consumers were first-time fresh produce buyers on our various platforms. During the quarter, both Taobao
+Deals and Taocaicai continued to narrow losses year-over-year.
+
+For the quarter ended March 31, 2023, our direct sales and others revenue was RMB71,788 million
+(US$ 10,453 million), decreasing slightly by 1% year-over-year, mainly due to decrease in offline store
+sales, which was negatively affected by COVID-19 disruption in January and seasonal volatility from an
+earlier Chinese New Year, as well as normalizing grocery demand due to decrease in consumer hoarding
+behavior post-COVID-19. During the quarter, Freshippo continued to strengthen its merchandising
+capabilities and improve its operating efficiency that resulted in positive operating results.
+
+International Commerce
+Our International commerce retail businesses include Lazada, AliExpress, Trendyol and Daraz platforms.
+The combined order volume of these businesses grew 15% year-over-year for the quarter ended March 31,
+2023.
+
+During the quarter, AliExpress launched Choice, a new service to global consumers. Choice offers
+consumers a curation of great value products across an extensive range of categories. Consumers in selected
+countries enjoy free shipping, free returns and quality delivery guarantees when placing orders on Choice.
+By leveraging chartered flights and utilizing overseas warehouses, AliExpress has been able to offer these
+value-added services with shortened delivery time in key strategic countries. As a result, in the March
+quarter, Choice’s daily orders ramped up rapidly and contributed to double-digit order growth for
+AliExpress during the quarter.
+
+In Southeast Asia, Lazada recorded double-digit order growth year-over-year during the quarter ended
+March 31, 2023. Through continuous improvement of user engagement program to most of the markets,
+Lazada continued to increase its buyer base. Lazada also continued to improve its monetization rate by
+offering more value-added services that resulted in improving revenue growth.
+
+During the quarter, Trendyol mobilized its resources to provide aid and support for those affected by the
+major earthquakes that struck Türkiye in February. Year-over-year order growth rate in the quarter remained
+resilient, driven by the normalization of the Turkish business from March onwards as well as the strong
+order growth in new businesses.
+
+Local Consumer Services
+For the quarter ended March 31, 2023, order growth of Local consumer services exceeded 20%. Segment
+losses continued to narrow driven by improving overall business efficiency.
+
+To-Home
+Starting in February, Ele.me's GMV growth and order growth substantially increased due to improving
+consumer demand, increasing number of active merchants and effective scaling of our delivery capacity. For
+the quarter ended March 31, 2023, Ele.me's unit economics per order continued to be positive and improved
+year-over-year due to increased average order value and reduced delivery cost per order.
+
+
+
+
+                                                      3
+To-Destination
+For the quarter ended March 31, 2023, year-over-year order growth of "To-Destination" businesses, which
+included Amap and Fliggy, increased rapidly due to the strong recovery in commuting and travel demand. In
+March, the number of average daily active users of Amap reached a new record high of 150 million, driven
+by increasing intra-city commute and inter-city travel demand. In March, Fliggy’s domestic hotel booking
+value grew over 70% compared to the same period in 2019 driven by a surge in business and recreational
+travel demand.
+
+Cainiao
+For the quarter ended March 31, 2023, revenue from Cainiao, before inter-segment elimination, grew 15%
+year-over-year to RMB18,915 million (US$2,754 million). In the quarter ended March 31, 2023, 72% of
+Cainiao’s total revenue was generated from external customers. Revenue from Cainiao, after inter-segment
+elimination, grew 18% year-over-year to RMB13,619 million (US$1,983 million), primarily driven by
+increasing revenue per order from international fulfillment solution services as well as increasing demand
+for consumer logistics services.
+
+Cainiao continues to expand its international logistics network by strengthening its end-to-end logistics
+capabilities. With the aim of providing merchants with stable and cost-effective services, Cainiao continues
+to upgrade its overseas warehouse network and offers a wide range of logistics solutions, including cargo
+collection in China, international line-haul, overseas feeder services, as well as overseas last-mile delivery
+services. These capabilities have successfully supported our internal and external customers. For AliExpress
+Choice, Cainiao has upgraded its warehouse network to improve its parcel bundling and direct shipping
+capabilities, enabling merchants to achieve full-scale global logistics management for worldwide shipping.
+In March, Cainiao became the first China logistics partner of the United Nations World Food Programme
+(WFP) , and through the partnership Cainiao will help WFP shorten delivery time of critical supplies during
+global emergency situations.
+
+In China, Cainiao continues to expand its Cainiao Post network that offers a variety of value-added services.
+During the quarter ended March 31, 2023, Cainiao Post further increased its penetration of door-step parcel
+delivery service to customers, with door-step delivery parcels increasing by approximately 85% year-over-
+year.
+
+Cloud
+Our Cloud segment comprises Alibaba Cloud and DingTalk. For the quarter ended March 31, 2023, total
+revenue from our Cloud segment before inter-segment elimination, which includes revenue from services
+provided to other Alibaba businesses, was RMB24,559 million (US$3,576 million), a decline of 3% year-
+over-year. In the quarter ended March 31, 2023, revenue from our Cloud segment, after inter-segment
+elimination, was RMB18,582 million (US$2,706 million), a decline of 2% year-over-year. The year-over-
+year decrease in revenue of our Cloud segment reflected delays in delivery of hybrid cloud projects given
+the COVID-19 resurgence in January, normalization of CDN demand compared to the same period last year,
+as well as the impact from a top customer phasing out using our overseas cloud services for its international
+business due to non-product related reasons.
+
+Our Cloud segment revenue is becoming more diversified with revenue contribution from non-Internet
+industries steadily increasing. During the quarter, after inter-segment elimination, revenue from non-internet
+industries grew healthily, driven by financial services, retail, media and automobile industries. For the
+quarter ended March 31, 2023, after inter-segment elimination, revenue contribution from non-Internet
+industries to Cloud segment revenue was 55%.
+
+
+
+
+                                                      4
+Alibaba Cloud
+As a cloud computing product company, Alibaba Cloud has been committed to the research and
+development of core technologies of cloud computing, big data and AI as well as the promotion of
+computing power and AI. Through a series of initiatives we launched recently, we aim to further expand our
+public cloud customer base and increase cloud utilization, and to leverage the historic opportunity in
+generative AI to drive the growth of high-quality computing power for machine learning and services. We
+believe these initiatives will drive healthy and sustainable growth of Alibaba Cloud.
+
+   Generative AI: In April, Alibaba Cloud unveiled its latest large language model (LLM), Tongyi
+    Qianwen (通义千问). We plan to integrate new LLM into all business applications across Alibaba’s
+    ecosystem in the near future to further enhance user experience. To enable enterprise customers to reap
+    the benefits of AI-driven innovation, Alibaba Cloud will offer its clients access to Tongyi Qianwen on
+    cloud and enable them to develop customized LLMs for their business scenarios. Since the
+    announcement of the model, we have received over 200,000 beta testing requests from enterprise users
+    across a broad range of sectors.
+   Product Pricing: Recently, Alibaba Cloud has endorsed multiple actions to make computing more
+    accessible and affordable. We announced a new instance family that provides the same level of stability
+    and offers up to 40% cost savings. For existing products, we reduced the prices of some of our core
+    utility products, including computing, storage, networking and security products, by up to 50%. We
+    believe these moves will help our customers increase public cloud adoption in China as well as unlock
+    emerging opportunities to leverage AI technology for enterprises.
+   Partnership: At the 2023 Alibaba Cloud Partner Conference, Alibaba Cloud unveiled several initiatives
+    to our partners, including the promotion of commission to our ecosystem partners, in order to further
+    integrate our proprietary technology and products into our partners’ solutions to create value for our
+    enterprise customers.
+DingTalk
+DingTalk, our intelligent collaboration workplace and application development platform, offers new ways of
+working, sharing and collaboration for modern enterprises and organizations. During the 2023 DingTalk
+Spring Summit on April 18, 2023, DingTalk unveiled the integration of intelligent capabilities based on
+Alibaba's Tongyi Qianwen LLM into its product. Users can activate multiple AI capabilities by typing the
+slash symbol (/), including article creation, meeting notes summary, image generation, DingTalk mini-app
+building and robot training. As a PaaS platform, DingTalk will further help customers and ecosystem
+partners to unlock the potential of AI capabilities.
+
+Digital Media and Entertainment
+For the quarter ended March 31, 2023, Youku’s total subscription revenue grew 13% year-over-year,
+primarily driven by increasing ARPU as well as benefiting from high-quality original content such as Who
+Is He (他是谁) and The Blood of Youth (少年歌行). In the March quarter, demand for offline ticketing
+services normalized, resulting in strong growth in businesses such as Damai and Taopiaopiao.
+
+Updates on ESG Initiatives
+Progress in decarbonization
+We have been committed to promoting decarbonization across our platform ecosystem. In the past quarter,
+we cooperated with the China National Institute of Standardization and other professional institutions to
+release four low-carbon related standards. On April 22 Earth Day, we launched "88 Decarbonization Day" to
+promote the importance and environmental benefits of low-carbon products to customers.
+
+
+
+
+                                                     5
+Supporting the building of socioeconomic resilience
+In the past quarter, we helped small and medium enterprises and underdeveloped regions build resilience for
+better development.
+
+     Taobao and Tmall: Taobao and Tmall helped new merchants improve their operations by offering
+      them various operational assistance, including providing logistics support, business decision support,
+      and development funding.
+     1688.com: 1688.com launched the “Warm Spring Recovery” campaign to help manufacturers attract
+      new customers and provide marketing, financial and logistics support.
+     Cainiao: Cainiao opened rural medical emergency warehouses in six key cities across China and
+      continued to increase investment in warehousing and transport capacity in rural areas to improve overall
+      emergency logistics capabilities for rural areas.
+Share Repurchases
+
+During the quarter ended March 31, 2023, we repurchased 21.5 million ADSs (the equivalent of 172.4
+million ordinary shares) for approximately US$1.9 billion under our share repurchase program. As of March
+31, 2023, we had 20.5 billion ordinary shares (the equivalent of approximately 2.6 billion ADSs)
+outstanding, and approximately US$19.4 billion remaining under the current authorization, effective through
+March 2025.
+
+THE RESTRUCTURING
+
+On March 28, 2023, we announced a new organizational and governance structure to empower all our
+businesses to become more agile, enhance decision making, enable faster responses to market changes and
+promote innovation to capture opportunities, thereby unlocking shareholder value.
+
+Business Group Directors and CEOs
+
+Under our new structure, Alibaba Group is the holding company of the six major business groups and
+various other businesses. Each of the six major business groups is independently managed by its own chief
+executive officer and board of directors (or equivalent governing body). The director and CEO candidates of
+these major business groups are subject to the approval and appointment of Alibaba Group’s board of
+directors.
+
+The directors and CEOs of the six major business groups approved by Alibaba Group’s board of directors
+are:
+
+    Business Group        Board of Directors
+
+    Cloud Intelligence       Daniel Yong ZHANG, Chairman and Chief Executive Officer (Chairman and
+    Group (including          Chief Executive Officer, Alibaba Group)
+    cloud, AI, DingTalk      Jian WANG, Director (Chairman, Group Technology Steering Committee)
+                             Jessie Junfang ZHENG, Director (Chief Risk Officer, Cloud Intelligence Group)
+    and other                Jane Fang JIANG, Director (Group Chief People Officer)
+    businesses)              Zeming WU, Director (Group Chief Technology Officer)
+
+    Taobao & Tmall           Eddie Yongming WU, Chairman (Partner, Alibaba Partnership)
+    Group (including         Trudy Shan DAI, Director and Chief Executive Officer
+    Taobao, Tmall,           Joseph C. TSAI, Director (Executive Vice Chairman, Alibaba Group)
+                             Fan JIANG, Director (CEO, Alibaba International Digital Commerce Group)
+    Taobao Deals,
+                             Zeming WU, Director (Group Chief Technology Officer)
+    Taocaicai, 1688.com
+
+
+                                                           6
+ Business Group               Board of Directors
+
+ and other
+ businesses)
+
+ Local Services                  Yongfu YU, Chairman and Chief Executive Officer
+ Group (including                Lucy Lei PENG, Director (Partner, Alibaba Partnership)
+ Amap, Ele.me and                Eddie Yongming WU, Director (Partner, Alibaba Partnership)
+                                 Zeming WU, Director (Group Chief Technology Officer)
+ other businesses)
+                                 Shunyan ZHU, Director (Chairman and Chief Executive Officer, Alibaba
+                                  Health)
+
+ Alibaba International           J. Michael EVANS, Chairman (Director and President, Alibaba Group)
+ Digital Commerce                Fan JIANG, Director and Chief Executive Officer
+ Group (including                Lucy Lei PENG, Director (Partner, Alibaba Partnership)
+                                 Trudy Shan DAI, Director (Chief Executive Officer, Taobao & Tmall Group)
+ Lazada, AliExpress,
+                                 Eddie Yongming WU, Director (Partner, Alibaba Partnership)
+ Trendyol, Daraz,
+ Alibaba.com and
+ other businesses)
+
+ Cainiao Smart                   Joseph C. TSAI, Chairman (Executive Vice Chairman, Alibaba Group)
+ Logistics Network               Lin WAN, Director and Chief Executive Officer
+ Limited(1)                      Trudy Shan DAI, Director (Chief Executive Officer, Taobao & Tmall Group)
+                                 Fan JIANG, Director (Chief Executive Officer, Alibaba International Digital
+                                  Commerce Group)
+                                 Jane Fang JIANG, Director (Group Chief People Officer)
+
+ Digital Media and               Luyuan FAN, Chairman and Chief Executive Officer
+ Entertainment Group             Maggie Wei WU, Director (Director, Alibaba Group)
+ (including Youku,               Judy Wenhong TONG, Director (Partner, Alibaba Partnership)
+                                 Sara Siying YU, Director (Group General Counsel)
+ Alibaba Pictures and
+                                 Winnie Jia WEN, Director (President, Group Public Affairs)
+ other businesses)
+________________
+(1) Cainiao Smart Logistics’ board of directors also includes directors appointed by its external investors not shown in this table.
+
+Capital Management Committee
+
+Our board of directors has formed a new capital management committee to undertake a comprehensive
+capital management plan to enhance shareholder value. This committee will review and decide important
+matters relating to Alibaba Group’s activities as a holding company, including capital market transactions,
+shareholder return initiatives, subsidiary equity incentive plans, fundraisings, initial public offerings and
+spin-offs. The committee is chaired by Mr. Daniel Zhang, Chairman and Chief Executive Officer, and the
+members are Mr. Joseph C. Tsai, Director and Executive Vice Chairman, Mr. J. Michael Evans, Director
+and President, and Ms. Maggie Wu, Director and former Chief Financial Officer.
+
+Business Group Spin-offs and Capital Raisings
+
+As previously announced, five of our major business groups will have the flexibility to raise external capital
+and potentially to seek its own initial public offering, with the exception of Taobao & Tmall Group, which
+will remain wholly-owned by Alibaba Group.
+
+Our board of directors approved the following transactions as the initial phase of our capital management
+planning:
+
+
+                                                                  7
+Cloud Intelligence Group Spin-Off
+
+Our board of directors approved a full spin-off of the Cloud Intelligence Group via a stock dividend
+distribution to our shareholders. Prior to the spin-off, we plan to include external strategic investors in Cloud
+Intelligence Group through private financings. In connection with the spin-off, Cloud Intelligence Group
+intends to become an independent publicly listed company. The spin-off will be subject to restructuring of
+certain assets, liabilities and contracts, implementation of employee equity incentive plans, market
+conditions, as well as regulatory reviews and approvals in relevant jurisdictions. We intend to structure the
+spin-off in the most tax-efficient way for our shareholders. Subject to the transactions, conditions and
+approvals described above, we target to complete the spin-off in the next 12 months.
+
+External Capital Raising for Alibaba International Digital Commerce Group
+
+Our board of directors approved the commencement of a process to explore raising external capital for the
+Alibaba International Digital Commerce Group to support its development and growth. The capital raising
+will assist the business group to expand into new geographic markets, invest in new technologies, grow its
+consumer and supplier base, strengthen its management team and develop and enhance its products and
+services to its customers globally.
+
+Initial Public Offering Plan of Cainiao Smart Logistics
+
+Our board of directors approved the commencement of a process to explore an initial public offering of
+Cainiao Smart Logistics. The group provides supply chain, logistics and delivery services to consumers and
+merchants that are customers of Taobao & Tmall Group and Alibaba International Digital Commerce
+Group, as well as third party customers. Alibaba Group holds a 67% equity interest in Cainiao Smart
+Logistics. Other shareholders in the business group include strategic investors in the logistics industry and
+global institutional investors. We target to complete the initial public offering in the next 12 to 18 months.
+
+Initial Public Offering Plan of Freshippo (Hema)
+
+Our board of directors approved the commencement of a process to execute an initial public offering of
+Freshippo (Hema), our new retail business. We expect the initial public offering will be completed in the
+next 6 to 12 months.
+
+The successful execution of the above transactions is subject to various factors, many of which are out of
+our control, including without limitation, successful restructurings of assets, liabilities and contracts,
+implementation of equity incentive plans, market conditions and regulatory reviews and approvals.
+
+Compliance and Risk Committee
+
+Our board of directors has established a compliance and risk committee to oversee Alibaba Group’s overall
+regulatory compliance and risks in key areas other than financial reporting (financial reporting will continue
+to be overseen by the audit committee), such as cybersecurity, data privacy and security, IP protection and
+other regulatory compliance matters. A majority of the compliance and risk committee members are
+independent directors. The committee is chaired by Ms. Irene Lee, and the members are Mr. Albert Ng, Mr.
+Kabir Misra, Mr. Daniel Zhang and Mr. J. Michael Evans.
+
+
+
+
+                                                        8
+MARCH QUARTER SUMMARY FINANCIAL RESULTS
+
+                                                               Three months ended March 31,
+                                                            2022                  2023
+                                                                                                              YoY %
+                                                            RMB               RMB              US$            Change
+                                                             (in millions, except percentages and per share amounts)
+
+Revenue                                                      204,052               208,200             30,316                    2%
+
+Income from operations                                         16,717               15,240               2,219               (9)%(2)
+Operating margin                                                  8%                   7%
+Adjusted EBITDA(1)                                             23,373               32,123               4,677                37%(3)
+Adjusted EBITDA margin(1)                                        11%                  15%
+Adjusted EBITA(1)                                              15,811               25,280               3,681                60%(3)
+Adjusted EBITA margin(1)                                          8%                  12%
+
+Net (loss) income                                          (18,357)(4)            21,996(4)              3,203                  N/A
+Net (loss) income attributable to ordinary
+ shareholders                                              (16,241)(4)            23,516(4)              3,424                  N/A
+Non-GAAP net income(1)                                        19,799               27,375                3,986                38%(3)
+
+Diluted (loss) earnings per share(5)                          (0.76)(4)             1.12 (4)              0.16                  N/A
+Diluted (loss) earnings per ADS(5)                            (6.07)(4)             9.00 (4)              1.31                  N/A
+Non-GAAP diluted earnings per share(1) (5)                        0.99                1.34                0.20             35% (3) (6)
+Non-GAAP diluted earnings per ADS(1) (5)                          7.95               10.71                1.56             35% (3) (6)
+
+(1) See “Non-GAAP Financial Measures” and “Reconciliations of Non-GAAP Measures to the Nearest Comparable U.S. GAAP
+    Measures” for more information about the non-GAAP measures referred to in this results announcement.
+(2) Excluding the impact of an item discussed in “March Quarter Other Financial Results — Income from operations and
+    operating margin,” income from operations would have increased by RMB11,569 million year-over-year.
+(3) The year-over-year increases were primarily due to an increase in China commerce adjusted EBITA, as well as narrowed
+    adjusted EBITA losses of Local consumer services and Digital media and entertainment.
+(4)   The year-over-year changes were primarily due to net gains arising from the increases in the market prices of our equity
+      investments in publicly-traded companies, compared to net losses from these investments in the same quarter last year,
+      partly offset by the decrease in share of profit of equity method investees, the increase in impairment of investments and the
+      decrease in income from operations.
+(5)   Each ADS represents eight ordinary shares.
+(6)   The year-over-year percentages as stated are calculated based on the exact amount and there may be minor differences from
+      the year-over-year percentages calculated based on the RMB amounts after rounding.
+
+
+
+
+                                                                 9
+MARCH QUARTER INFORMATION BY SEGMENTS
+The table below sets forth selected financial information of our operating segments for the periods indicated:
+
+                                                                                                                    Three months ended March 31, 2023
+
+                                                                                Local                                                        Digital         Innovation
+                                           China           International      consumer                                                     media and          initiatives
+                                         commerce(1)        commerce          services(1)      Cainiao                Cloud              entertainment       and others           Unallocated(2)                   Consolidated
+                                            RMB               RMB               RMB             RMB                   RMB                    RMB                RMB                  RMB                   RMB                    US$
+                                                                                                                      (in millions, except percentages)
+Revenue                                        136,073             18,541            12,549          13,619                18,582                  8,273                563                  —                  208,200                 30,316
+YoY% change                                         (3)%              29%                17%             18%                    (2)%                    3%               47%                N/A                      2%
+
+Income (Loss) from operations                   36,529             (2,974)          (6,599)         (1,167)                  (910)                (1,702)           (2,437)                (5,500)              15,240                   2,219
+Add: Share-based compensation expense            1,544                 620            1,063             596                  1,292                    441               396                  1,594               7,546                   1,099
+Add: Amortization of intangible assets             414                  24            1,383             252                      3                    159               211                     48               2,494                     363
+
+Adjusted EBITA                                  38,487             (2,330)          (4,153)           (319)                   385                 (1,102)           (1,830)               (3,858)                25,280                  3,681
+Adjusted EBITA YoY% change(3)                    19%                   9%              25%            65%                    39%                     44%              25%                    (19)%                  60%
+Adjusted EBITA margin                            28%                (13)%            (33)%            (2)%                    2%                   (13)%           (325)%                     N/A                   12%
+                                                                                                                    Three months ended March 31, 2022
+                                                                               Local                                                         Digital         Innovation
+                                           China           International     consumer                                                      media and          initiatives
+                                         commerce(1)        commerce         services(1)       Cainiao                 Cloud             entertainment       and others           Unallocated(2)         Consolidated
+                                            RMB                RMB             RMB              RMB                     RMB                  RMB                RMB                  RMB                    RMB
+                                                                                                         (in millions, except percentages)
+Revenue                                        140,079            14,335             10,696          11,582                  18,971                  8,005                  384                      —         204,052
+
+Income (Loss) from operations                   32,556            (1,918)           (6,588)         (1,081)                    598                 (2,170)            (2,727)               (1,953)            16,717
+Add: Share-based compensation expense            (902)              (664)             (479)            (85)                  (326)                       5                 64               (1,350)            (3,737)
+Add: Amortization of intangible assets             580                 19             1,499             254                      4                     199                211                    65              2,831
+
+Adjusted EBITA                                  32,234            (2,563)           (5,568)           (912)                    276                 (1,966)            (2,452)               (3,238)             15,811
+Adjusted EBITA margin                             23%              (18)%             (52)%            (8)%                      1%                  (25)%              (639)%                  N/A                 8%
+
+  (1) Beginning on October 1, 2022, we reclassified the results of our Instant Supermarket Delivery (全能超市) business, which was previously reported under China commerce segment,
+      to Local consumer services segment following the strategy refinement of Instant Supermarket Delivery business to focus on building customer mindshare for grocery delivery services
+      through Ele.me platform. This reclassification conforms to the way that we manage and monitor segment performance. Comparative figures were reclassified to conform to this
+      presentation.
+
+
+
+                                                                                                          10
+(2) Unallocated expenses primarily relate to corporate administrative costs and other miscellaneous items that are not allocated to individual segments.
+
+(3) For a more intuitive presentation, widening of loss in YoY% is shown in terms of negative growth rate, and narrowing of loss in YoY% is shown in terms of positive growth rate.
+
+(4) Following the implementation of the new organizational structure as mentioned in “The Restructuring” above, we will also update our segment reporting to reflect the new reporting
+    structure that will be reviewed by our chief operating decision maker.
+
+
+
+
+                                                                                           11
+MARCH QUARTER SEGMENT RESULTS
+
+Revenue
+
+Revenue for the quarter ended March 31, 2023 was RMB208,200 million (US$30,316 million), an increase
+of 2% compared to RMB204,052 million in the same quarter of 2022.
+
+The following table sets forth a breakdown of our revenue by segment for the periods indicated:
+
+                                                             Three months ended March 31,
+                                                         2022                     2023
+                                                               % of                               % of                     YoY %
+                                                 RMB          Revenue      RMB         US$       Revenue                   Change
+                                                                   (in millions, except percentages)
+China commerce:
+ China commerce retail
+ - Customer management                           63,421             31%        60,274          8,777              29%          (5)%
+ - Direct sales and others(1) (2)                72,275             36%        71,788         10,453              34%          (1)%
+                                                135,696             67%       132,062         19,230              63%          (3)%
+ China commerce wholesale                         4,383              2%         4,011            584               2%          (8)%
+Total China commerce                            140,079             69%       136,073         19,814              65%          (3)%
+
+International commerce:
+  International commerce retail                    9,887              5%        13,967          2,034              7%           41%
+  International commerce wholesale                 4,448              2%         4,574            666              2%            3%
+Total International commerce                      14,335              7%        18,541          2,700              9%           29%
+
+Local consumer services(1)                       10,696              5%        12,549          1,827              6%            17%
+Cainiao                                          11,582              6%        13,619          1,983              7%            18%
+Cloud                                            18,971              9%        18,582          2,706              9%           (2)%
+Digital media and entertainment                   8,005              4%         8,273          1,204              4%             3%
+Innovation initiatives and others                   384              0%           563             82              0%            47%
+Total                                           204,052            100%       208,200         30,316            100%             2%
+
+(1) Beginning on October 1, 2022, we reclassified the revenue of our Instant Supermarket Delivery (全能超市) business, which was previously
+    reported under China commerce segment, as revenue from Local consumer services segment following the strategy refinement of Instant
+    Supermarket Delivery business to focus on building customer mindshare for grocery delivery services through Ele.me platform. This
+    reclassification conforms to the way that we manage and monitor segment performance. Comparative figures were reclassified to conform
+    to this presentation.
+
+(2) Direct sales and others revenue under China commerce retail primarily represents our direct sales businesses, comprising mainly Sun Art,
+    Freshippo, Tmall Supermarket and Alibaba Health’s direct sales businesses, where revenue and the cost of inventory are recorded on a
+    gross basis.
+
+China Commerce
+
+(i)       Segment revenue
+
+         China Commerce Retail Business
+
+          Revenue from our China commerce retail business in the quarter ended March 31, 2023 was
+          RMB132,062 million (US$19,230 million), a decrease of 3% compared to RMB135,696 million in
+          the same quarter of 2022.
+
+          Customer management revenue decreased by 5% year-over-year, primarily due to the mid-single-
+          digit decline of online physical goods GMV generated on Taobao and Tmall, excluding unpaid
+          orders year-over-year.
+
+                                                                     12
+           Direct sales and others revenue under China commerce retail business in the quarter ended March 31,
+           2023 was RMB71,788 million (US$10,453 million), decreasing slightly by 1% year-over-year,
+           compared to RMB72,275 million in the same quarter of 2022, mainly due to decrease in offline store
+           sales, which was negatively affected by the COVID-19 disruption in January and seasonal volatility
+           from an earlier Chinese New Year, as well as normalizing grocery demand due to decrease in
+           consumer hoarding behavior post-COVID-19.
+
+          China Commerce Wholesale Business
+
+           Revenue from our China commerce wholesale business in the quarter ended March 31, 2023 was
+           RMB4,011 million (US$584 million), a decrease of 8% compared to RMB4,383 million in the same
+           quarter of 2022.
+
+(ii)       Segment adjusted EBITA
+
+           China commerce adjusted EBITA increased by 19% to RMB38,487 million (US$5,604 million) in
+           the quarter ended March 31, 2023, compared to RMB32,234 million in the same quarter of 2022.
+           The increase was primarily due to reduced loss of Taobao Deals, Taocaicai and Freshippo. Adjusted
+           EBITA margin increased from 23% in the quarter ended March 31, 2022 to 28% in the quarter ended
+           March 31, 2023. During the quarter ended March 31, 2023, Taobao Deals and Taocaicai significantly
+           narrowed losses year-over-year, mainly driven by optimized spending in user acquisition and
+           improving overall operating efficiency. Freshippo continued to strengthen its merchandising
+           capabilities and improve its operating efficiency that resulted in positive operating results that
+           resulted in positive operating results.
+
+International Commerce
+
+(i)        Segment revenue
+
+          International Commerce Retail Business
+
+           Revenue from our International commerce retail business in the quarter ended March 31, 2023 was
+           RMB13,967 million (US$2,034 million), an increase of 41% compared to RMB9,887 million in the
+           same quarter of 2022. The increase was primarily due to the growth in revenue generated by
+           Trendyol, Lazada and AliExpress. The increase in revenue from Trendyol resulted from more
+           efficient use of subsidies and robust year-over-year order growth. The increase in revenue from
+           Lazada is driven by the continuous improvement in monetization rate by offering more value-added
+           services and the robust year-over-year order growth. The increase in revenue from AliExpress was
+           driven by the double-digit order growth of AliExpress, accelerated by the direct sales and fulfillment
+           services, with the launch of a new service Choice to global consumers.
+
+          International Commerce Wholesale Business
+
+           Revenue from our International commerce wholesale business in the quarter ended March 31, 2023
+           was RMB4,574 million (US$666 million), an increase of 3% compared to RMB4,448 million in the
+           same quarter of 2022.
+
+(ii)       Segment adjusted EBITA
+
+           International commerce adjusted EBITA was a loss of RMB2,330 million (US$339 million) in the
+           quarter ended March 31, 2023, compared to a loss of RMB2,563 million in the same quarter of 2022.
+           The decrease in loss year-over-year was primarily due to the reduced loss from Trendyol, partly
+           offset by the increased loss from Lazada. The reduced loss from Trendyol is primarily due to revenue
+           growth and enhanced operating efficiency. The increased loss from Lazada is primarily due to a one-
+
+
+                                                         13
+        off early termination expense in connection with renegotiating new service contracts to reduce future
+        operating costs, which was partly offset by the continuous improvement in monetization rate by
+        offering more value-added services as well as enhanced operating efficiency.
+
+Local Consumer Services
+
+(i)     Segment revenue
+
+        Revenue from Local consumer services, which includes “To-Home” and “To-Destination ”
+        businesses such as Ele.me, Amap and Fliggy, was RMB12,549 million (US$1,827 million) in the
+        quarter ended March 31, 2023, an increase of 17% compared to RMB10,696 million in the same
+        quarter of 2022, primarily due to GMV growth of Ele.me driven by order growth and higher average
+        order value.
+
+(ii)    Segment adjusted EBITA
+
+        Local consumer services adjusted EBITA was a loss of RMB4,153 million (US$605 million) in the
+        quarter ended March 31, 2023, compared to a loss of RMB5,568 million in the same quarter of 2022,
+        primarily due to the continued narrowing of loss from our “To-Home” business driven by Ele.me’s
+        improved unit economics per order, which was due to increased average order value and reduced
+        delivery cost per order year-over-year.
+
+Cainiao
+
+(i)     Segment revenue
+
+        Revenue from Cainiao, which represents revenue from its domestic and international one-stop-shop
+        logistics services and supply chain management solutions, after inter-segment elimination, was
+        RMB13,619 million (US$1,983 million) in the quarter ended March 31, 2023, an increase of 18%
+        compared to RMB11,582 million in the same quarter of 2022, primarily driven by increasing revenue
+        per order from international fulfillment solution services as well as increasing demand for consumer
+        logistics services.
+
+        Total revenue generated by Cainiao, before inter-segment elimination, which includes revenue from
+        services provided to other Alibaba businesses, was RMB18,915 million (US$2,754 million), an
+        increase of 15% compared to RMB16,451 million in the same quarter of 2022.
+
+(ii)    Segment adjusted EBITA
+
+        Cainiao adjusted EBITA was a loss of RMB319 million (US$46 million) in the quarter ended March
+        31, 2023, compared to a loss of RMB912 million in the same quarter of 2022.
+
+Cloud
+
+(i)     Segment revenue
+
+        Revenue from our Cloud segment, after inter-segment elimination, was RMB18,582 million
+        (US$2,706 million) in the quarter ended March 31, 2023, a decline of 2% compared to RMB18,971
+        million in the same quarter of 2022. The year-over-year decrease in revenue of our Cloud segment
+        reflected delays in delivery of hybrid cloud projects given the COVID-19 resurgence in January and
+        normalization of CDN demand compared to the same period last year, as well as the impact from a
+        top customer phasing out using our overseas cloud services for its international business due to non-
+        product related reasons.
+
+                                                      14
+       Total revenue from our Cloud business, before inter-segment elimination, which includes revenue
+       from services provided to other Alibaba businesses, was RMB24,559 million (US$3,576 million),
+       decrease of 3% compared to RMB25,230 million in the same quarter of 2022.
+
+(ii)   Segment adjusted EBITA
+
+       Cloud adjusted EBITA was RMB385 million (US$56 million) in the quarter ended March 31, 2023,
+       compared to RMB276 million in the same quarter of 2022.
+
+Digital Media and Entertainment
+
+(i)    Segment revenue
+
+       Revenue from our Digital media and entertainment segment in the quarter ended March 31, 2023
+       was RMB8,273 million (US$1,204 million), an increase of 3%, compared to RMB8,005 million in
+       the same quarter of 2022.
+
+
+(ii)   Segment adjusted EBITA
+
+       Digital media and entertainment adjusted EBITA in the quarter ended March 31, 2023 was a loss of
+       RMB1,102 million (US$160 million), compared to a loss of RMB1,966 million in the same quarter
+       of 2022, primarily due to the narrowing of loss from Youku driven by disciplined investment in
+       content and production capability.
+
+Innovation Initiatives and Others
+
+(i)    Segment revenue
+
+       Revenue from Innovation initiatives and others was RMB563 million (US$82 million) in the quarter
+       ended March 31, 2023, an increase of 47% compared to RMB384 million in the same quarter of
+       2022.
+
+(ii)   Segment adjusted EBITA
+
+       Innovation initiatives and others adjusted EBITA in the quarter ended March 31, 2023 was a loss of
+       RMB1,830 million (US$267 million), compared to a loss of RMB2,452 million in the same quarter
+       of 2022.
+
+
+
+
+                                                    15
+MARCH QUARTER OTHER FINANCIAL RESULTS
+
+Costs and Expenses
+
+The following tables set forth a breakdown of our costs and expenses, share-based compensation expense
+and costs and expenses excluding share-based compensation expense by function for the periods indicated.
+
+                                                  Three months ended March 31,
+                                                                                                 % of
+                                           2022                          2023
+                                                                                                Revenue
+                                                % of                                   % of      YoY
+                                     RMB       Revenue       RMB           US$       Revenue    change
+                                                     (in millions, except percentages)
+Costs and expenses:
+Cost of revenue                      138,945         68%     138,823      20,214         67%        (1)%
+Product development expenses          10,944          5%      13,880       2,021          7%          2%
+Sales and marketing expenses          27,200         13%      24,931       3,630         12%        (1)%
+General and administrative
+  expenses                             7,415          4%      12,832       1,869          6%          2%
+Amortization of intangible assets      2,831          2%       2,494         363          1%        (1)%
+Total costs and expenses             187,335         92%     192,960      28,097         93%          1%
+
+Share-based compensation
+  expense:
+Cost of revenue                        (692)           0%      1,235         180          1%          1%
+Product development expenses         (1,407)         (1)%      2,938         428          2%          3%
+Sales and marketing expenses           (199)           0%        858         125          0%          0%
+General and administrative
+  expenses                           (1,439)         (1)%      2,515         366          1%          2%
+Total share-based compensation
+ expense                             (3,737)         (2)%      7,546       1,099          4%          6%
+
+Costs and expenses excluding
+  share-based compensation
+  expense:
+Cost of revenue                      139,637         68%     137,588      20,034         66%        (2)%
+Product development expenses          12,351          6%      10,942       1,593          5%        (1)%
+Sales and marketing expenses          27,399         13%      24,073       3,505         12%        (1)%
+General and administrative
+  expenses                             8,854          5%      10,317       1,503          5%          0%
+Amortization of intangible assets      2,831          2%       2,494         363          1%        (1)%
+Total costs and expenses excluding
+  share-based compensation
+  expense                            191,072         94%     185,414      26,998         89%        (5)%
+
+Cost of revenue – Cost of revenue in the quarter ended March 31, 2023 was RMB138,823 million
+(US$20,214 million), or 67% of revenue, compared to RMB138,945 million, or 68% of revenue, in the same
+quarter of 2022. Without the effect of share-based compensation expense, cost of revenue as a percentage of
+revenue would have decreased from 68% in the quarter ended March 31, 2022 to 66% in the quarter ended
+March 31, 2023.
+
+Product development expenses – Product development expenses in the quarter ended March 31, 2023 were
+RMB13,880 million (US$2,021 million), or 7% of revenue, compared to RMB10,944 million, or 5% of
+revenue, in the same quarter of 2022. Without the effect of share-based compensation expense, product
+
+
+
+                                                     16
+development expenses as a percentage of revenue would have decreased from 6% in the quarter ended
+March 31, 2022 to 5% in the quarter ended March 31, 2023.
+
+Sales and marketing expenses – Sales and marketing expenses in the quarter ended March 31, 2023 were
+RMB24,931 million (US$3,630 million), or 12% of revenue, compared to RMB27,200 million, or 13% of
+revenue, in the same quarter of 2022. Without the effect of share-based compensation expense, sales and
+marketing expenses as a percentage of revenue would have decreased from 13% in the quarter ended March
+31, 2022 to 12% in the quarter ended March 31, 2023.
+
+General and administrative expenses – General and administrative expenses in the quarter ended March
+31, 2023 were RMB12,832 million (US$1,869 million), or 6% of revenue, compared to RMB7,415 million,
+or 4% of revenue, in the same quarter of 2022. Without the effect of share-based compensation expense,
+general and administrative expenses as a percentage of revenue would have remained stable at 5% in the
+quarter ended March 31, 2023 compared to the quarter ended March 31, 2022.
+
+Share-based compensation expense – Total share-based compensation expense included in the cost and
+expense items above in the quarter ended March 31, 2023 was RMB7,546 million (US$1,099 million),
+compared to a net reversal of RMB3,737 million in the same quarter of 2022.
+
+The following table sets forth our analysis of share-based compensation expense for the periods indicated by
+type of share-based awards:
+
+                                                   Three months ended March 31,
+                                                2022                        2023                                % Change
+                                                     % of                              % of
+                                            RMB    Revenue      RMB         US$      Revenue                        YoY
+                                                         (in millions, except percentages)
+ By type of awards:
+
+ Alibaba Group share-based
+    awards(1)                                  7,597            4%         5,972           870           3%            (21)%
+ Ant Group share-based awards(2)            (12,683)          (6)%           126            18           0%              N/A
+ Others(3)                                     1,349            0%         1,448           211           1%                 7%
+ Total share-based compensation
+   expense                                   (3,737)          (2)%         7,546         1,099           4%                 N/A
+
+ (1) This represents Alibaba Group share-based awards granted to our employees.
+ (2) This represents Ant Group share-based awards granted to our employees, which is subject to mark-to-market accounting
+     treatment.
+ (3) This represents share-based awards of our subsidiaries.
+
+Share-based compensation expense related to Alibaba Group share-based awards decreased in the quarter
+ended March 31, 2023 compared to the same quarter of 2022. This decrease was primarily due to the general
+decrease in the average fair market value of the awards granted.
+
+Share-based compensation expense related to Ant Group share-based awards was a net reversal for the
+quarter ended March 31, 2022 because we recognized a decrease in the value of such awards.
+
+We expect that our share-based compensation expense will continue to be affected by changes in the fair
+value of the underlying awards and the quantity of awards we grant in the future.
+
+Amortization of intangible assets – Amortization of intangible assets in the quarter ended March 31, 2023
+was RMB2,494 million (US$363 million), a decrease of 12% from RMB2,831 million in the same quarter of
+2022.
+
+
+
+                                                                     17
+Income from operations and operating margin
+
+Income from operations in the quarter ended March 31, 2023 was RMB15,240 million (US$2,219 million),
+or 7% of revenue, compared to RMB16,717 million, or 8% of revenue, in the same quarter of 2022. The
+year-over-year decrease was primarily due to a reversal of share-based compensation expense of
+RMB13,046 million related to the mark-to-market adjustment of Ant Group share-based awards granted to
+our employees in the same quarter last year, partly offset by an increase in adjusted EBITA. We excluded
+share-based compensation expense from our non-GAAP measurements. Excluding the impact of the reversal
+of share-based compensation expense, our income from operations would have increased by RMB11,569
+million year-over-year, from RMB3,671 million in the quarter ended March 31, 2022 to RMB15,240 million
+(US$2,219 million) in the quarter ended March 31, 2023.
+
+Adjusted EBITDA and Adjusted EBITA
+
+Adjusted EBITDA increased 37% year-over-year to RMB32,123 million (US$4,677 million) in the quarter
+ended March 31, 2023, compared to RMB23,373 million in the same quarter of 2022. Adjusted EBITA
+increased 60% or RMB9,469 million year-over-year to RMB25,280 million (US$3,681 million) in the
+quarter ended March 31, 2023, compared to RMB15,811 million in the same quarter of 2022. The year-over-
+year increases were primarily due to an increase in China commerce adjusted EBITA, as well as narrowed
+adjusted EBITA losses of Local consumer services and Digital media and entertainment. A reconciliation of
+net income to adjusted EBITDA and adjusted EBITA is included at the end of this results announcement.
+
+Adjusted EBITA and adjusted EBITA margin by segments
+
+Adjusted EBITA and adjusted EBITA margin by segments as well as a reconciliation of income from
+operations to adjusted EBITA are set forth in “March Quarter Information by Segments” above.
+
+Interest and investment income, net
+
+Interest and investment income, net in the quarter ended March 31, 2023 was a gain of RMB10,496 million
+(US$1,528 million), compared to a loss of RMB36,708 million in the quarter ended March 31, 2022,
+primarily due to net gains arising from the increases in the market prices of our equity investments in
+publicly-traded companies, compared to net losses from these investments in the same quarter last year,
+which is generally consistent with the market trend.
+
+The above-mentioned gains and losses were excluded from our non-GAAP net income.
+
+Other income, net
+
+Other income, net in the quarter ended March 31, 2023 was RMB1,308 million (US$191 million), compared
+to RMB1,620 million in the same quarter of 2022.
+
+Income tax expenses
+
+Income tax expenses in the quarter ended March 31, 2023 were RMB3,758 million (US$547 million),
+compared to RMB2,079 million in the same quarter of 2022.
+
+Excluding share-based compensation expense, revaluation and disposal gains/losses of investments,
+impairment of investments, as well as the deferred tax effects on basis differences arising from our equity
+method investees, our effective tax rate would have been 17% in the quarter ended March 31, 2023.
+
+
+
+
+                                                      18
+Share of results of equity method investees
+
+Share of results of equity method investees in the quarter ended March 31, 2023 was RMB446 million
+(US$65 million), compared to RMB3,282 million in the same quarter of 2022. The following table sets forth
+a breakdown of share of results of equity method investees for the periods indicated.
+
+
+                                                                                  Three months ended March 31,
+                                                                              2022                      2023
+                                                                             RMB                 RMB                             US$
+                                                                                          (in millions)
+ Share of profit (loss) of equity method investees
+   - Ant Group                                                                 7,275                        3,180                     463
+   - Others                                                                     (973)                        (183)                    (27)
+ Impairment loss                                                              (2,624)                        (989)                   (144)
+ Others(1)                                                                      (396)                      (1,562)                   (227)
+ Total                                                                         3,282                          446                      65
+
+(1) “Others” mainly include basis differences arising from equity method investees, share-based compensation expense related to share-based
+    awards granted to employees of our equity method investees, as well as gain or loss arising from the dilution of our investments in equity
+    method investees.
+
+We record our share of results of all equity method investees one quarter in arrears. The year-over-year
+decrease in share of profit of Ant Group was mainly due to decrease in net investment gains from the
+investments of Ant Group previously made.
+
+Net income and Non-GAAP net income
+
+Our net income in the quarter ended March 31, 2023 was RMB21,996 million (US$3,203 million),
+compared to net loss of RMB18,357 million in the same quarter of 2022, primarily attributable to net gains
+arising from the increases in the market prices of our equity investments in publicly-traded companies,
+compared to net losses from these investments in the same quarter last year, partly offset by the decrease in
+share of profit of equity method investees, the increase in impairment of investments and the decrease in
+income from operations.
+
+Excluding the share-based compensation expense, revaluation and disposal gains/losses of investments,
+impairment of investments and certain other items, non-GAAP net income in the quarter ended March 31,
+2023 was RMB27,375 million (US$3,986 million), an increase of 38% compared to RMB19,799 million in
+the same quarter of 2022. A reconciliation of net income to non-GAAP net income is included at the end of
+this results announcement.
+
+Net income attributable to ordinary shareholders
+
+Net income attributable to ordinary shareholders in the quarter ended March 31, 2023 was RMB23,516
+million (US$3,424 million), compared to net loss of RMB16,241 million in the same quarter of 2022. The
+year-over-year increase was primarily attributable to net gains arising from the increases in the market prices
+of our equity investments in publicly-traded companies, compared to net losses from these investments in
+the same quarter last year, partly offset by the decrease in share of profit of equity method investees, the
+increase in impairment of investments and the decrease in income from operations.
+
+Diluted earnings per ADS/share and non-GAAP diluted earnings per ADS/share
+
+Diluted earnings per ADS in the quarter ended March 31, 2023 was RMB9.00 (US$1.31), compared to
+diluted loss per ADS of RMB6.07 in the same quarter in 2022. Excluding the share-based compensation
+expense, revaluation and disposal gains/losses of investments, impairment of investments and certain other
+
+                                                                      19
+items, non-GAAP diluted earnings per ADS in the quarter ended March 31, 2023 was RMB10.71
+(US$1.56), an increase of 35% compared to RMB7.95 in the same quarter of 2022.
+
+Diluted earnings per share in the quarter ended March 31, 2023 was RMB1.12 (US$0.16 or HK$1.28),
+compared to diluted loss per share of RMB0.76 in the same quarter of 2022. Excluding the share-based
+compensation expense, revaluation and disposal gains/losses of investments, impairment of investments and
+certain other items, non-GAAP diluted earnings per share in the quarter ended March 31, 2023 was
+RMB1.34 (US$0.20 or HK$1.53), an increase of 35% compared to RMB0.99 in the same quarter of 2022.
+
+A reconciliation of diluted earnings per ADS/share to non-GAAP diluted earnings per ADS/share is
+included at the end of this results announcement. Each ADS represents eight ordinary shares.
+
+Net cash provided by operating activities and free cash flow
+
+Net cash from operating activities in the quarter ended March 31, 2023 was an inflow of RMB31,401
+million (US$4,572 million), compared to an outflow of RMB7,040 million in the same quarter of 2022. Free
+cash flow, a non-GAAP measurement of liquidity, was an inflow of RMB32,267 million (US$4,698 million)
+in the quarter ended March, 2023, compared to an outflow of RMB15,070 million in the same quarter of
+2022, during which we made a payment of the final installment in the amount of RMB9,114 million of the
+RMB18,228 million Anti-monopoly Fine. The year-over-year increase also reflected the dividend received
+from Ant Group of RMB10,519 million (US$1,532 million) in the quarter ended March 31, 2023, narrowing
+losses of certain businesses driven by improving operating efficiency, as well as the decrease in capital
+expenditure. A reconciliation of net cash provided by operating activities to free cash flow is included at the
+end of this results announcement.
+
+Net cash used in investing activities
+
+During the quarter ended March 31, 2023, net cash used in investing activities of RMB26,808 million
+(US$3,904 million) primarily reflected (i) an increase in other treasury investments by RMB12,803 million
+(US$1,864 million), (ii) an increase in short-term investments by RMB11,863 million (US$1,727 million),
+(iii) cash outflow of RMB7,492 million (US$1,091 million) for investment and acquisition activities, and
+(iv) capital expenditures of RMB3,478 million (US$506 million). These cash outflows were partially offset
+by cash inflow of RMB8,970 million (US$1,306 million) from disposal of investments.
+
+Net cash used in financing activities
+
+During the quarter ended March 31, 2023, net cash used in financing activities of RMB9,319 million
+(US$1,357 million) primarily reflected cash used in repurchase of ordinary shares of RMB12,611 million
+(US$1,836 million), partially offset by net proceeds from bank borrowings of RMB3,294 million
+(US$480million).
+
+Employees
+
+As of March 31, 2023, we had a total of 235,216 employees, compared to 239,740 as of December 31, 2022.
+
+
+
+
+                                                      20
+FULL FISCAL YEAR SUMMARY FINANCIAL RESULTS
+
+                                                                      Year ended March 31,
+                                                             2022                   2023
+                                                                                                              YoY %
+                                                            RMB               RMB              US$            Change
+                                                             (in millions, except percentages and per share amounts)
+
+Revenue                                                       853,062              868,687            126,491                       2%
+
+Income from operations                                         69,638              100,351              14,612                44% (2)
+Operating margin                                                  8%                  12%
+Adjusted EBITDA(1)                                            158,205              175,710              25,585                 11%(3)
+Adjusted EBITDA margin(1)                                        19%                  20%
+Adjusted EBITA(1)                                             130,397              147,911              21,538                 13%(3)
+Adjusted EBITA margin(1)                                         15%                  17%
+
+Net income                                                     47,079                65,573              9,548                39% (4)
+Net income attributable to ordinary
+ shareholders                                                  61,959               72,509              10,558                 17%(4)
+Non-GAAP net income(1)                                        136,388              141,379              20,586                  4%(3)
+
+Diluted earnings per share(5)                                     2.84                 3.43                0.50             21%(4) (6)
+Diluted earnings per ADS(5)                                      22.74                27.46                4.00             21%(4) (6)
+Non-GAAP diluted earnings per share(1) (5)                        6.59                 6.82                0.99              4% (3) (6)
+Non-GAAP diluted earnings per ADS(1) (5)                         52.69                54.56                7.94              4% (3) (6)
+
+(1) See “Non-GAAP Financial Measures” and “Reconciliations of Non-GAAP Measures to the Nearest Comparable U.S. GAAP
+    Measures” for more information about the non-GAAP measures referred to in this results announcement.
+
+(2) Excluding the impact of certain items, income from operations would have increased by RMB24,143 million year-over-year.
+    Please refer to “Full Fiscal Year Other Financial Results — Income from operations and operating margin” below for
+    details.
+
+(3) The year-over-year increases were primarily due to narrowed adjusted EBITA losses of Local consumer services,
+    International commerce and Digital media and entertainment, as well as an increase in China commerce adjusted EBITA.
+
+(4) The year-over-year increases were primarily due to the increase in income from operations and the decrease in net losses
+    arising from changes in the fair values of our equity investments, partly offset by the decrease in share of profit of equity
+    method investees and the increase in impairment of investments.
+
+(5) Each ADS represents eight ordinary shares.
+
+(6) The year-over-year percentages as stated are calculated based on the exact amount and there may be minor differences from
+    the year-over-year percentages calculated based on the RMB amounts after rounding.
+
+
+
+
+                                                                 21
+FULL FISCAL YEAR INFORMATION BY SEGMENTS
+The table below sets forth selected financial information of our operating segments for fiscal year 2023:
+
+                                                                                                                            Year ended March 31, 2023
+                                                                                    Local                                                       Digital         Innovation
+                                                   China        International     consumer                                                    media and          initiatives
+                                                 commerce(1)     commerce         services(1)       Cainiao               Cloud             entertainment       and others             Unallocated(2)                      Consolidated
+                                                   RMB             RMB             RMB              RMB                   RMB                    RMB                  RMB                   RMB                 RMB                       US$
+                                                                                                                            (in millions, except percentages)
+Revenue                                               582,731          69,204             50,112          55,681              77,203                  31,482                2,274                    —              868,687                     126,491
+YoY% change                                              (1)%           13%                12%             21%                   4%                     (2)%               (20)%                    N/A                  2%
+
+Income (Loss) from operations                         172,191           (8,429)         (23,302)         (3,622)                (5,151)               (4,638)             (9,409)                (17,289)           100,351                      14,612
+Add: Share-based compensation expense                   7,969            2,716            3,672           2,218                  6,561                 1,756               1,658                   4,281             30,831                       4,489
+Add: Amortization and impairment of intangible
+   assets                                               4,702              93             5,609           1,013                    12                  1,008                    844                  223             13,504                       1,967
+Add: Impairment of goodwill                                —               —                 —               —                     —                      —                      —                 2,714              2,714                         395
+Add: Equity-settled donation expense                       —               —                 —               —                     —                      —                      —                   511                511                          75
+
+Adjusted EBITA                                        184,862           (5,620)         (14,021)           (391)                1,422                 (1,874)             (6,907)                 (9,560)           147,911                      21,538
+Adjusted EBITA YoY% change(3)                            1%             37%                37%             73%                   24%                   60%                   3%                    (8)%                 13%
+Adjusted EBITA margin                                   32%             (8)%             (28)%            (1)%                    2%                   (6)%              (304)%                    N/A                  17%
+
+
+                                                                                                                              Year ended March 31, 2022
+                                                                                    Local                                                       Digital           Innovation
+                                                   China        International     consumer                                                    media and            initiatives
+                                                 commerce(1)     commerce         services(1)       Cainiao                Cloud            entertainment         and others            Unallocated(2)      Consolidated
+                                                    RMB             RMB             RMB              RMB                   RMB                  RMB                  RMB                   RMB                 RMB
+                                                                                                              (in millions, except percentages)
+Revenue                                               591,580          61,078           44,616           46,107                74,568                 32,272                   2,841                —           853,062
+
+Income (Loss) from operations                         172,536         (10,655)         (30,802)          (3,920)               (5,167)               (7,019)               (9,424)             (35,911)          69,638
+Add: Share-based compensation expense                   7,078            1,569           2,556            1,396                 6,297                 1,520                 1,839                1,716           23,971
+Add: Amortization of intangible assets                  2,817               95           6,154            1,059                    16                   809                   456                  241           11,647
+Add: Impairment of goodwill                                —                —              —                —                      —                     —                     —                25,141           25,141
+
+Adjusted EBITA                                        182,431           (8,991)          (22,092)         (1,465)              1,146                  (4,690)              (7,129)              (8,813)         130,397
+Adjusted EBITA margin                                    31%            (15)%             (50)%               (3)%                2%                   (15)%               (251)%                 N/A             15%
+
+
+
+                                                                                                                     22
+(1) Beginning on October 1, 2022, we reclassified the results of our Instant Supermarket Delivery (全能超市) business, which was previously reported under China commerce segment, to
+    Local consumer services segment following the strategy refinement of Instant Supermarket Delivery business to focus on building customer mindshare for grocery delivery services
+    through Ele.me platform. This reclassification conforms to the way that we manage and monitor segment performance. Comparative figures were reclassified to conform to this
+    presentation.
+
+(2) Unallocated expenses primarily relate to corporate administrative costs and other miscellaneous items that are not allocated to individual segments. The goodwill impairment, and the
+    equity-settled donation expense related to the allotment of shares to a charitable trust, are presented as unallocated items in the segment information because our management does not
+    consider these as part of the segment operating performance measure.
+
+(3) For a more intuitive presentation, widening of loss in YoY% is shown in terms of negative growth rate, and narrowing of loss in YoY% is shown in terms of positive growth rate.
+
+(4) Following the implementation of the new organizational structure as mentioned in “The Restructuring” above, we will also update our segment reporting to reflect the new reporting
+    structure that will be reviewed by our chief operating decision maker.
+
+
+
+
+                                                                                             23
+FULL FISCAL YEAR SEGMENT RESULTS
+
+Revenue
+
+Revenue in fiscal year 2023 was RMB868,687 million (US$126,491 million), an increase of 2% compared
+to RMB853,062 million in fiscal year 2022.
+
+The following table sets forth a breakdown of our revenue by segment for the periods indicated:
+
+                                                                    Year ended March 31,
+                                                        2022                         2023
+                                                             % of                                % of                     YoY %
+                                                RMB        Revenue      RMB           US$      Revenue                    Change
+                                                                 (in millions, except percentages)
+China commerce:
+ China commerce retail
+ - Customer management                         315,038           37%          290,378         42,282             33%          (8)%
+ - Direct sales and others(1) (2)              259,830           30%          274,954         40,037             32%            6%
+                                               574,868           67%          565,332         82,319             65%          (2)%
+ China commerce wholesale                       16,712            2%           17,399          2,533              2%            4%
+Total China commerce                           591,580           69%          582,731         84,852             67%          (1)%
+
+International commerce:
+  International commerce retail                  42,668            5%          49,873          7,262               6%         17%
+  International commerce wholesale               18,410            2%          19,331          2,815               2%          5%
+Total International commerce                     61,078            7%          69,204         10,077               8%         13%
+
+Local consumer services(1)                      44,616            5%           50,112         7,297               6%          12%
+Cainiao                                         46,107            5%           55,681         8,108               6%          21%
+Cloud                                           74,568            9%           77,203        11,242               9%           4%
+Digital media and entertainment                 32,272            4%           31,482         4,584               4%         (2)%
+Innovation initiatives and others                2,841            1%            2,274           331               0%        (20)%
+Total                                          853,062          100%          868,687       126,491             100%           2%
+
+ (1) Beginning on October 1, 2022, we reclassified the revenue of our Instant Supermarket Delivery (全能超市) business, which was
+     previously reported under China commerce segment, as revenue from Local consumer services segment following the strategy refinement
+     of Instant Supermarket Delivery business to focus on building customer mindshare for grocery delivery services through Ele.me platform.
+     This reclassification conforms to the way that we manage and monitor segment performance. Comparative figures were reclassified to
+     conform to this presentation.
+ (2) Direct sales and others revenue under China commerce retail primarily represents our direct sales businesses, comprising mainly Sun Art,
+     Tmall Supermarket, Freshippo, and Alibaba Health’s direct sales businesses where revenue and the cost of inventory are recorded on a
+     gross basis.
+
+China Commerce
+
+(i)       Segment revenue
+
+         China Commerce Retail Business
+
+          Revenue from our China commerce retail business in fiscal year 2023 was RMB565,332 million
+          (US$82,319 million), a decrease of 2% compared to RMB574,868 million in fiscal year 2022.
+          Customer management revenue decreased by 8% year-over-year, primarily due to mid-single-digit
+          decline of online physical goods GMV generated on Taobao and Tmall, excluding unpaid orders
+          year-over-year, which was mainly due to soft consumption demand and ongoing competition as well
+          as supply chain and logistics disruptions due to COVID-19.
+
+
+
+                                                                     24
+           Direct sales and others revenue under China commerce retail business in fiscal year 2023 was
+           RMB274,954 million (US$40,037 million), an increase of 6% compared to RMB259,830 million in
+           fiscal year 2022, primarily due to the revenue growth contributed by our Freshippo and Alibaba
+           Health’s direct sales businesses.
+
+          China Commerce Wholesale Business
+
+           Revenue from our China commerce wholesale business in fiscal year 2023 was RMB17,399 million
+           (US$2,533 million), an increase of 4% compared to RMB16,712 million in fiscal year 2022. The
+           increase was primarily due to the increase in revenue from value-added services to paying members.
+
+(ii)       Segment adjusted EBITA
+
+           China commerce adjusted EBITA increased by 1% to RMB184,862 million (US$26,918 million) in
+           fiscal year 2023, compared to RMB182,431 million in fiscal year 2022. The increase was primarily
+           due to reduced losses of Taobao Deals, Freshippo and Taocaicai, partly offset by a decrease in profit
+           from customer management services. Adjusted EBITA margin increased from 31% in fiscal year
+           2022 to 32% in fiscal year 2023. During fiscal year 2023, Taobao Deals significantly narrowed
+           losses year-over-year, driven by optimized spending in user acquisition. Freshippo significantly
+           narrowed losses year-over-year, as Freshippo continued to strengthen its merchandising capabilities
+           and improve its operating efficiency. Taocaicai significantly narrowed losses year-over-year, driven
+           by improving overall operating efficiency.
+
+International Commerce
+
+(i)        Segment revenue
+
+          International Commerce Retail Business
+
+           Revenue from our International commerce retail business in fiscal year 2023 was RMB49,873
+           million (US$7,262 million), an increase of 17% compared to RMB42,668 million in fiscal year 2022.
+           The increase was mainly attributable to the growth in revenue generated by Trendyol and Lazada.
+           The increase in revenue from Trendyol resulted from more efficient use of subsidies and robust year-
+           over-year order growth. Increase in revenue contributed by Lazada was the result of continuous
+           improvement in monetization rate by offering more value-added services.
+
+          International Commerce Wholesale Business
+
+           Revenue from our International commerce wholesale business in fiscal year 2023 was RMB19,331
+           million (US$2,815 million), an increase of 5% compared to RMB18,410 million in fiscal year 2022.
+           The increase was primarily due to increases in revenue generated by cross-border related value-
+           added services.
+
+(ii)       Segment adjusted EBITA
+
+           International commerce adjusted EBITA was a loss of RMB5,620 million (US$818 million) in fiscal
+           year 2023, compared to a loss of RMB8,991 million in fiscal year 2022. The decrease in loss year-
+           over-year was primarily due to the reduced losses from Trendyol and Lazada. The reduced loss from
+           Trendyol is primarily due to revenue growth and enhanced operating efficiency. Narrowing of loss
+           from Lazada was a result of continuous improvement in monetization rate by offering more value-
+           added services as well as enhanced operating efficiency.
+
+
+
+
+                                                         25
+Local Consumer Services
+
+(i)     Segment revenue
+
+        Revenue from Local consumer services was RMB50,112 million (US$7,297 million) in fiscal year
+        2023, an increase of 12% compared to RMB44,616 million in fiscal year 2022, primarily driven by
+        higher average order value of Ele.me and strong order growth of Amap.
+
+(ii)    Segment adjusted EBITA
+
+        Local consumer services adjusted EBITA was a loss of RMB14,021 million (US$2,041 million) in
+        fiscal year 2023, compared to a loss of RMB22,092 million in fiscal year 2022, primarily due to the
+        continued narrowing of loss from our “To-Home” business. Narrowing of loss from our “To-Home”
+        business was driven by Ele.me’s improved unit economics per order, which was due to increased
+        average order value and reduced delivery cost per order year-over-year.
+
+Cainiao
+
+(i)     Segment revenue
+
+        Revenue from Cainiao, which represents revenue from its domestic and international one-stop-shop
+        logistics services and supply chain management solutions, after inter-segment elimination, was
+        RMB55,681 million (US$8,108 million) in fiscal year 2023, an increase of 21% compared to
+        RMB46,107 million in fiscal year 2022, primarily contributed by the increase in revenue from
+        domestic consumer logistics services as a result of service model upgrade since late 2021 whereby
+        Cainiao took on more responsibilities throughout the logistics process to better serve customers and
+        enhance customer experience, as well as the increase in revenue from international fulfillment
+        solution services.
+
+        Total revenue generated by Cainiao, before inter-segment elimination, which includes revenue from
+        services provided to other Alibaba businesses, was RMB77,512 million (US$11,287 million), an
+        increase of 16% compared to RMB66,808 million in fiscal year 2022.
+
+(ii)    Segment adjusted EBITA
+
+        Cainiao adjusted EBITA was a loss of RMB391 million (US$57 million) in fiscal year 2023,
+        compared to a loss of RMB1,465 million in fiscal year 2022, mainly due to improved operating
+        results from International fulfillment solution service and improved operating efficiency in consumer
+        logistics services and domestic fulfillment solution services.
+
+Cloud
+
+(i)     Segment revenue
+
+        Revenue from our Cloud segment, after inter-segment elimination, was RMB77,203 million
+        (US$11,242 million) in fiscal year 2023, an increase of 4% year-over-year compared to RMB74,568
+        million in fiscal year 2022. Year-over-year revenue growth of our Cloud segment reflected the
+        revenue growth from non-Internet industries driven by solid growth of revenue from financial
+        services, automobile and retail industries, which was partially offset by the decline in revenue from
+        customers in the Internet industry mainly driven by declining revenue from a top customer in the
+
+
+
+
+                                                      26
+       Internet industry phasing out using our overseas cloud services for its international business due to
+       non-product related reasons.
+
+       Total revenue from our Cloud business, before inter-segment elimination, which includes revenue
+       from services provided to other Alibaba businesses, was RMB101,950 million (US$14,845 million),
+       an increase of 2% compared to RMB100,180 million in fiscal year 2022.
+
+(ii)   Segment adjusted EBITA
+
+       Cloud adjusted EBITA was RMB1,422 million (US$207 million) in fiscal year 2023, compared to
+       RMB1,146 million in fiscal year 2022.
+
+Digital Media and Entertainment
+
+(i)    Segment revenue
+
+       Revenue from our Digital media and entertainment segment in fiscal year 2023 was RMB31,482
+       million (US$4,584 million), a decrease of 2%, compared to RMB32,272 million in fiscal year 2022.
+
+(ii)   Segment adjusted EBITA
+
+       Digital media and entertainment adjusted EBITA in fiscal year 2023 was a loss of RMB1,874 million
+       (US$273 million), compared to a loss of RMB4,690 million in fiscal year 2022, primarily due to the
+       narrowing of loss from Youku driven by disciplined investment in content and production capability.
+
+Innovation Initiatives and Others
+
+(i)    Segment revenue
+
+       Revenue from Innovation initiatives and others was RMB2,274 million (US$331 million) in fiscal
+       year 2023, a decrease of 20% compared to RMB2,841 million in fiscal year 2022.
+
+(ii)   Segment adjusted EBITA
+
+       Innovation initiatives and others adjusted EBITA in fiscal year 2023 was a loss of RMB6,907 million
+       (US$1,006 million), compared to a loss of RMB7,129 million in fiscal year 2022.
+
+
+
+
+                                                     27
+FULL FISCAL YEAR OTHER FINANCIAL RESULTS
+
+Costs and Expenses
+
+The following tables set forth a breakdown of our costs and expenses, share-based compensation expense
+and costs and expenses excluding share-based compensation expense by function for the periods indicated.
+
+                                                    Year ended March 31,
+                                                                                                % of
+                                           2022                        2023
+                                                                                               Revenue
+                                                % of                                   % of     YoY
+                                     RMB       Revenue       RMB           US$       Revenue   change
+                                                     (in millions, except percentages)
+Costs and expenses:
+Cost of revenue                      539,450        63%      549,695     80,042          63%         0%
+Product development expenses          55,465         7%       56,744      8,263           7%         0%
+Sales and marketing expenses         119,799        14%      103,496     15,070          12%       (2)%
+General and administrative
+  expenses                            31,922         4%       42,183       6,142          5%         1%
+Amortization and impairment of
+  intangible assets                   11,647         1%       13,504      1,967           1%         0%
+Impairment of goodwill                25,141         3%        2,714        395           0%       (3)%
+Total costs and expenses             783,424        92%      768,336    111,879          88%       (4)%
+
+Share-based compensation
+  expense:
+Cost of revenue                        5,725         1%        5,710         831          1%         0%
+Product development expenses          11,035         1%       13,514       1,968          2%         1%
+Sales and marketing expenses           3,050         0%        3,710         540          0%         0%
+General and administrative             4,161         1%        7,897       1,150          1%         0%
+  expenses
+Total share-based compensation        23,971         3%       30,831       4,489          4%         1%
+ expense
+
+Costs and expenses excluding
+  share-based compensation
+  expense:
+Cost of revenue                      533,725        62%      543,985     79,211          62%         0%
+Product development expenses          44,430         6%       43,230      6,295           5%       (1)%
+Sales and marketing expenses         116,749        14%       99,786     14,530          12%       (2)%
+General and administrative
+  expenses                            27,761         3%       34,286       4,992          4%         1%
+Amortization and impairment of
+  intangible assets                   11,647         1%       13,504      1,967           1%         0%
+Impairment of goodwill                25,141         3%        2,714        395           0%       (3)%
+Total costs and expenses excluding   759,453        89%      737,505    107,390          84%       (5)%
+  share-based compensation
+  expense
+
+Cost of revenue – Cost of revenue in fiscal year 2023 was RMB549,695 million (US$80,042 million), or
+63% of revenue, compared to RMB539,450 million, or 63% of revenue, in fiscal year 2022. Without the
+effect of share-based compensation expense, cost of revenue as a percentage of revenue would have
+remained stable at 62% in fiscal year 2023 compared to fiscal year 2022.
+
+Product development expenses – Product development expenses in fiscal year 2023 were RMB56,744
+million (US$8,263 million), or 7% of revenue, compared to RMB55,465 million, or 7% of revenue, in fiscal
+
+                                                   28
+year 2022. Without the effect of share-based compensation expense, product development expenses as a
+percentage of revenue would have decreased from 6% in fiscal year 2022 to 5% in fiscal year 2023.
+
+Sales and marketing expenses – Sales and marketing expenses in fiscal year 2023 were RMB103,496
+million (US$15,070 million), or 12% of revenue, compared to RMB119,799 million, or 14% of revenue, in
+fiscal year 2022. Without the effect of share-based compensation expense, sales and marketing expenses as a
+percentage of revenue would have decreased from 14% in fiscal year 2022 to 12% in fiscal year 2023.
+
+General and administrative expenses – General and administrative expenses in fiscal year 2023 were
+RMB42,183 million (US$6,142 million), or 5% of revenue, compared to RMB31,922 million, or 4% of
+revenue. Without the effect of share-based compensation expense, general and administrative expenses as a
+percentage of revenue would have increased from 3% in fiscal year 2022 to 4% in fiscal year 2023.
+
+Share-based compensation expense – Total share-based compensation expense included in the cost and
+expense items above in fiscal year 2023 was RMB30,831 million (US$4,489 million), an increase of 29%
+compared to RMB23,971 million in fiscal year 2022. Share-based compensation expense as a percentage of
+revenue increased to 4% in fiscal year 2023, as compared to 3% in fiscal year 2022.
+
+The following table sets forth our analysis of share-based compensation expense for the periods indicated by
+type of share-based awards:
+
+                                                            Year ended March 31,
+                                                    2022                        2023                            % Change
+                                                         % of                              % of
+                                            RMB         Revenue     RMB         US$      Revenue                    YoY
+                                                             (in millions, except percentages)
+ By type of awards:
+
+ Alibaba Group share-based
+    awards(1)                                 30,576            4%        24,900         3,626           3%            (19)%
+ Ant Group share-based awards(2)            (11,585)          (1)%           668            97           0%              N/A
+ Others(3)                                     4,980            0%         5,263           766           1%                 6%
+ Total share-based compensation
+   expense                                   23,971            3%         30,831         4,489           4%                 29%
+
+ (1) This represents Alibaba Group share-based awards granted to our employees.
+ (2) This represents Ant Group share-based awards granted to our employees, which is subject to mark-to-market accounting
+     treatment.
+ (3) This represents share-based awards of our subsidiaries.
+
+Share-based compensation expense related to Alibaba Group share-based awards decreased in fiscal year
+2023 compared to fiscal year 2022. This decrease was primarily due to the general decrease in the average
+fair market value of the awards granted.
+
+Share-based compensation expense related to Ant Group share-based awards was a net reversal in fiscal year
+2022 because we recognized a decrease in the value of such awards.
+
+We expect that our share-based compensation expense will continue to be affected by changes in the fair
+value of the underlying awards and the quantity of awards we grant in the future.
+
+Amortization and impairment of intangible assets – Amortization and impairment of intangible assets in
+fiscal year 2023 was RMB13,504 million (US$1,967 million), an increase of 16% from RMB11,647 million
+in fiscal year 2022, primarily due to impairment losses of intangible assets recorded in fiscal year 2023.
+
+Impairment of goodwill – Impairment of goodwill in fiscal year 2023 was RMB2,714 million (US$395
+million), a decrease of 89% or RMB22,427 million from RMB25,141 million in fiscal year 2022.
+
+                                                                     29
+Impairment recorded in both years represents the amount by which the carrying value of certain reporting
+units within Digital media and entertainment segment exceeds their fair value, based on an annual goodwill
+impairment assessment.
+
+Income from operations and operating margin
+
+Income from operations in fiscal year 2023 was RMB100,351 million (US$14,612 million), or 12% of
+revenue, an increase of 44% compared to RMB69,638 million, or 8% of revenue, in fiscal year 2022. During
+fiscal year 2023, we recorded a RMB2,714 million (US$395 million) impairment of goodwill in relation to
+Digital media and entertainment segment, and a RMB2,811 million (US$409 million) impairment of
+intangible assets. During fiscal year 2022, we recorded a RMB25,141 million impairment of goodwill in
+relation to Digital media and entertainment segment and a RMB13,046 million reversal of share-based
+compensation expense related to the mark-to-market adjustment of Ant Group share-based awards granted
+to our employees.
+
+All of these impacts were excluded from our non-GAAP measures of profitability. Excluding these impacts,
+income from operations would have increased by RMB24,143 million year-over-year, from RMB81,733
+million in fiscal year 2022 to RMB105,876 million (US$15,417 million) in fiscal year 2023, primarily due
+to the narrowed adjusted EBITA losses of Local consumer services, International commerce and Digital
+media and entertainment, as well as an increase in China commerce adjusted EBITA.
+
+Adjusted EBITDA and Adjusted EBITA
+
+Adjusted EBITDA increased 11% year-over-year to RMB175,710 million (US$25,585 million) in fiscal
+year 2023, compared to RMB158,205 million in fiscal year 2022. Adjusted EBITA increased 13% or
+RMB17,514 million year-over-year to RMB147,911 million (US$21,538 million) in fiscal year 2023,
+compared to RMB130,397 million in fiscal year 2022. The year-over-year increases were primarily due to
+the narrowed adjusted EBITA losses of Local consumer services, International commerce and Digital media
+and entertainment, as well as an increase in China commerce adjusted EBITA. A reconciliation of net
+income to adjusted EBITDA and adjusted EBITA is included at the end of this results announcement.
+
+Adjusted EBITA and Adjusted EBITA margin by segments
+
+Adjusted EBITA and adjusted EBITA margin by segments as well as a reconciliation of income from
+operations to adjusted EBITA are set forth in “Full Fiscal Year Information by Segments” above.
+
+Interest and investment income, net
+
+Interest and investment income, net in fiscal year 2023 was a loss of RMB11,071 million (US$1,612
+million), compared to a loss of RMB15,702 million in fiscal year 2022. The year-over-year decrease in loss
+was primarily due to the decrease in net losses arising from the changes in fair value of our equity
+investments.
+
+The above-mentioned gains and losses were excluded from our non-GAAP net income.
+
+Other income, net
+
+Other income, net in fiscal year 2023 was RMB5,823 million (US$848 million), compared to RMB10,523
+million in fiscal year 2022. The year-over-year decrease was primarily due to the net exchange losses in
+fiscal year 2023, compared to net exchange gains in fiscal year 2022.
+
+Income tax expenses
+
+Income tax expenses in fiscal year 2023 were RMB15,549 million (US$2,264 million), compared to
+RMB26,815 million in fiscal year 2022.
+
+                                                    30
+Excluding share-based compensation expense, revaluation and disposal gains/losses of investments,
+impairment of goodwill and investments, as well as the deferred tax effects on basis differences arising from
+equity method investees, our effective tax rate would have been 17% in fiscal year 2023.
+
+Share of results of equity method investees
+
+Share of results of equity method investees in fiscal year 2023 was a loss of RMB8,063 million (US$1,174
+million), compared to a profit of RMB14,344 million in fiscal year 2022. The following table sets forth a
+breakdown of share of results of equity method investees for the periods indicated.
+
+                                                                                         Year ended March 31,
+                                                                             2022                          2023
+                                                                            RMB                     RMB                         US$
+                                                                                             (in millions)
+ Share of profit (loss) of equity method investees
+   - Ant Group                                                               24,084                       10,294                   1,499
+   - Others                                                                     (89)                      (5,481)                   (798)
+ Impairment loss                                                             (6,201)                      (8,310)                 (1,210)
+ Others(1)                                                                   (3,450)                      (4,566)                   (665)
+ Total                                                                       14,344                       (8,063)                 (1,174)
+
+(1) “Others” mainly include basis differences arising from equity method investees, share-based compensation expense related to share-based
+    awards granted to employees of our equity method investees, as well as gain or loss arising from the dilution of our investment in equity
+    method investees.
+
+We record our share of results of all equity method investees one quarter in arrears. In connection with our
+share of profit of Ant Group, the year-over-year decrease was mainly due to decrease in net investment gains
+from the investments held by Ant Group and decrease in Ant Group’s operating profit. The decrease in share
+of results of other equity method investments was mainly due to the general decline in financial performance
+of our equity method investees.
+
+Net income and Non-GAAP net income
+
+Our net income in fiscal year 2023 was RMB65,573 million (US$9,548 million), an increase of 39% or
+RMB18,494 million, compared to RMB47,079 million in fiscal year 2022. The year-over-year increase was
+primarily due to the increase in income from operations and the decrease in net losses arising from changes
+in the fair values of our equity investments, partly offset by the decrease in share of profit of equity method
+investees and the increase in impairment of investments.
+
+Excluding the share-based compensation expense, revaluation and disposal gains/losses of investments,
+impairment of goodwill and investments and certain other items, non-GAAP net income in fiscal year 2023
+was RMB141,379 million (US$20,586 million), an increase of 4% compared to RMB136,388 million in
+fiscal year 2022. A reconciliation of net income to non-GAAP net income is included at the end of this
+results announcement.
+
+Net income attributable to ordinary shareholders
+
+Net income attributable to ordinary shareholders in fiscal year 2023 was RMB72,509 million (US$10,558
+million), compared to RMB61,959 million in fiscal year 2022. The year-over-year increase was primarily
+due to the increase in income from operations and the decrease in net losses arising from changes in the fair
+values of our equity investments, partly offset by the decrease in share of profit of equity method investees
+and the increase in impairment of investments.
+
+
+
+
+                                                                     31
+Diluted earnings per ADS/share and non-GAAP diluted earnings per ADS/share
+
+Diluted earnings per ADS in fiscal year 2023 was RMB27.46 (US$4.00), an increase of 21% compared to
+RMB22.74 in fiscal year 2022. Excluding the share-based compensation expense, revaluation and disposal
+gains/losses of investments, impairment of goodwill and investments and certain other items, non-GAAP
+diluted earnings per ADS in fiscal year 2023 was RMB54.56 (US$7.94), an increase of 4% compared to
+RMB52.69 in fiscal year 2022.
+
+Diluted earnings per share in fiscal year 2023 was RMB3.43 (US$0.50 or HK$3.92), an increase of 21%
+compared to RMB2.84 in fiscal year 2022. Excluding the share-based compensation expense, revaluation
+and disposal gains/losses of investments, impairment of goodwill and investments and certain other items,
+non-GAAP diluted earnings per share in fiscal year 2023 was RMB6.82 (US$0.99 or HK$7.79), an increase
+of 4%, compared to RMB6.59 in fiscal year 2022.
+
+A reconciliation of diluted earnings per ADS/share to non-GAAP diluted earnings per ADS/share is
+included at the end of this results announcement. Each ADS represents eight ordinary shares.
+
+Cash and cash equivalents, short-term investments and other treasury investments
+
+As of March 31, 2023, cash and cash equivalents, short-term investments and other treasury investments
+included in equity securities and other investments on the consolidated balance sheets, were RMB560,314
+million (US$81,588 million), compared to RMB446,412 million as of March 31, 2022. Other treasury
+investments consist of fixed deposits and certificate of deposits with original maturities over one year. The
+increase in cash and cash equivalents, short-term investments and other treasury investments during the
+fiscal year ended March 31, 2023 was primarily due to free cash flow generated from operations of
+RMB171,663 million (US$24,996 million), and effect of exchange rate changes of RMB12,332 million
+(US$1,796 million) mainly due to the appreciation of the U.S. dollar against Renminbi, partly offset by cash
+used in repurchase of ordinary shares of RMB74,746 million (US$10,884 million).
+
+Net cash provided by operating activities and free cash flow
+
+Net cash provided by operating activities in fiscal year 2023 was RMB199,752 million (US$29,086 million),
+an increase of 40% compared to RMB142,759 million in fiscal year 2022. Free cash flow increased by 74%
+in fiscal year 2023 to RMB171,663 million (US$24,996 million), from RMB98,874 million in fiscal year
+2022, during which we made the full payment of the Anti-monopoly Fine in the amount of RMB18,228
+million. The year-over-year increase also reflected narrowing losses of certain businesses driven by
+improving operating efficiency, dividend received from Ant Group of RMB14,464 million (US$2,106
+million), as well as the decrease in capital expenditure. A reconciliation of net cash provided by operating
+activities to free cash flow is included at the end of this results announcement.
+Net cash used in investing activities
+
+During fiscal year 2023, net cash used in investing activities of RMB135,506 million (US$19,731 million)
+primarily reflected (i) an increase in short-term investments by RMB61,086 million (US$8,895 million), (ii)
+an increase in other treasury investments by RMB40,794 million (US$5,940 million), (iii) capital
+expenditures of RMB34,330 million (US$4,999 million), as well as (iv) cash outflow of RMB23,574 million
+(US$3,433 million) for investment and acquisition activities. These cash outflows were partially offset by
+cash inflow of RMB22,734 million (US$3,310 million) from disposal of investments.
+
+Net cash used in financing activities
+
+During fiscal year 2023, net cash used in financing activities of RMB65,619 million (US$9,555 million)
+primarily reflected cash used in repurchase of ordinary shares of RMB74,746 million (US$10,884 million),
+
+
+                                                     32
+partially offset by the net proceeds from bank borrowings and other borrowings of RMB11,342 million
+(US$1,652 million).
+
+
+
+
+                                                   33
+WEBCAST AND CONFERENCE CALL INFORMATION
+
+Alibaba Group’s management will hold a conference call to discuss the financial results at 7:30 a.m. U.S.
+Eastern Time (7:30 p.m. Hong Kong Time) on May 18, 2023.
+
+All participants must pre-register to join this conference call using the Participant Registration link below:
+English: https://s1.c-conf.com/diamondpass/10030391-nl9h5r.html
+Chinese: https://s1.c-conf.com/diamondpass/10030392-8esjhx.html
+
+Upon registration, each participant will receive details for the conference call, including dial-in numbers,
+conference call passcode and a unique access PIN. To join the conference, please dial the number provided,
+enter the passcode followed by your PIN, and you will join the conference.
+
+A live webcast of the earnings conference call can be accessed at
+https://www.alibabagroup.com/en/ir/earnings. An archived webcast will be available through the same link
+following the call. A replay of the conference call will be available for one week from the date of the
+conference (Dial-in number: +1 855 883 1031; English conference PIN 10030391; Chinese conference PIN
+10030392).
+
+Please visit Alibaba Group’s Investor Relations website at https://www.alibabagroup.com/en/ir/home on
+May 18, 2023 to view the earnings release and accompanying slides prior to the conference call.
+
+About Alibaba Group
+
+Alibaba Group’s mission is to make it easy to do business anywhere. The company aims to build the future
+infrastructure of commerce. It envisions that its customers will meet, work and live at Alibaba, and that it
+will be a good company that lasts for 102 years.
+
+Investor Relations Contact
+Rob Lin
+Investor Relations
+Alibaba Group Holding Limited
+investor@alibaba-inc.com
+
+Media Contacts:
+Cathy Yan
+cathy.yan@alibaba-inc.com
+
+Ivy Ke
+ivy.ke@alibaba-inc.com
+
+EXCHANGE RATE INFORMATION
+
+This results announcement contains translations of certain Renminbi (“RMB”) amounts into U.S. dollars
+(“US$”) and Hong Kong dollars (“HK$”) for the convenience of the reader. Unless otherwise stated, all
+translations of RMB into US$ were made at RMB6.8676 to US$1.00, the exchange rate on March 31, 2023
+as set forth in the H.10 statistical release of the Federal Reserve Board, and all translations of RMB into
+HK$ were made at RMB0.87541 to HK$1.00, the middle rate on March 31, 2023 as published by the
+People’s Bank of China. The percentages stated in this announcement are calculated based on the RMB
+amounts and there may be minor differences due to rounding.
+
+
+
+
+                                                       34
+SAFE HARBOR STATEMENTS
+
+This announcement contains forward-looking statements. These statements are made under the “safe harbor”
+provisions of the U.S. Private Securities Litigation Reform Act of 1995. These forward-looking statements
+can be identified by terminology such as “may,” “will,” “expect,” “anticipate,” “future,” “aim,” “estimate,”
+“intend,” “seek,” “plan,” “believe,” “potential,” “continue,” “ongoing,” “target,” “guidance,” “is/are likely
+to” and similar statements. In addition, statements that are not historical facts, including statements about
+Alibaba Group’s new organizational and governance structure, strategic benefits of this new structure and
+future spin-off or capital raising plans, statements about Alibaba’s strategies and business plans, Alibaba’s
+beliefs, expectations and guidance regarding the growth of its business and its revenue, the business outlook
+and quotations from management in this announcement, as well as Alibaba’s strategic and operational plans,
+are or contain forward-looking statements. Alibaba may also make forward-looking statements in its
+periodic reports to the U.S. Securities and Exchange Commission (the “SEC”), in announcements made on
+the website of The Stock Exchange of Hong Kong Limited (the “Hong Kong Stock Exchange”), in press
+releases and other written materials and in oral statements made by its officers, directors or employees to
+third parties. Forward-looking statements involve inherent risks and uncertainties. A number of factors could
+cause actual results to differ materially from those contained in any forward-looking statement. These
+factors include but are not limited to the following: Alibaba’s corporate structure, including the VIE
+structure it uses to operate certain businesses in the PRC, Alibaba’s ability to maintain the trusted status of
+its ecosystem; risks associated with sustained investments in Alibaba’s businesses; Alibaba’s ability to
+maintain or grow its revenue or business, including expanding its international and cross border businesses
+and operations; risks associated with Alibaba’s acquisitions, investments and alliances; uncertainties arising
+from competition among countries and geopolitical tensions, including protectionist or national security
+policies; uncertainties and risks associated with a broad range of complex laws and regulations (including in
+the areas of anti-monopoly and anti-unfair competition, consumer protection, data security and privacy
+protection and regulation of Internet platforms) in the PRC and globally; cybersecurity risks; fluctuations in
+general economic and business conditions in China and globally; impacts of the COVID-19 pandemic and
+assumptions underlying or related to any of the foregoing. In particular, the timing and implementation
+details of Alibaba Group’s new structure, whether the new structure will yield the expected strategic
+benefits, and the successful execution of spin-off or capital raising plans are subject to uncertainties and
+factors that may be beyond our control, including without limitation, successful restructurings of assets,
+liabilities and contracts, implementation of equity incentive plans, market conditions and regulatory reviews
+and approvals. Further information regarding these and other risks is included in Alibaba’s filings with the
+SEC and announcements on the website of the Hong Kong Stock Exchange. All information provided in this
+results announcement is as of the date of this results announcement and are based on assumptions that we
+believe to be reasonable as of this date, and Alibaba does not undertake any obligation to update any
+forward-looking statement, except as required under applicable law.
+
+NON-GAAP FINANCIAL MEASURES
+
+To supplement our consolidated financial statements, which are prepared and presented in accordance with
+GAAP, we use the following non-GAAP financial measures: for our consolidated results, adjusted EBITDA
+(including adjusted EBITDA margin), adjusted EBITA (including adjusted EBITA margin), non-GAAP net
+income, non-GAAP diluted earnings per share/ADS and free cash flow. For more information on these non-
+GAAP financial measures, please refer to the table captioned “Reconciliations of Non-GAAP Measures to
+the Nearest Comparable U.S. GAAP Measures” in this results announcement.
+We believe that adjusted EBITDA, adjusted EBITA, non-GAAP net income and non-GAAP diluted
+earnings per share/ADS help identify underlying trends in our business that could otherwise be distorted by
+the effect of certain income or expenses that we include in income from operations, net income and diluted
+earnings per share/ADS. We believe that these non-GAAP measures provide useful information about our
+core operating results, enhance the overall understanding of our past performance and future prospects and
+allow for greater visibility with respect to key metrics used by our management in its financial and
+operational decision-making. We present three different income measures, namely adjusted EBITDA,
+
+                                                      35
+adjusted EBITA and non-GAAP net income in order to provide more information and greater transparency
+to investors about our operating results.
+We consider free cash flow to be a liquidity measure that provides useful information to management and
+investors about the amount of cash generated by our business that can be used for strategic corporate
+transactions, including investing in our new business initiatives, making strategic investments and
+acquisitions and strengthening our balance sheet.
+Adjusted EBITDA, adjusted EBITA, non-GAAP net income, non-GAAP diluted earnings per share/ADS
+and free cash flow should not be considered in isolation or construed as an alternative to income from
+operations, net income, diluted earnings per share/ADS, cash flows or any other measure of performance or
+as an indicator of our operating performance. These non-GAAP financial measures presented here do not
+have standardized meanings prescribed by U.S. GAAP and may not be comparable to similarly titled
+measures presented by other companies. Other companies may calculate similarly titled measures
+differently, limiting their usefulness as comparative measures to our data.
+Adjusted EBITDA represents net income before (i) interest and investment income, net, interest expense,
+other income, net, income tax expenses and share of results of equity method investees, (ii) certain non-cash
+expenses, consisting of share-based compensation expense, amortization and impairment of intangible
+assets, depreciation and impairment of property and equipment, operating lease cost relating to land use
+rights and impairment of goodwill, as well as equity-settled donation expense, which we do not believe are
+reflective of our core operating performance during the periods presented.
+Adjusted EBITA represents net income before (i) interest and investment income, net, interest expense,
+other income, net, income tax expenses and share of results of equity method investees, (ii) certain non-cash
+expenses, consisting of share-based compensation expense, amortization and impairment of intangible assets
+and impairment of goodwill, as well as equity-settled donation expense, which we do not believe are
+reflective of our core operating performance during the periods presented.
+Non-GAAP net income represents net income before share-based compensation expense, amortization and
+impairment of intangible assets, impairment of goodwill and investments, gain or loss on deemed
+disposals/disposals/revaluation of investments, equity-settled donation expense and others, as adjusted for
+the tax effects.
+Non-GAAP diluted earnings per share represents non-GAAP net income attributable to ordinary
+shareholders divided by the weighted average number of shares for computing non-GAAP diluted earnings
+per share, on a diluted basis. Non-GAAP diluted earnings per ADS represents non-GAAP diluted earnings
+per share after adjusting for the ordinary share-to-ADS ratio.
+Free cash flow represents net cash provided by operating activities as presented in our consolidated cash
+flow statement less purchases of property and equipment (excluding acquisition of land use rights and
+construction in progress relating to office campuses) and intangible assets (excluding those acquired through
+acquisitions), as well as adjustments to exclude from net cash provided by operating activities the consumer
+protection fund deposits from merchants on our marketplaces. We deduct certain items of cash flows from
+investing activities in order to provide greater transparency into cash flow from our revenue-generating
+business operations. We exclude “acquisition of land use rights and construction in progress relating to
+office campuses” because the office campuses are used by us for corporate and administrative purposes and
+are not directly related to our revenue-generating business operations. We also exclude consumer protection
+fund deposits from merchants on our marketplaces because these deposits are restricted for the purpose of
+compensating consumers for claims against merchants.
+The table captioned “Reconciliations of Non-GAAP Measures to the Nearest Comparable U.S. GAAP
+Measures” in this results announcement have more details on the non-GAAP financial measures that are
+most directly comparable to GAAP financial measures and the related reconciliations between these
+financial measures.
+
+
+
+
+                                                     36
+ALIBABA GROUP HOLDING LIMITED
+UNAUDITED CONSOLIDATED INCOME STATEMENTS
+
+                                                     Three months ended March 31,               Year ended March 31,
+                                                     2022              2023                2022              2023
+                                                    RMB            RMB         US$         RMB         RMB           US$
+                                                  (in millions, except per share data)    (in millions, except per share data)
+Revenue                                            204,052       208,200      30,316      853,062       868,687       126,491
+Cost of revenue                                   (138,945)     (138,823)    (20,214)    (539,450)     (549,695)      (80,042)
+Product development expenses                       (10,944)      (13,880)     (2,021)     (55,465)      (56,744)       (8,263)
+Sales and marketing expenses                       (27,200)      (24,931)     (3,630)    (119,799)     (103,496)      (15,070)
+General and administrative expenses                 (7,415)      (12,832)     (1,869)     (31,922)      (42,183)       (6,142)
+Amortization and impairment of
+  intangible assets                                 (2,831)       (2,494)      (363)      (11,647)      (13,504)       (1,967)
+Impairment of goodwill                                  —             —          —        (25,141)       (2,714)         (395)
+
+Income from operations                              16,717       15,240       2,219        69,638      100,351         14,612
+Interest and investment income, net                (36,708)      10,496       1,528       (15,702)     (11,071)        (1,612)
+Interest expense                                    (1,189)      (1,736)       (253)       (4,909)      (5,918)          (862)
+Other income, net                                    1,620        1,308         191        10,523        5,823            848
+
+
+(Loss) Income before income tax and
+   share of results of equity method
+   investees                                       (19,560)        25,308       3,685      59,550         89,185       12,986
+Income tax expenses                                 (2,079)        (3,758)       (547)    (26,815)       (15,549)       (2,264)
+Share of results of equity method
+   investees                                         3,282            446          65     14,344          (8,063)      (1,174)
+
+Net (loss) income                                  (18,357)       21,996        3,203     47,079          65,573        9,548
+Net loss attributable to noncontrolling
+  interests                                          2,241          1,648        240      15,170           7,210        1,050
+
+Net (loss) income attributable to
+  Alibaba Group Holding Limited                    (16,116)       23,644        3,443     62,249          72,783       10,598
+
+Accretion of mezzanine equity                         (125)          (128)        (19)      (290)           (274)         (40)
+Net (loss) income attributable to
+  ordinary shareholders                            (16,241)       23,516        3,424     61,959          72,509       10,558
+
+(Loss) Earnings per share
+  attributable to ordinary
+  shareholders(1)
+Basic                                                 (0.76)          1.14        0.17          2.87          3.46         0.50
+Diluted                                               (0.76)          1.12        0.16          2.84          3.43         0.50
+
+(Loss) Earnings per ADS
+  attributable to ordinary
+  shareholders(1)
+Basic                                                  (6.07)         9.11        1.33        22.99          27.65         4.03
+Diluted                                                (6.07)         9.00        1.31        22.74          27.46         4.00
+
+Weighted average number of shares
+  used in calculating earnings per
+  ordinary share (million shares)(1)
+Basic                                                 21,401        20,651                   21,558         20,980
+Diluted                                               21,401        20,882                   21,787         21,114
+
+ (1) Each ADS represents eight ordinary shares.
+
+
+
+                                                                    37
+ALIBABA GROUP HOLDING LIMITED
+UNAUDITED CONSOLIDATED BALANCE SHEETS
+
+                                                   As of March 31,            As of March 31,
+                                                         2022                       2023
+                                                       RMB               RMB                    US$
+                                                                     (in millions)
+Assets
+Current assets:
+   Cash and cash equivalents                               189,898          193,086                28,115
+   Short-term investments                                  256,514          326,492                47,541
+   Restricted cash and escrow receivables                   37,455           36,424                 5,304
+   Equity securities and other investments                   8,673            4,892                   712
+   Prepayments, receivables and other assets(1)            145,995          137,072                19,960
+Total current assets                                       638,535          697,966               101,632
+
+Equity securities and other investments                    223,611          245,737               35,782
+Prepayments, receivables and other assets                  113,147          110,926               16,152
+Investment in equity method investees                      219,642          207,380               30,197
+Property and equipment, net                                171,806          176,031               25,632
+Intangible assets, net                                      59,231           46,913                6,831
+Goodwill                                                   269,581          268,091               39,037
+Total assets                                             1,695,553        1,753,044              255,263
+
+Liabilities, Mezzanine Equity and Shareholders’
+ Equity
+Current liabilities:
+   Current bank borrowings                                   8,841            7,466                   1,087
+   Current unsecured senior notes                               —             4,800                     699
+   Income tax payable                                       21,753           12,543                   1,826
+   Accrued expenses, accounts payable and other
+       liabilities                                         271,460          275,950                40,182
+   Merchant deposits                                        14,747           13,297                 1,936
+   Deferred revenue and customer advances                   66,983           71,295                10,381
+Total current liabilities                                  383,784          385,351                56,111
+
+
+
+
+                                                  38
+ALIBABA GROUP HOLDING LIMITED
+UNAUDITED CONSOLIDATED BALANCE SHEETS (CONTINUED)
+
+                                                                  As of March 31,                        As of March 31,
+                                                                        2022                                  2023
+                                                                         RMB                     RMB                        US$
+                                                                                              (in millions)
+
+Deferred revenue                                                               3,490                    3,560                          518
+Deferred tax liabilities                                                      61,706                   61,745                        8,991
+Non-current bank borrowings                                                   38,244                   52,023                        7,575
+Non-current unsecured senior notes                                            94,259                   97,065                       14,134
+Other liabilities                                                             31,877                   30,379                        4,424
+Total liabilities                                                            613,360                  630,123                       91,753
+
+Commitments and contingencies
+
+Mezzanine equity                                                                9,655                     9,858                      1,435
+
+Shareholders’ equity:
+    Ordinary shares                                                                1                        1                           —
+    Additional paid-in capital                                               410,506                   416,880                      60,702
+    Treasury shares at cost                                                   (2,221)                  (28,763)                     (4,188)
+    Subscription receivables                                                     (46)                      (49)                         (7)
+    Statutory reserves                                                         9,839                    12,977                       1,890
+    Accumulated other comprehensive loss                                     (33,157)                  (10,417)                     (1,517)
+    Retained earnings                                                        563,557                   599,028                      87,225
+
+Total shareholders’ equity                                                   948,479                   989,657                 144,105
+Noncontrolling interests                                                     124,059                   123,406                  17,970
+
+Total equity                                                               1,072,538                 1,113,063                 162,075
+
+Total liabilities, mezzanine equity and equity                             1,695,553                 1,753,044                 255,263
+
+(1) Includes dividend from Ant Group in the amount of RMB3,945 million as of March 31, 2022. Ant Group declared a dividend to its
+    shareholders in March 2022 following shareholder approval.
+
+
+
+
+                                                                   39
+ALIBABA GROUP HOLDING LIMITED
+UNAUDITED CONDENSED CONSOLIDATED STATEMENTS OF CASH FLOWS
+                                             Three months ended March 31,             Year ended March 31,
+                                            2022               2023                2022             2023
+                                            RMB         RMB          US$          RMB         RMB          US$
+                                                       (in millions)                         (in millions)
+
+Net cash (used in) provided by
+   operating activities                      (7,040)       31,401       4,572     142,759       199,752       29,086
+Net cash used in investing activities       (87,254)      (26,808)     (3,904)   (198,592)     (135,506)     (19,731)
+Net cash used in financing activities       (10,614)       (9,319)     (1,357)    (64,449)      (65,619)      (9,555)
+Effect of exchange rate changes on
+   cash and cash equivalents, restricted
+   cash and escrow receivables                 (913)       (1,201)       (174)     (8,834)        3,530          514
+
+(Decrease) Increase in cash and cash
+  equivalents, restricted cash and
+  escrow receivables                       (105,821)       (5,927)       (863)   (129,116)        2,157          314
+Cash and cash equivalents, restricted
+  cash and escrow receivables at
+  beginning of period                      333,174       235,437       34,282    356,469       227,353        33,105
+
+Cash and cash equivalents, restricted
+  cash and escrow receivables at end
+  of period                                227,353       229,510       33,419    227,353       229,510        33,419
+
+
+
+
+                                                          40
+ALIBABA GROUP HOLDING LIMITED
+RECONCILIATIONS OF NON-GAAP MEASURES TO THE NEAREST COMPARABLE U.S.
+GAAP MEASURES
+
+The table below sets forth a reconciliation of our net (loss) income to adjusted EBITA and adjusted
+EBITDA for the periods indicated:
+
+                                    Three months ended March 31,                 Year ended March 31,
+                                    2022              2023                2022                2023
+                                    RMB           RMB          US$       RMB            RMB             US$
+                                               (in millions)                        (in millions)
+Net (loss) income                   (18,357)       21,996      3,203      47,079        65,573           9,548
+Adjustments to reconcile net
+   (loss) income to adjusted
+   EBITA and adjusted EBITDA:
+   Interest and investment
+      income, net                   36,708        (10,496)     (1,528)    15,702        11,071           1,612
+   Interest expense                  1,189           1,736        253      4,909         5,918             862
+   Other income, net                (1,620)        (1,308)       (191)   (10,523)       (5,823)           (848)
+   Income tax expenses               2,079           3,758        547     26,815        15,549           2,264
+   Share of results of equity
+      method investees              (3,282)         (446)        (65)    (14,344)        8,063           1,174
+Income from operations              16,717         15,240      2,219      69,638       100,351          14,612
+   Share-based compensation
+      expense                        (3,737)        7,546      1,099      23,971        30,831           4,489
+   Amortization and impairment
+      of intangible assets           2,831          2,494        363      11,647        13,504           1,967
+   Impairment of goodwill               —              —          —       25,141         2,714             395
+   Equity-settled donation
+      expense                           —              —          —          —             511              75
+Adjusted EBITA                      15,811         25,280      3,681     130,397       147,911          21,538
+   Depreciation and impairment
+      of property and equipment,
+      and operating lease cost
+      relating to land use rights    7,562          6,843        996      27,808        27,799           4,047
+Adjusted EBITDA                     23,373         32,123      4,677     158,205       175,710          25,585
+
+
+
+
+                                                        41
+ALIBABA GROUP HOLDING LIMITED
+RECONCILIATIONS OF NON-GAAP MEASURES TO THE NEAREST COMPARABLE U.S.
+GAAP MEASURES (CONTINUED)
+
+ The table below sets forth a reconciliation of our net (loss) income to non-GAAP net income for the
+ periods indicated:
+
+                                               Three months ended March 31,                           Year ended March 31,
+                                               2022                     2023                   2022                     2023
+                                              RMB             RMB              US$             RMB             RMB              US$
+                                                          (in millions)                                    (in millions)
+
+ Net (loss) income                            (18,357)         21,996           3,203          47,079          65,573            9,548
+ Adjustments to reconcile net
+  (loss) income to non-GAAP
+  net income:
+  Share-based compensation
+     expense                                   (3,737)          7,546           1,099          23,971          30,831            4,489
+  Amortization and impairment
+     of intangible assets                       2,831           2,494             363          11,647          13,504            1,967
+  Impairment of goodwill and
+     investments                                5,303           7,290           1,061          40,264          24,351            3,546
+  Loss (Gain) on deemed
+     disposals/disposals/
+     revaluation of investments
+     and others                                37,845         (11,804)         (1,719)         21,671          13,857           2,017
+    Equity-settled donation
+       expense                                       -              -                -              -              511              75
+  Tax effects (1)                              (4,086)           (147)             (21)        (8,244)          (7,248)         (1,056)
+
+ Non-GAAP net income                           19,799          27,375           3,986         136,388         141,379          20,586
+
+
+(1) Tax effects primarily comprises tax effects relating to share-based compensation expense, amortization and impairment of intangible assets
+    and certain gains and losses from investments, and others.
+
+
+
+
+                                                                     42
+ALIBABA GROUP HOLDING LIMITED
+RECONCILIATIONS OF NON-GAAP MEASURES TO THE NEAREST COMPARABLE U.S.
+GAAP MEASURES (CONTINUED)
+
+The table below sets forth a reconciliation of our diluted (loss) earnings per share/ADS to non-GAAP diluted earnings per share/ADS
+for the periods indicated:
+
+                                              Three months ended March 31,                                  Year ended March 31,
+                                            2022                 2023                              2022                   2023
+                                           RMB              RMB              US$                  RMB              RMB             US$
+                                            (in millions, except per share data)                   (in millions, except per share data)
+
+Net (loss) income attributable
+   to ordinary shareholders –
+   basic                                   (16,241)            23,516             3,424             61,959           72,509             10,558
+Dilution effect on earnings
+   arising from share-based
+   awards operated by equity
+   method investees and
+   subsidiaries                                  (8)              (29)                (4)              (37)              (38)                (5)
+Net (loss) income attributable to
+   ordinary shareholders –
+   diluted                                 (16,249)            23,487              3,420            61,922            72,471            10,553
+Non-GAAP adjustments to net
+   income attributable to
+   ordinary shareholders(1)                  37,703             4,469                651            81,593            71,520            10,414
+
+Non-GAAP net income
+  attributable to ordinary
+  shareholders for computing
+  non-GAAP diluted earnings
+  per share/ADS                              21,454            27,956              4,071          143,515            143,991            20,967
+
+Weighted average number of
+  shares on a diluted basis for
+  computing non-GAAP
+  diluted earnings per
+  share/ADS (million
+  shares)(4)                                 21,599            20,882                               21,787            21,114
+
+Diluted (loss) earnings per
+   share(2)(4)                              (0.76)              1.12               0.16              2.84              3.43               0.50
+
+Non-GAAP diluted earnings
+  per share(3)(4)                             0.99              1.34               0.20              6.59              6.82               0.99
+
+Diluted (loss) earnings per
+   ADS(2)(4)                                (6.07)              9.00               1.31             22.74             27.46               4.00
+
+Non-GAAP diluted earnings
+  per ADS(3)(4)                               7.95             10.71               1.56             52.69             54.56               7.94
+
+(1) See the table above for the reconciliation of net (loss) income to non-GAAP net income for more information of these non-GAAP
+    adjustments.
+(2) Diluted (loss) earnings per share is derived from dividing net (loss) income attributable to ordinary shareholders by the weighted average
+    number of shares, on a diluted basis. Diluted (loss) earnings per ADS is derived from the diluted (loss) earnings per share after adjusting
+    for the ordinary share-to-ADS ratio.
+(3) Non-GAAP diluted earnings per share is derived from dividing non-GAAP net income attributable to ordinary shareholders by the
+    weighted average number of shares for computing non-GAAP diluted earnings per share, on a diluted basis. Non-GAAP diluted earnings
+    per ADS is derived from the non-GAAP diluted earnings per share after adjusting for the ordinary share-to-ADS ratio.
+
+(4) Each ADS represents eight ordinary shares.
+
+
+
+
+                                                                       43
+ALIBABA GROUP HOLDING LIMITED
+RECONCILIATIONS OF NON-GAAP MEASURES TO THE NEAREST COMPARABLE U.S.
+GAAP MEASURES (CONTINUED)
+
+The table below sets forth a reconciliation of net cash (used in) provided by operating activities to free
+cash flow for the periods indicated:
+
+                                      Three months ended March 31,                Year ended March 31,
+                                     2022               2023               2022                    2023
+                                    RMB            RMB         US$        RMB             RMB             US$
+                                               (in millions)                          (in millions)
+Net cash (used in) provided
+    by operating activities          (7,040)       31,401       4,572     142,759       199,752           29,086
+Less: Purchase of property and
+   equipment (excluding land
+   use rights and construction
+   in progress relating to office
+   campuses)                         (9,201)       (2,513)      (366)     (42,028)      (30,373)          (4,423)
+Less: Purchase of intangible
+   assets (excluding those
+   acquired through
+   acquisitions)                         —             —             —        (15)           (22)             (3)
+Less: Changes in the
+   consumer protection fund
+   deposits                           1,171         3,379        492       (1,842)         2,306             336
+
+Free cash flow                      (15,070)       32,267       4,698      98,874        171,663          24,996
+
+
+
+
+                                                         44
+

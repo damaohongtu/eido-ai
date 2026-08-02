@@ -1,0 +1,512 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/itt3x8",
+    "id": "itt3x8",
+    "slide": 1,
+    "layoutId": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Helvetica Neue",
+      "PingFang SC"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/650nuxwb",
+      "id": "1",
+      "name": "Title-3-1",
+      "bbox": [
+        41.33,
+        182.55,
+        992,
+        261.57
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.0"
+      },
+      "geometry": "rect",
+      "text": "阿里巴巴集团\nFY2026 财务回顾",
+      "textPreview": "阿里巴巴集团 | FY2026 财务回顾",
+      "resolvedFontSize": 80,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 80,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "bottom",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "阿里巴巴集团"
+          },
+          {
+            "index": 2,
+            "text": "FY2026 财务回顾"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "阿里巴巴集团\nFY2026 财务回顾",
+          "lineSpacingPercent": 90000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 80,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "bottom",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "阿里巴巴集团\nFY2026 财务回顾",
+              "fontSize": 80,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/t8r6psv2",
+      "id": "2",
+      "name": "Subtitle-4-2",
+      "bbox": [
+        41.33,
+        497.87,
+        598.67,
+        113.41
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1"
+      },
+      "geometry": "rect",
+      "text": "增长延续，投资重置利润与现金流｜截至 2026 年 3 月",
+      "textPreview": "增长延续，投资重置利润与现金流｜截至 2026 年 3 月",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "增长延续，投资重置利润与现金流｜截至"
+          },
+          {
+            "index": 2,
+            "text": "2026 年 3 月"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "增长延续，投资重置利润与现金流｜截至 2026 年 3 月",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "增长延续，投资重置利润与现金流｜截至 2026 年 3 月",
+              "fontSize": 32,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/s7i5wneh",
+      "id": "3",
+      "name": "Subtitle-4-3",
+      "bbox": [
+        41.33,
+        41.18,
+        598.67,
+        68.15
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.2"
+      },
+      "geometry": "rect",
+      "text": "ALIBABA GROUP · INVESTOR VIEW",
+      "textPreview": "ALIBABA GROUP · INVESTOR VIEW",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "ALIBABA GROUP · INVESTOR VIEW"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "ALIBABA GROUP · INVESTOR VIEW",
+          "lineSpacingPercent": 100000,
+          "spaceBefore": 1000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "ALIBABA GROUP · INVESTOR VIEW",
+              "fontSize": 24,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    }
+  ],
+  "composeRuns": [
+    {
+      "index": 1,
+      "frame": {
+        "left": 0,
+        "top": 0,
+        "width": 1280,
+        "height": 720
+      },
+      "baseUnit": 1,
+      "root": {
+        "path": "0",
+        "kind": "layers",
+        "name": "codex-grid-layout-library#slide-01",
+        "requestedSize": {
+          "width": {
+            "mode": "fill",
+            "value": 1
+          },
+          "height": {
+            "mode": "fill",
+            "value": 1
+          }
+        },
+        "intrinsicSize": {
+          "width": 1033.33,
+          "height": 611.28
+        },
+        "frame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "children": [
+          {
+            "path": "0.0",
+            "kind": "text",
+            "name": "Title-3-1",
+            "position": {
+              "left": 41.33,
+              "top": 182.55
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 992
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 261.57
+              }
+            },
+            "intrinsicSize": {
+              "width": 992,
+              "height": 261.57
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 182.55,
+              "width": 992,
+              "height": 261.57
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 182.55,
+              "width": 992,
+              "height": 261.57
+            },
+            "children": [],
+            "text": "阿里巴巴集团\nFY2026 财务回顾",
+            "transform": "none",
+            "element": {
+              "aid": "sh/650nuxwb",
+              "id": "1",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.1",
+            "kind": "text",
+            "name": "Subtitle-4-2",
+            "position": {
+              "left": 41.33,
+              "top": 497.87
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 598.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 113.41
+              }
+            },
+            "intrinsicSize": {
+              "width": 598.67,
+              "height": 113.41
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 497.87,
+              "width": 598.67,
+              "height": 113.41
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 497.87,
+              "width": 598.67,
+              "height": 113.41
+            },
+            "children": [],
+            "text": "增长延续，投资重置利润与现金流｜截至 2026 年 3 月",
+            "transform": "none",
+            "element": {
+              "aid": "sh/t8r6psv2",
+              "id": "2",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.2",
+            "kind": "text",
+            "name": "Subtitle-4-3",
+            "position": {
+              "left": 41.33,
+              "top": 41.18
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 598.67
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 68.15
+              }
+            },
+            "intrinsicSize": {
+              "width": 598.67,
+              "height": 68.15
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 41.18,
+              "width": 598.67,
+              "height": 68.15
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 41.18,
+              "width": 598.67,
+              "height": 68.15
+            },
+            "children": [],
+            "text": "ALIBABA GROUP · INVESTOR VIEW",
+            "transform": "none",
+            "element": {
+              "aid": "sh/s7i5wneh",
+              "id": "3",
+              "kind": "shape"
+            }
+          }
+        ],
+        "padding": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "alignItems": "stretch",
+        "justifyItems": "stretch",
+        "contentFrame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "items": [
+          {
+            "path": "0.0",
+            "frame": {
+              "left": 41.33,
+              "top": 182.55,
+              "width": 992,
+              "height": 261.57
+            }
+          },
+          {
+            "path": "0.1",
+            "frame": {
+              "left": 41.33,
+              "top": 497.87,
+              "width": 598.67,
+              "height": 113.41
+            }
+          },
+          {
+            "path": "0.2",
+            "frame": {
+              "left": 41.33,
+              "top": 41.18,
+              "width": 598.67,
+              "height": 68.15
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

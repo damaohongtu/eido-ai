@@ -1,0 +1,1189 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/ve14fy",
+    "id": "ve14fy",
+    "slide": 3,
+    "layoutId": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Helvetica Neue",
+      "PingFang SC"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "ba5afe92-66fc-4f7a-b350-ca7b957d97ff",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1d4a27ce-a597-475c-897a-031a740ac926",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/xo3m10r6",
+      "id": "1",
+      "name": "Slide-Number-Placeholder-3-2",
+      "bbox": [
+        1184.18,
+        659.24,
+        54.48,
+        25.33
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.0"
+      },
+      "geometry": "rect",
+      "text": "03",
+      "textPreview": "03",
+      "resolvedFontSize": 13.33,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 13.33,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "right",
+        "verticalAlignment": "bottom",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "03"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "03",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 13.33,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "right",
+            "verticalAlignment": "bottom",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "03",
+              "fontSize": 13.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/alc3658v",
+      "id": "2",
+      "name": "Title-10-3",
+      "bbox": [
+        41.33,
+        36.12,
+        1197.33,
+        109.97
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.1"
+      },
+      "geometry": "rect",
+      "text": "五年看规模稳步扩大，但盈利弹性明显减弱",
+      "textPreview": "五年看规模稳步扩大，但盈利弹性明显减弱",
+      "resolvedFontSize": 38.67,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 38.67,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "五年看规模稳步扩大，但盈利弹性明显减弱"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "五年看规模稳步扩大，但盈利弹性明显减弱",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 1,
+            "fontSize": 38.67,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "top",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "五年看规模稳步扩大，但盈利弹性明显减弱",
+              "fontSize": 38.67,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vml4zq9g",
+      "id": "3",
+      "name": "Rounded-Rectangle-36-4",
+      "bbox": [
+        658.48,
+        352.76,
+        271.07,
+        278.9
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.2"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8jal4vqp",
+      "id": "4",
+      "name": "Content-Placeholder-9-5",
+      "bbox": [
+        683.4,
+        375.85,
+        223.97,
+        121.35
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.3"
+      },
+      "geometry": "rect",
+      "text": "120",
+      "textPreview": "120",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "bottom",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "120"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "120",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "bottom",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "120",
+              "fontSize": 32,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9k3mx0ra",
+      "id": "5",
+      "name": "Content-Placeholder-15-6",
+      "bbox": [
+        690.39,
+        532.1,
+        216.98,
+        64.67
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.4"
+      },
+      "geometry": "rect",
+      "text": "收入指数\nFY22 = 100",
+      "textPreview": "收入指数 | FY22 = 100",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "收入指数"
+          },
+          {
+            "index": 2,
+            "text": "FY22 = 100"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "收入指数\nFY22 = 100",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "收入指数\nFY22 = 100",
+              "fontSize": 18.67,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mxs32l8j",
+      "id": "6",
+      "name": "Rounded-Rectangle-39-7",
+      "bbox": [
+        968.42,
+        352.76,
+        271.07,
+        278.9
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.5"
+      },
+      "geometry": "roundRect",
+      "fillColor": "#F2F2F2"
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ny14vq94",
+      "id": "7",
+      "name": "Content-Placeholder-9-8",
+      "bbox": [
+        993.34,
+        375.85,
+        223.97,
+        121.35
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.6"
+      },
+      "geometry": "rect",
+      "text": "59",
+      "textPreview": "59",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 3,
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "verticalAlignment": "bottom",
+        "autoFit": "shrinkText",
+        "autoFitScale": 1,
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "59"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "59",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "anchor": 3,
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "verticalAlignment": "bottom",
+            "autoFit": "shrinkText",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "59",
+              "fontSize": 32,
+              "typeface": "PingFang SC",
+              "color": "#000000",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0val0bqt",
+      "id": "8",
+      "name": "Content-Placeholder-15-9",
+      "bbox": [
+        1000.33,
+        532.1,
+        216.98,
+        64.67
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.7"
+      },
+      "geometry": "rect",
+      "text": "经调整 EBITA\nFY22 = 100",
+      "textPreview": "经调整 EBITA | FY22 = 100",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "经调整 EBITA"
+          },
+          {
+            "index": 2,
+            "text": "FY22 = 100"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "经调整 EBITA\nFY22 = 100",
+          "lineSpacingPercent": 100000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "经调整 EBITA\nFY22 = 100",
+              "fontSize": 18.67,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/lwjmtgry",
+      "id": "9",
+      "name": "Content-Placeholder-2-10",
+      "bbox": [
+        657.33,
+        205.31,
+        581.61,
+        104
+      ],
+      "composeSource": {
+        "run": 1,
+        "path": "0.8"
+      },
+      "geometry": "rect",
+      "text": "指数化后，FY2026 收入较 FY2022 高约 20%；经调整 EBITA 则跌至 FY2022 的约 59%。",
+      "textPreview": "指数化后，FY2026 收入较 FY2022 高约 20%；经调整 EBITA 则跌至 FY2022 的约 59%。",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "fontSize": 32,
+        "typeface": "Helvetica Neue",
+        "color": "#000000",
+        "alignment": "left",
+        "autoFit": "none",
+        "insets": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "指数化后，FY2026 收入较 FY2022 高约 20%；经调整"
+          },
+          {
+            "index": 2,
+            "text": "EBITA 则跌至 FY2022 的约 59%。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "指数化后，FY2026 收入较 FY2022 高约 20%；经调整 EBITA 则跌至 FY2022 的约 59%。",
+          "lineSpacingPercent": 114000,
+          "resolvedTextStyle": {
+            "fontSize": 32,
+            "typeface": "Helvetica Neue",
+            "color": "#000000",
+            "alignment": "left",
+            "autoFit": "none",
+            "insets": {
+              "top": 0,
+              "right": 0,
+              "bottom": 0,
+              "left": 0
+            }
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "指数化后，FY2026 收入较 FY2022 高约 20%；经调整 EBITA 则跌至 FY2022 的约 59%。",
+              "fontSize": 21.33,
+              "typeface": "PingFang SC",
+              "color": "#000000"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ]
+    },
+    {
+      "order": 10,
+      "kind": "chart",
+      "scope": "slide",
+      "aid": "ch/ho3qxgzm",
+      "id": "10",
+      "bbox": [
+        40.51,
+        131.73,
+        581.02,
+        527.51
+      ],
+      "chartType": "line"
+    }
+  ],
+  "composeRuns": [
+    {
+      "index": 1,
+      "frame": {
+        "left": 0,
+        "top": 0,
+        "width": 1280,
+        "height": 720
+      },
+      "baseUnit": 1,
+      "root": {
+        "path": "0",
+        "kind": "layers",
+        "name": "codex-grid-layout-library#slide-21",
+        "requestedSize": {
+          "width": {
+            "mode": "fill",
+            "value": 1
+          },
+          "height": {
+            "mode": "fill",
+            "value": 1
+          }
+        },
+        "intrinsicSize": {
+          "width": 1239.49,
+          "height": 684.57
+        },
+        "frame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "children": [
+          {
+            "path": "0.0",
+            "kind": "text",
+            "name": "Slide-Number-Placeholder-3-2",
+            "position": {
+              "left": 1184.18,
+              "top": 659.24
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 54.48
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 25.33
+              }
+            },
+            "intrinsicSize": {
+              "width": 54.48,
+              "height": 25.33
+            },
+            "frame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            },
+            "snappedFrame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            },
+            "children": [],
+            "text": "03",
+            "transform": "none",
+            "element": {
+              "aid": "sh/xo3m10r6",
+              "id": "1",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.1",
+            "kind": "text",
+            "name": "Title-10-3",
+            "position": {
+              "left": 41.33,
+              "top": 36.12
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 1197.33
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 109.97
+              }
+            },
+            "intrinsicSize": {
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "frame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "snappedFrame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            },
+            "children": [],
+            "text": "五年看规模稳步扩大，但盈利弹性明显减弱",
+            "transform": "none",
+            "element": {
+              "aid": "sh/alc3658v",
+              "id": "2",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.2",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-36-4",
+            "position": {
+              "left": 658.48,
+              "top": 352.76
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 271.07
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 278.9
+              }
+            },
+            "intrinsicSize": {
+              "width": 271.07,
+              "height": 278.9
+            },
+            "frame": {
+              "left": 658.48,
+              "top": 352.76,
+              "width": 271.07,
+              "height": 278.9
+            },
+            "snappedFrame": {
+              "left": 658.48,
+              "top": 352.76,
+              "width": 271.07,
+              "height": 278.9
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/vml4zq9g",
+              "id": "3",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.3",
+            "kind": "text",
+            "name": "Content-Placeholder-9-5",
+            "position": {
+              "left": 683.4,
+              "top": 375.85
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 223.97
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 121.35
+              }
+            },
+            "intrinsicSize": {
+              "width": 223.97,
+              "height": 121.35
+            },
+            "frame": {
+              "left": 683.4,
+              "top": 375.85,
+              "width": 223.97,
+              "height": 121.35
+            },
+            "snappedFrame": {
+              "left": 683.4,
+              "top": 375.85,
+              "width": 223.97,
+              "height": 121.35
+            },
+            "children": [],
+            "text": "120",
+            "transform": "none",
+            "element": {
+              "aid": "sh/8jal4vqp",
+              "id": "4",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.4",
+            "kind": "text",
+            "name": "Content-Placeholder-15-6",
+            "position": {
+              "left": 690.39,
+              "top": 532.1
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 216.98
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 64.67
+              }
+            },
+            "intrinsicSize": {
+              "width": 216.98,
+              "height": 64.67
+            },
+            "frame": {
+              "left": 690.39,
+              "top": 532.1,
+              "width": 216.98,
+              "height": 64.67
+            },
+            "snappedFrame": {
+              "left": 690.39,
+              "top": 532.1,
+              "width": 216.98,
+              "height": 64.67
+            },
+            "children": [],
+            "text": "收入指数\nFY22 = 100",
+            "transform": "none",
+            "element": {
+              "aid": "sh/9k3mx0ra",
+              "id": "5",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.5",
+            "kind": "shape",
+            "name": "Rounded-Rectangle-39-7",
+            "position": {
+              "left": 968.42,
+              "top": 352.76
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 271.07
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 278.9
+              }
+            },
+            "intrinsicSize": {
+              "width": 271.07,
+              "height": 278.9
+            },
+            "frame": {
+              "left": 968.42,
+              "top": 352.76,
+              "width": 271.07,
+              "height": 278.9
+            },
+            "snappedFrame": {
+              "left": 968.42,
+              "top": 352.76,
+              "width": 271.07,
+              "height": 278.9
+            },
+            "children": [],
+            "geometry": "roundRect",
+            "element": {
+              "aid": "sh/mxs32l8j",
+              "id": "6",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.6",
+            "kind": "text",
+            "name": "Content-Placeholder-9-8",
+            "position": {
+              "left": 993.34,
+              "top": 375.85
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 223.97
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 121.35
+              }
+            },
+            "intrinsicSize": {
+              "width": 223.97,
+              "height": 121.35
+            },
+            "frame": {
+              "left": 993.34,
+              "top": 375.85,
+              "width": 223.97,
+              "height": 121.35
+            },
+            "snappedFrame": {
+              "left": 993.34,
+              "top": 375.85,
+              "width": 223.97,
+              "height": 121.35
+            },
+            "children": [],
+            "text": "59",
+            "transform": "none",
+            "element": {
+              "aid": "sh/ny14vq94",
+              "id": "7",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.7",
+            "kind": "text",
+            "name": "Content-Placeholder-15-9",
+            "position": {
+              "left": 1000.33,
+              "top": 532.1
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 216.98
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 64.67
+              }
+            },
+            "intrinsicSize": {
+              "width": 216.98,
+              "height": 64.67
+            },
+            "frame": {
+              "left": 1000.33,
+              "top": 532.1,
+              "width": 216.98,
+              "height": 64.67
+            },
+            "snappedFrame": {
+              "left": 1000.33,
+              "top": 532.1,
+              "width": 216.98,
+              "height": 64.67
+            },
+            "children": [],
+            "text": "经调整 EBITA\nFY22 = 100",
+            "transform": "none",
+            "element": {
+              "aid": "sh/0val0bqt",
+              "id": "8",
+              "kind": "shape"
+            }
+          },
+          {
+            "path": "0.8",
+            "kind": "text",
+            "name": "Content-Placeholder-2-10",
+            "position": {
+              "left": 657.33,
+              "top": 205.31
+            },
+            "requestedSize": {
+              "width": {
+                "mode": "fixed",
+                "value": 581.61
+              },
+              "height": {
+                "mode": "fixed",
+                "value": 104
+              }
+            },
+            "intrinsicSize": {
+              "width": 581.61,
+              "height": 104
+            },
+            "frame": {
+              "left": 657.33,
+              "top": 205.31,
+              "width": 581.61,
+              "height": 104
+            },
+            "snappedFrame": {
+              "left": 657.33,
+              "top": 205.31,
+              "width": 581.61,
+              "height": 104
+            },
+            "children": [],
+            "text": "指数化后，FY2026 收入较 FY2022 高约 20%；经调整 EBITA 则跌至 FY2022 的约 59%。",
+            "transform": "none",
+            "element": {
+              "aid": "sh/lwjmtgry",
+              "id": "9",
+              "kind": "shape"
+            }
+          }
+        ],
+        "padding": {
+          "top": 0,
+          "right": 0,
+          "bottom": 0,
+          "left": 0
+        },
+        "alignItems": "stretch",
+        "justifyItems": "stretch",
+        "contentFrame": {
+          "left": 0,
+          "top": 0,
+          "width": 1280,
+          "height": 720
+        },
+        "items": [
+          {
+            "path": "0.0",
+            "frame": {
+              "left": 1184.18,
+              "top": 659.24,
+              "width": 54.48,
+              "height": 25.33
+            }
+          },
+          {
+            "path": "0.1",
+            "frame": {
+              "left": 41.33,
+              "top": 36.12,
+              "width": 1197.33,
+              "height": 109.97
+            }
+          },
+          {
+            "path": "0.2",
+            "frame": {
+              "left": 658.48,
+              "top": 352.76,
+              "width": 271.07,
+              "height": 278.9
+            }
+          },
+          {
+            "path": "0.3",
+            "frame": {
+              "left": 683.4,
+              "top": 375.85,
+              "width": 223.97,
+              "height": 121.35
+            }
+          },
+          {
+            "path": "0.4",
+            "frame": {
+              "left": 690.39,
+              "top": 532.1,
+              "width": 216.98,
+              "height": 64.67
+            }
+          },
+          {
+            "path": "0.5",
+            "frame": {
+              "left": 968.42,
+              "top": 352.76,
+              "width": 271.07,
+              "height": 278.9
+            }
+          },
+          {
+            "path": "0.6",
+            "frame": {
+              "left": 993.34,
+              "top": 375.85,
+              "width": 223.97,
+              "height": 121.35
+            }
+          },
+          {
+            "path": "0.7",
+            "frame": {
+              "left": 1000.33,
+              "top": 532.1,
+              "width": 216.98,
+              "height": 64.67
+            }
+          },
+          {
+            "path": "0.8",
+            "frame": {
+              "left": 657.33,
+              "top": 205.31,
+              "width": 581.61,
+              "height": 104
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

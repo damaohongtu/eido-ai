@@ -3,6 +3,9 @@ node_modules
 .env
 .DS_Store
 dist
+frontend-extension/release/
+frontend-extension/*.crx
+frontend-extension/*.pem
 
 # Python
 __pycache__/
@@ -13,6 +16,8 @@ venv/
 ENV/
 *.egg-info/
 .pytest_cache/
+.ruff_cache/
+.venv/
 
 # Backend
 backend/.env

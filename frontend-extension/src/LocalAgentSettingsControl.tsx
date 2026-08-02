@@ -9,8 +9,33 @@ import {
   ensureOpenCodeRunning,
 } from './local-agent/openCodeLaunchCoordinator';
 
-const NATIVE_LAUNCHER_DOWNLOAD_URL =
-  'https://github.com/damaohongtu/eido-ai/releases/latest/download/Eido-OpenCode-Launcher-macOS.pkg';
+const NATIVE_LAUNCHER_RELEASE_BASE_URL =
+  'https://github.com/damaohongtu/eido-ai/releases/latest/download';
+
+async function nativeLauncherDownloadUrl(): Promise<string> {
+  if (/Windows/i.test(navigator.userAgent)) {
+    try {
+      const userAgentData = (navigator as Navigator & {
+        userAgentData?: {
+          getHighEntropyValues(hints: string[]): Promise<{ architecture?: string }>;
+        };
+      }).userAgentData;
+      const architecture = userAgentData
+        ? (await userAgentData.getHighEntropyValues(['architecture'])).architecture
+        : '';
+      if (architecture && /arm/i.test(architecture)) {
+        return `${NATIVE_LAUNCHER_RELEASE_BASE_URL}/Eido-OpenCode-Launcher-Windows-arm64.exe`;
+      }
+    } catch (error) {
+      console.debug('无法识别 Windows CPU 架构，将使用兼容的 x64 Launcher', error);
+    }
+    return `${NATIVE_LAUNCHER_RELEASE_BASE_URL}/Eido-OpenCode-Launcher-Windows.exe`;
+  }
+  if (/Macintosh|Mac OS X/i.test(navigator.userAgent)) {
+    return `${NATIVE_LAUNCHER_RELEASE_BASE_URL}/Eido-OpenCode-Launcher-macOS.pkg`;
+  }
+  return 'https://github.com/damaohongtu/eido-ai/releases/latest';
+}
 
 function readableError(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -122,7 +147,7 @@ const LocalAgentSettingsControl: React.FC<{ settings: LocalAgentSettings }> = ({
 
   const downloadLauncher = async () => {
     try {
-      await chrome.tabs.create({ url: NATIVE_LAUNCHER_DOWNLOAD_URL });
+      await chrome.tabs.create({ url: await nativeLauncherDownloadUrl() });
       setStatus('安装完成后请重新打开 Chrome，再次尝试唤起 OpenCode');
     } catch (error) {
       console.error('打开 Launcher 下载地址失败', error);

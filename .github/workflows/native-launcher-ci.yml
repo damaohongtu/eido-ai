@@ -56,3 +56,47 @@ jobs:
             -target / \
             -showChoicesXML > "$RUNNER_TEMP/eido-installer-choices.xml"
           plutil -lint "$RUNNER_TEMP/eido-installer-choices.xml"
+
+  test-windows-installer:
+    runs-on: windows-2022
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: native-launcher/go.mod
+
+      - name: Install current Inno Setup
+        shell: powershell
+        run: choco upgrade innosetup --no-progress -y
+
+      - name: Run Go tests
+        working-directory: native-launcher
+        run: go test ./...
+
+      - name: Build unsigned Windows Installer fixture
+        shell: powershell
+        run: |
+          $extensionIds = @("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+          & native-launcher/installers/windows/build-installer.ps1 `
+            -ExtensionId $extensionIds `
+            -Version "0.0.1" `
+            -Architecture amd64 `
+            -Unsigned
+
+      - name: Install and verify Windows Installer fixture
+        shell: powershell
+        run: |
+          $installRoot = Join-Path $env:RUNNER_TEMP "EidoInstallerFixture"
+          $installer = "native-launcher/dist/Eido-OpenCode-Launcher-0.0.1-Windows-x64.exe"
+          & $installer /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/DIR=$installRoot"
+          if ($LASTEXITCODE -ne 0) { throw "Installer failed with exit code $LASTEXITCODE" }
+          $extensionIds = @("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+          & native-launcher/installers/windows/verify-installation.ps1 `
+            -ExtensionId $extensionIds `
+            -InstallRoot $installRoot
+          $uninstaller = Join-Path $installRoot "unins000.exe"
+          & $uninstaller /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          if ($LASTEXITCODE -ne 0) { throw "Uninstaller failed with exit code $LASTEXITCODE" }

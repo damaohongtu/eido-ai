@@ -1,6 +1,6 @@
 # Chrome 插件尝试唤起并启动 OpenCode 技术方案
 
-> 状态：阶段 1 核心链路及 macOS 生产分发链路已实现。插件启动协调器、可选权限、Native Messaging 白名单、macOS Go Launcher、原生目录选择、启动探活、开发安装脚本、universal 图形安装器、Developer ID 签名、公证流水线和自动测试均已落地。正式发布仍需配置固定扩展 ID 与 Apple Developer 凭据后运行发布工作流。
+> 状态：阶段 1 核心链路及 macOS、Windows 生产分发链路已实现。插件启动协调器、可选权限、Native Messaging 白名单、系统原生目录选择、启动探活、开发安装脚本、macOS universal `.pkg`、Windows x64/arm64 用户级 `.exe`、代码签名流水线和自动测试均已落地。正式发布仍需配置固定扩展 ID 与各平台签名凭据后运行发布工作流。
 >
 > 目标：当插件本机模式无法连接 OpenCode 时，由插件发起并编排一次“尝试唤起”，尽可能直接启动本机 OpenCode；启动成功后自动连接现有 HTTP/SSE Agent Runtime，失败时留在本机模式并给出可恢复操作。
 >
@@ -656,6 +656,8 @@ OpenCode 的安装和升级由现有交付流程负责，不属于插件唤起�
 - Host Manifest 写入 `%LOCALAPPDATA%\Eido\`。
 - 注册 HKCU NativeMessagingHosts 键，不要求管理员权限。
 - 子进程使用 detached flags，stdin/stdout/stderr 不继承 Host 管道。
+- Inno Setup 生成 x64/arm64 用户级安装器，Authenticode 同时签名 Launcher 和安装器。
+- 插件根据浏览器平台选择稳定的 Windows 安装器下载地址。
 
 ### 14.4 Linux
 
@@ -728,9 +730,9 @@ native-launcher/
 
 ### 阶段 3：Windows/Linux
 
-- Windows HKCU 注册与 detached process。
+- Windows HKCU 注册、系统目录选择器、detached process 与签名安装器。（已实现）
 - Linux Chrome/Chromium Manifest 安装。
-- CI 构建多平台二进制和校验和。
+- CI 构建 Windows 多架构二进制、安装器和校验和。（已实现）
 
 ### 阶段 4：分发完善
 

@@ -96,7 +96,7 @@ flowchart LR
 | `frontend/` | 桌面 Web 工作台，默认入口 `/ai-eido/` |
 | `frontend-mobile/` | 移动端 H5，默认入口 `/ai-eido/m/`，并为插件提供窄屏布局基础 |
 | `frontend-extension/` | Chrome Manifest V3 插件，在浏览器右侧 Side Panel 运行 |
-| `native-launcher/` | 插件按需唤起 OpenCode 的 Go Native Host 与 macOS 图形安装器 |
+| `native-launcher/` | 插件按需唤起 OpenCode 的 Go Native Host，以及 macOS/Windows 图形安装器 |
 | `docker/` | Dockerfile、Compose profiles、Nginx/Supervisor 配置和部署说明 |
 | `docs/` | 架构、API、技能密钥保护、模型与沙盒等专题文档 |
 | `skill-example/` | 技能开发示例 |

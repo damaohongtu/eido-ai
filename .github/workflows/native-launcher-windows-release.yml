@@ -1,0 +1,152 @@
+name: Release Windows Native Launcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Numeric installer version, for example 0.1.4
+        required: true
+        type: string
+      extension_id:
+        description: Fixed Eido Chrome extension ID; leave empty to use the repository secret
+        required: false
+        type: string
+      smartbrowser_extension_id:
+        description: Fixed SmartBrowser Chrome extension ID; leave empty to use the repository secret
+        required: false
+        type: string
+  push:
+    tags:
+      - native-launcher-v*
+
+permissions:
+  contents: write
+
+jobs:
+  build-sign:
+    runs-on: windows-2022
+    env:
+      RELEASE_EXTENSION_ID: ${{ secrets.EIDO_CHROME_EXTENSION_ID }}
+      RELEASE_SMARTBROWSER_EXTENSION_ID: ${{ secrets.SMARTBROWSER_CHROME_EXTENSION_ID }}
+      WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CODE_SIGNING_PFX_BASE64 }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CODE_SIGNING_PASSWORD }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: native-launcher/go.mod
+
+      - name: Install current Inno Setup
+        shell: powershell
+        run: choco upgrade innosetup --no-progress -y
+
+      - name: Run Native Launcher tests
+        working-directory: native-launcher
+        run: go test ./...
+
+      - name: Resolve release metadata
+        shell: powershell
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_EXTENSION_ID: ${{ inputs.extension_id }}
+          INPUT_SMARTBROWSER_EXTENSION_ID: ${{ inputs.smartbrowser_extension_id }}
+        run: |
+          $version = $env:INPUT_VERSION
+          if (-not $version -and $env:GITHUB_REF_TYPE -eq "tag") {
+            $version = $env:GITHUB_REF_NAME -replace '^native-launcher-v', ''
+          }
+          $extensionId = if ($env:INPUT_EXTENSION_ID) { $env:INPUT_EXTENSION_ID } else { $env:RELEASE_EXTENSION_ID }
+          $smartBrowserExtensionId = if ($env:INPUT_SMARTBROWSER_EXTENSION_ID) { $env:INPUT_SMARTBROWSER_EXTENSION_ID } else { $env:RELEASE_SMARTBROWSER_EXTENSION_ID }
+          if ($version -notmatch '^[0-9]+(\.[0-9]+){0,3}$') { throw "Invalid version" }
+          if ($extensionId -notmatch '^[a-p]{32}$') { throw "Invalid or missing extension ID" }
+          if ($smartBrowserExtensionId -notmatch '^[a-p]{32}$') { throw "Invalid or missing SmartBrowser extension ID" }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "EXTENSION_ID=$extensionId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SMARTBROWSER_EXTENSION_ID=$smartBrowserExtensionId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Configure Windows code signing certificate
+        shell: powershell
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE_BASE64 -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            throw "Missing Windows code-signing certificate secrets"
+          }
+          $certificatePath = Join-Path $env:RUNNER_TEMP "eido-windows-signing.pfx"
+          [System.IO.File]::WriteAllBytes(
+            $certificatePath,
+            [System.Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64)
+          )
+          "EIDO_WINDOWS_SIGN_CERTIFICATE=$certificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "EIDO_WINDOWS_SIGN_PASSWORD=$env:WINDOWS_CERTIFICATE_PASSWORD" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build and sign x64 and arm64 installers
+        shell: powershell
+        run: |
+          $extensionIds = @($env:EXTENSION_ID, $env:SMARTBROWSER_EXTENSION_ID)
+          foreach ($architecture in @("amd64", "arm64")) {
+            & native-launcher/installers/windows/build-installer.ps1 `
+              -ExtensionId $extensionIds `
+              -Version $env:VERSION `
+              -Architecture $architecture
+          }
+          Copy-Item `
+            "native-launcher/dist/Eido-OpenCode-Launcher-$env:VERSION-Windows-x64.exe" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows.exe"
+          Copy-Item `
+            "native-launcher/dist/Eido-OpenCode-Launcher-$env:VERSION-Windows-arm64.exe" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows-arm64.exe"
+          foreach ($stableInstaller in @(
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows.exe",
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows-arm64.exe"
+          )) {
+            $hash = (Get-FileHash -LiteralPath $stableInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+            $fileName = [System.IO.Path]::GetFileName($stableInstaller)
+            [System.IO.File]::WriteAllText(
+              "$stableInstaller.sha256",
+              "$hash *$fileName`n",
+              [System.Text.UTF8Encoding]::new($false)
+            )
+          }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Eido-OpenCode-Launcher-${{ env.VERSION }}-Windows
+          path: |
+            native-launcher/dist/Eido-OpenCode-Launcher-${{ env.VERSION }}-Windows-x64.exe
+            native-launcher/dist/Eido-OpenCode-Launcher-${{ env.VERSION }}-Windows-x64.exe.sha256
+            native-launcher/dist/Eido-OpenCode-Launcher-${{ env.VERSION }}-Windows-arm64.exe
+            native-launcher/dist/Eido-OpenCode-Launcher-${{ env.VERSION }}-Windows-arm64.exe.sha256
+            native-launcher/dist/Eido-OpenCode-Launcher-Windows.exe
+            native-launcher/dist/Eido-OpenCode-Launcher-Windows.exe.sha256
+            native-launcher/dist/Eido-OpenCode-Launcher-Windows-arm64.exe
+            native-launcher/dist/Eido-OpenCode-Launcher-Windows-arm64.exe.sha256
+          if-no-files-found: error
+
+      - name: Publish tag release assets
+        if: github.ref_type == 'tag'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME --generate-notes --title "Eido OpenCode Launcher $env:VERSION"
+            if ($LASTEXITCODE -ne 0) {
+              gh release view $env:GITHUB_REF_NAME
+              if ($LASTEXITCODE -ne 0) { throw "Could not create or find the GitHub release" }
+            }
+          }
+          gh release upload $env:GITHUB_REF_NAME `
+            "native-launcher/dist/Eido-OpenCode-Launcher-$env:VERSION-Windows-x64.exe" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-$env:VERSION-Windows-x64.exe.sha256" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-$env:VERSION-Windows-arm64.exe" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-$env:VERSION-Windows-arm64.exe.sha256" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows.exe" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows.exe.sha256" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows-arm64.exe" `
+            "native-launcher/dist/Eido-OpenCode-Launcher-Windows-arm64.exe.sha256" `
+            --clobber

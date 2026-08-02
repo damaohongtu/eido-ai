@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -30,7 +31,7 @@ func (SystemPlatform) Detect(ctx context.Context) (OpenCodeInfo, error) {
 		}
 		seen[canonical] = true
 		info, err := os.Stat(canonical)
-		if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0111 == 0 {
+		if err != nil || !isExecutableFile(canonical, info) {
 			continue
 		}
 		versionCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -48,20 +49,6 @@ func (SystemPlatform) Detect(ctx context.Context) (OpenCodeInfo, error) {
 	return OpenCodeInfo{}, fmt.Errorf("OpenCode executable was not found in supported install locations")
 }
 
-func opencodeCandidates() []string {
-	home, _ := os.UserHomeDir()
-	candidates := []string{
-		filepath.Join(home, ".opencode", "bin", "opencode"),
-		filepath.Join(home, ".local", "bin", "opencode"),
-		"/opt/homebrew/bin/opencode",
-		"/usr/local/bin/opencode",
-	}
-	if path, err := exec.LookPath("opencode"); err == nil {
-		candidates = append([]string{path}, candidates...)
-	}
-	return candidates
-}
-
 func (SystemPlatform) SelectDirectory(ctx context.Context, initial string) (string, bool, error) {
 	selected, ok, err := selectDirectory(ctx, initial, "选择 OpenCode 项目文件夹")
 	if err != nil || !ok {
@@ -76,7 +63,7 @@ func (SystemPlatform) SelectDirectory(ctx context.Context, initial string) (stri
 
 func (SystemPlatform) CreateDirectory(ctx context.Context, initial, name string) (string, bool, error) {
 	name = strings.TrimSpace(name)
-	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, "\x00\r\n") {
+	if !validDirectoryName(name) {
 		return "", false, CodedError{Code: "DIRECTORY_NAME_INVALID", Message: "directory name is invalid"}
 	}
 	parent, selected, err := selectDirectory(ctx, initial, "选择新项目的父文件夹")
@@ -101,6 +88,31 @@ func (SystemPlatform) CreateDirectory(ctx context.Context, initial, name string)
 		return "", false, err
 	}
 	return canonical, true, nil
+}
+
+func validDirectoryName(name string) bool {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || strings.ContainsAny(name, "\x00\r\n") {
+		return false
+	}
+	if runtime.GOOS != "windows" {
+		return true
+	}
+	if strings.ContainsAny(name, `<>:"/\|?*`) || strings.HasSuffix(name, ".") || strings.HasSuffix(name, " ") {
+		return false
+	}
+	for _, character := range name {
+		if character < 32 {
+			return false
+		}
+	}
+	base := strings.ToUpper(strings.SplitN(name, ".", 2)[0])
+	if base == "CON" || base == "PRN" || base == "AUX" || base == "NUL" {
+		return false
+	}
+	if len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '1' && base[3] <= '9' {
+		return false
+	}
+	return true
 }
 
 func canonicalWorkspace(workspace string) (string, error) {
@@ -274,16 +286,4 @@ func (platform SystemPlatform) Launch(ctx context.Context, input LaunchInput) (L
 		Status: "started", PID: pid, Endpoint: endpoint, Workspace: workspace,
 		Username: username, Password: password, Version: info.Version, LogPath: logPath,
 	}, nil
-}
-
-func launcherLogDirectory() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	directory := filepath.Join(home, "Library", "Logs", "Eido")
-	if err := os.MkdirAll(directory, 0700); err != nil {
-		return "", err
-	}
-	return directory, nil
 }

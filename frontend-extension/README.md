@@ -49,6 +49,29 @@ npm test
 frontend-extension/dist
 ```
 
+## 私有自动更新构建
+
+正式 CRX 必须始终使用同一把私钥打包，否则扩展 ID 会变化且 Chrome 会拒绝更新。私钥不要放进仓库。
+
+```bash
+cd frontend-extension
+EIDO_EXTENSION_UPDATE_URL=https://updates.eido.example.com/v1/chrome/stable \
+EIDO_EXTENSION_PRIVATE_KEY=/secure/path/eido-extension.pem \
+npm run pack:release
+```
+
+生成文件：
+
+```text
+frontend-extension/release/eido-extension-<version>.crx
+```
+
+`pack:release` 会先构建扩展，在构建产物的 `manifest.json` 中写入 `update_url`，然后调用 Chrome 生成 CRX。日常 `npm run build` 不写入更新地址，仍可用于加载已解压的开发版本。
+
+私钥需为未加密的 RSA PEM。脚本可直接使用 PKCS#8，也会把常见的 PKCS#1 临时转换为 Chrome 要求的 PKCS#8；转换文件在打包结束后删除，不会覆盖原私钥。打包成功后命令会输出由该私钥派生的 32 位 Extension ID，把它配置到独立更新服务和 Chrome 企业策略。
+
+把 CRX 复制到独立更新服务器后，配置并重新创建 [`../extension-update-server`](../extension-update-server/README.md) 容器。Windows/macOS 首次安装非商店 CRX 仍需 Chrome 企业策略；策略中配置的扩展 ID 必须与该私钥生成的 ID 一致。
+
 ## 后端地址
 
 插件默认连接：

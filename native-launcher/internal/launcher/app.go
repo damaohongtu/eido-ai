@@ -13,7 +13,7 @@ const (
 )
 
 // LauncherVersion is replaced by the release build through -ldflags -X.
-var LauncherVersion = "0.1.3-dev"
+var LauncherVersion = "0.1.4-dev"
 
 type OpenCodeInfo struct {
 	Executable string

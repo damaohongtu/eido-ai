@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Eido 网页分析助手",
   "description": "在浏览器右侧打开 Eido，读取当前网页或其他标签页内容并交给技能工作流分析。",
-  "version": "0.1.2",
+  "version": "0.1.7",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "打开 Eido"

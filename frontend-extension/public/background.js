@@ -14,6 +14,10 @@ const NATIVE_MESSAGE_TYPES = new Set([
   'EIDO_OPENCODE_STATUS',
 ]);
 
+chrome.runtime.onUpdateAvailable.addListener(() => {
+  chrome.runtime.reload();
+});
+
 chrome.runtime.onInstalled.addListener(() => {
   if (chrome.sidePanel?.setPanelBehavior) {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);

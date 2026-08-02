@@ -9,7 +9,7 @@ Usage:
   build-package.sh --extension-id ID [--extension-id ID ...] [options]
 
 Options:
-  --version VERSION          Numeric package version (default: 0.1.2)
+  --version VERSION          Numeric package version (default: 0.1.4)
   --output-dir DIRECTORY     Output directory (default: native-launcher/dist)
   --unsigned                Build an unsigned local verification package
   --skip-notarization       Sign the package but do not submit it to Apple
@@ -27,7 +27,7 @@ EOF
 
 SCRIPT_DIR="${0:A:h}"
 PROJECT_DIR="${SCRIPT_DIR:h:h}"
-VERSION="0.1.2"
+VERSION="0.1.4"
 OUTPUT_DIR="$PROJECT_DIR/dist"
 EXTENSION_IDS=()
 SIGNED_BUILD=true

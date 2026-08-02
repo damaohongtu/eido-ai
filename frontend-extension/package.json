@@ -1,11 +1,13 @@
 {
   "name": "eido-chrome-extension",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.7",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "build:release": "vite build && node scripts/release-manifest.mjs",
+    "pack:release": "node scripts/pack-release.mjs",
     "preview": "vite preview",
     "test": "node --test test/*.test.js"
   },

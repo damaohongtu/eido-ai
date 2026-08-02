@@ -1,0 +1,10 @@
+Windows Registry Editor Version 5.00
+
+; Eido extension policy for domain-joined Windows computers.
+; Value name 1001 must be unique in each ExtensionInstallForcelist key.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist]
+"1001"="oggjajedgdgedecijokcknbbmfnpfjnc;http://192.168.127.32:60088/extensions/eido/update.xml"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist]
+"1001"="oggjajedgdgedecijokcknbbmfnpfjnc;http://192.168.127.32:60088/extensions/eido/update.xml"

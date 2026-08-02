@@ -2,6 +2,8 @@
 
 一次性 Chrome Native Messaging Host。它只检测 OpenCode、打开 macOS 项目目录选择器、在用户选定的父目录下创建项目文件夹并启动 `opencode serve`；不监听本机端口，不代理聊天，也不接收网页、Prompt、附件或项目文件内容。
 
+macOS 启动分为两段：Native Messaging 进程写入一次性 LaunchAgent 配置并通过 `launchctl bootstrap` 注册，由 `launchd` 拉起同一个已签名 launcher 的 helper 模式，helper 校验请求后启动 OpenCode。LaunchAgent 配置在注册后立即删除，任务结束时自动卸载。使用标准 LaunchAgent 可以切断 Chrome 的 `LSFileQuarantineEnabled` 责任链，避免 Bun 运行时解压的随机 `.dylib` 被标记成 Chrome 下载文件；`launchctl submit` 不能稳定切断这条责任链，因此不用于此路径。请求只存在于当前用户 `~/Library/Application Support/Eido/run`（目录 `0700`）中的随机 `0600` 文件，helper 打开后立即删除，再从内存设置工作区、回环端口与 Basic Auth 环境变量。
+
 协议 `create_directory` 只接受不含路径分隔符的单段文件夹名；父目录必须由用户在系统选择器中显式确认，Launcher 不接受前端直接指定任意创建目标路径。
 
 ## 普通用户安装
@@ -51,7 +53,7 @@ GitHub Actions 工作流 [`.github/workflows/native-launcher-macos-release.yml`]
 推荐使用版本标签发布：
 
 ```text
-native-launcher-v0.1.2
+native-launcher-v0.1.4
 ```
 
 也可以从 Actions 页面手工运行工作流并填写数字版本及两个扩展 ID。正式包把每个调用方都写成精确来源；Native Messaging 不允许通配符来源。
@@ -67,7 +69,7 @@ GO_BINARY=/path/to/go \
   ./installers/macos/build-package.sh \
   --extension-id EIDO_EXTENSION_ID \
   --extension-id SMARTBROWSER_EXTENSION_ID \
-  --version 0.1.2 \
+  --version 0.1.4 \
   --unsigned
 ```
 
@@ -77,7 +79,7 @@ GO_BINARY=/path/to/go \
 
 ```bash
 ./installers/macos/verify-package.sh \
-  dist/Eido-OpenCode-Launcher-0.1.2.pkg \
+  dist/Eido-OpenCode-Launcher-0.1.4.pkg \
   --extension-id EIDO_EXTENSION_ID \
   --extension-id SMARTBROWSER_EXTENSION_ID \
   --require-signed

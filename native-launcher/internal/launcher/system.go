@@ -254,24 +254,21 @@ func (platform SystemPlatform) Launch(ctx context.Context, input LaunchInput) (L
 	if err != nil {
 		return LaunchResult{}, CodedError{Code: "SPAWN_FAILED", Message: "could not open OpenCode log file"}
 	}
+	if err := logFile.Close(); err != nil {
+		return LaunchResult{}, CodedError{Code: "SPAWN_FAILED", Message: "could not prepare OpenCode log file"}
+	}
 
-	command := exec.Command(info.Executable, "serve", "--hostname", "127.0.0.1", "--port", fmt.Sprint(port))
-	command.Dir = workspace
-	command.Env = append(os.Environ(),
-		"OPENCODE_SERVER_USERNAME="+username,
-		"OPENCODE_SERVER_PASSWORD="+password,
-	)
-	command.Stdin = nil
-	command.Stdout = logFile
-	command.Stderr = logFile
-	detachCommand(command)
-	if err := command.Start(); err != nil {
-		_ = logFile.Close()
+	pid, err := startOpenCodeProcess(openCodeProcessInput{
+		Executable: info.Executable,
+		Workspace:  workspace,
+		Username:   username,
+		Password:   password,
+		Port:       port,
+		LogPath:    logPath,
+	})
+	if err != nil {
 		return LaunchResult{}, CodedError{Code: "SPAWN_FAILED", Message: "the operating system refused to start OpenCode"}
 	}
-	pid := command.Process.Pid
-	_ = command.Process.Release()
-	_ = logFile.Close()
 
 	return LaunchResult{
 		Status: "started", PID: pid, Endpoint: endpoint, Workspace: workspace,

@@ -1,0 +1,10 @@
+services:
+  extension-update-server:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./data:/data:ro

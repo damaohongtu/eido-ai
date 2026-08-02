@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -22,6 +23,13 @@ func requestTimeout(command string) time.Duration {
 }
 
 func main() {
+	if len(os.Args) == 4 && os.Args[1] == launcher.DetachedOpenCodeSubcommand {
+		if err := launcher.RunDetachedOpenCodeRequest(os.Args[2], os.Args[3]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "could not launch OpenCode:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	request, err := protocol.ReadRequest(os.Stdin)
 	if err != nil {
 		_ = protocol.WriteResponse(os.Stdout, map[string]any{

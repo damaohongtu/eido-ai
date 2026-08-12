@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         supervisor \
         logrotate \
+        fonts-dejavu-core \
+        fonts-noto-cjk \
+        libmagic1 \
+        poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -51,6 +55,7 @@ ENV LOG_DIR=/var/log/eido/app
 ENV EIDO_SANDBOX_MODE=docker
 ENV EIDO_USER_IMAGE=eido-user:latest
 ENV EIDO_NET=eido-net
+ENV MPLCONFIGDIR=/tmp/matplotlib
 
 EXPOSE 80
 

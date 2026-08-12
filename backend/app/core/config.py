@@ -130,6 +130,16 @@ class Settings(BaseSettings):
         return self.data_root / "scheduled_tasks.db"
 
     @property
+    def mcp_servers_db_path(self) -> Path:
+        """Encrypted, user-scoped MCP configuration database."""
+        return self.data_root / "mcp_servers.db"
+
+    @property
+    def claude_data_root(self) -> Path:
+        """Durable Claude Code transcripts, settings, and auto-memory."""
+        return self.data_root / "claude"
+
+    @property
     def sandbox_registry_db_path(self) -> Path:
         if self.SANDBOX_REGISTRY_DB.strip():
             return Path(self.SANDBOX_REGISTRY_DB)

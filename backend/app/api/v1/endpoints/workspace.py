@@ -24,6 +24,7 @@ from app.services.session_workspace import (
     get_session_workspace_manager,
     validate_session_id,
 )
+from app.services.supported_files import FORCE_ATTACHMENT_FILE_EXTENSIONS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -33,20 +34,8 @@ DATA_ROOT = settings.data_root.resolve()
 LEGACY_FILE_ROOTS = tuple(
     (WORKSPACE_ROOT / name).resolve() for name in ("uploads", "output", "outputs")
 )
-FORCE_ATTACHMENT_EXT = {
-    ".html",
-    ".htm",
-    ".xhtml",
-    ".svg",
-    ".xml",
-    ".mhtml",
-    ".mht",
-    ".doc",
-    ".docx",
-    ".ppt",
-    ".pptx",
-    ".xls",
-    ".xlsx",
+FORCE_ATTACHMENT_EXT = FORCE_ATTACHMENT_FILE_EXTENSIONS | {
+    ".xhtml", ".mhtml", ".mht"
 }
 
 

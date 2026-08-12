@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal, Input, message } from 'antd';
 import { Skill } from '../types';
 import { api } from '../services/api';
@@ -18,6 +18,21 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newSkillName, setNewSkillName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<any>(null);
+
+  const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+  const filteredSkills = useMemo(() => {
+    if (!normalizedQuery) return skills;
+    return skills.filter(skill => [
+      skill.name,
+      skill.description,
+      skill.id,
+      skill.owner_type,
+      ...(skill.tools || []).flatMap(tool => [tool.name, tool.description]),
+      ...(skill.agents || []).flatMap(agent => [agent.name, agent.description]),
+    ].some(value => String(value || '').toLocaleLowerCase().includes(normalizedQuery)));
+  }, [normalizedQuery, skills]);
 
   const loadSkills = async () => {
     setSkillsLoading(true);
@@ -35,6 +50,18 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
 
   useEffect(() => {
     loadSkills();
+  }, []);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
   }, []);
 
   const handleCreateSkill = async () => {
@@ -85,6 +112,35 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
           </div>
         </div>
 
+        <div className="mb-6">
+          <Input
+            ref={searchInputRef}
+            allowClear
+            size="large"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setSearchQuery('');
+                (event.currentTarget as HTMLInputElement).blur();
+              }
+            }}
+            prefix={
+              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            }
+            suffix={!searchQuery ? <span className="rounded border border-gray-200 px-1.5 py-0.5 text-[10px] font-bold text-gray-400">/</span> : null}
+            placeholder="搜索技能名称、描述或关联工具"
+            aria-label="搜索我的技能"
+          />
+          {normalizedQuery && (
+            <div className="mt-2 px-1 text-xs font-medium text-gray-400">
+              找到 {filteredSkills.length} 个技能
+            </div>
+          )}
+        </div>
+
         {skillsLoading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
@@ -105,9 +161,16 @@ const SkillManager: React.FC<SkillManagerProps> = ({ onSelectSkill, onViewDetail
               重试
             </button>
           </div>
+        ) : filteredSkills.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 bg-white py-20 text-center">
+            <div className="mb-3 text-3xl opacity-40">🔎</div>
+            <h2 className="font-bold text-gray-800">没有匹配的技能</h2>
+            <p className="mt-1 text-sm text-gray-500">尝试搜索技能名称、描述或关联工具</p>
+            <button type="button" onClick={() => setSearchQuery('')} className="mt-4 text-sm font-bold text-gray-700 hover:underline">清空搜索</button>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {skills.map((skill) => (
+            {filteredSkills.map((skill) => (
               <div
                 key={skill.id}
                 role="button"

@@ -3,8 +3,7 @@ import { Popup, Toast } from 'antd-mobile';
 import type { Skill } from '../shared';
 import type { Attachment } from '../hooks/useChatSend';
 import type { AgentRuntime } from '../runtime/types';
-
-const ALLOWED_EXT = ['.md', '.pdf', '.csv', '.xls', '.xlsx'];
+import { isSupportedFileName, SUPPORTED_FILE_ACCEPT } from '../utils/supportedFiles';
 
 interface ComposerProps {
   sessionId: string;
@@ -82,8 +81,7 @@ const Composer: React.FC<ComposerProps> = ({
       for (let i = 0; i < files.length; i++) {
         if (currentSessionIdRef.current !== targetSessionId) break;
         const f = files[i];
-        const ext = f.name.toLowerCase().slice(f.name.lastIndexOf('.'));
-        if (!ALLOWED_EXT.includes(ext)) {
+        if (!isSupportedFileName(f.name)) {
           Toast.show({ content: `不支持的格式: ${f.name}` });
           continue;
         }
@@ -136,7 +134,7 @@ const Composer: React.FC<ComposerProps> = ({
         <input
           ref={fileRef}
           type="file"
-          accept=".md,.pdf,.csv,.xls,.xlsx"
+          accept={SUPPORTED_FILE_ACCEPT}
           multiple
           className="hidden"
           onChange={handleFiles}

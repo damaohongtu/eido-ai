@@ -120,8 +120,9 @@ Workspace 保持不变，Project 保存独立副本、SHA-256 和来源会话 ID
 磁盘文件名，服务端应生成 `storage_name` 并在解析路径时再次校验 Project 根目录。导入成功响应
 同时返回递增后的 `context_revision`，下一轮 Chat 会据此重建 provider 上下文并读到新资料。
 
-项目资料支持 Markdown、PDF、CSV、Excel、HTML、纯文本、JSON、常见 Web 图片，以及
-Word/PowerPoint 产物。MIME 类型只由服务端认可的扩展名决定，并返回
+项目资料与聊天附件共享统一格式集合，支持 Markdown、PDF、Word/OpenDocument、PPT、
+TXT/LOG、CSV/Excel、JSON/YAML/Parquet、常见代码与配置文件、HTML、Web 图片和压缩包。
+MIME 类型只由服务端认可的扩展名决定，并返回
 `X-Content-Type-Options: nosniff`；HTML、SVG 和 Office 文档一律以 attachment 下载，不能作为
 同源主动内容内联执行。
 
@@ -131,7 +132,7 @@ Project 名称、说明、指令或文件发生变化时递增 `context_revision
 
 Chat 启动前必须在服务端比较 `applied_context_revision` 与当前 Project 的
 `context_revision`。首次应用或版本不一致时，先以事务清空该会话的 Claude/OpenCode 原生
-Session ID，再驱逐 OpenHarness 的会话缓存，然后把本次快照版本写入
+Session ID，再驱逐现有 Claude Code 会话缓存，然后把本次快照版本写入
 `applied_context_revision`。这样下一次执行不会续接仍包含旧项目指令或旧文件清单的原生上下文。
 
 清空原生 Session ID 不等于清空 Eido 对话。重建 Agent 上下文时，服务端从当前用户、当前
@@ -165,7 +166,7 @@ container、`user_id` 校验和文件 API 的安全路径解析。
 - 更新会话的 `project_id` 表示加入、移出或移动 Project，必须验证目标 Project 属于当前用户。
 - 项目归档只影响默认列表、新会话绑定和新增资料入口，不删除任何数据；已有会话仍可使用上下文。
 - 删除 Project 时，在同一事务中将其会话 `project_id`、`applied_context_revision` 和 provider
-  Session ID 清空，再删除 Project 元数据；同时逐个驱逐这些会话的 OpenHarness 缓存。
+  Session ID 清空，再删除 Project 元数据；同时逐个驱逐这些会话的 Claude Code 缓存。
 - 删除 Project 会删除项目共享文件副本，但**不删除**会话、消息或 Session Workspace。
 - 删除会话仍只删除该会话、消息和 Session Workspace；已复制到 Project 的共享文件不受影响。
 

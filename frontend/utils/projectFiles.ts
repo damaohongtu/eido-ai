@@ -1,31 +1,28 @@
 import { isProjectOutputPath } from './projectOutputPath.js';
+import { SUPPORTED_FILE_ACCEPT, SUPPORTED_FILE_EXTENSIONS } from './supportedFiles';
 
 export { isProjectOutputPath };
 
 /** Project 资料接口当前允许从会话 outputs/ 目录导入的文件扩展名。 */
-export const PROJECT_MATERIAL_EXTENSIONS = [
-  'md', 'pdf', 'csv', 'xls', 'xlsx',
-  'html', 'htm', 'txt', 'json',
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
-  'doc', 'docx', 'ppt', 'pptx',
-] as const;
+export const PROJECT_MATERIAL_EXTENSIONS = SUPPORTED_FILE_EXTENSIONS;
 
 const PROJECT_MATERIAL_EXTENSION_SET = new Set<string>(PROJECT_MATERIAL_EXTENSIONS);
 const BROWSER_PREVIEW_EXTENSION_SET = new Set([
   'html', 'htm', 'xht', 'xhtml', 'svg', 'xml', 'xsl', 'xslt', 'mhtml', 'mht',
-  'pdf', 'txt', 'md', 'csv', 'json',
-  'png', 'jpg', 'jpeg', 'gif', 'webp',
+  'pdf', 'txt', 'log', 'md', 'csv', 'tsv', 'json', 'jsonl', 'yaml', 'yml',
+  'py', 'js', 'jsx', 'ts', 'tsx', 'java', 'go', 'rs', 'c', 'h', 'cpp', 'hpp',
+  'sh', 'toml', 'ini', 'conf', 'properties',
+  'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tif', 'tiff',
 ]);
 const BROWSER_IMAGE_EXTENSION_SET = new Set([
-  'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp',
+  'svg', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tif', 'tiff',
 ]);
 const ACTIVE_WORKSPACE_EXTENSION_SET = new Set([
   'html', 'htm', 'xht', 'xhtml', 'svg', 'svgz', 'xml', 'xsl', 'xslt', 'mhtml', 'mht',
-  'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx',
+  'doc', 'docx', 'odt', 'rtf', 'ppt', 'pptx', 'odp',
+  'xls', 'xlsx', 'xlsm', 'xlsb', 'ods', 'epub', 'zip', 'tar', 'gz', 'tgz', '7z',
 ]);
-export const PROJECT_MATERIAL_ACCEPT = PROJECT_MATERIAL_EXTENSIONS
-  .map((extension) => `.${extension}`)
-  .join(',');
+export const PROJECT_MATERIAL_ACCEPT = SUPPORTED_FILE_ACCEPT;
 
 /**
  * 只有会话根目录的 outputs/ 才是可沉淀到 Project 的生成结果目录。

@@ -10,12 +10,16 @@ import {
   canRenderAsBrowserImage,
   isSupportedProjectMaterial,
 } from '../utils/projectFiles';
+import {
+  isSupportedFileName,
+  SUPPORTED_FILE_ACCEPT,
+  SUPPORTED_FILE_EXTENSIONS,
+  SUPPORTED_FILE_HINT,
+} from '../utils/supportedFiles';
 import Mermaid from './Mermaid';
 
-const DOWNLOADABLE_FILE_EXTENSIONS = [
-  'md', 'pdf', 'csv', 'xlsx', 'xls', 'html', 'htm', 'txt', 'json',
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'docx', 'doc', 'pptx', 'ppt'
-];
+const DOWNLOADABLE_FILE_EXTENSIONS = [...SUPPORTED_FILE_EXTENSIONS]
+  .sort((left, right) => right.length - left.length);
 const DOWNLOADABLE_FILE_SOURCE =
   `((?:/|(?:outputs?|uploads|\\.claude/skills/[^\\s/]+/output)/)[^\\s"'()\`<>]+\\.(?:${DOWNLOADABLE_FILE_EXTENSIONS.join('|')}))`;
 const DOWNLOADABLE_FILE_PATTERN = new RegExp(DOWNLOADABLE_FILE_SOURCE, 'gi');
@@ -98,8 +102,42 @@ interface ChatAreaProps {
   onMoveSession: (projectId: string | null) => Promise<void>;
   onOpenProject: (projectId: string) => void;
   onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
+  onRefreshSession: (sessionId: string) => Promise<void>;
+  onRunningSessionsChange?: (sessionIds: Set<string>) => void;
   harness: string;
   browserContext?: string;
+}
+
+type ActiveExecution = {
+  assistantId: string;
+  controller: AbortController;
+  harness: string;
+};
+
+const activeExecutions = new Map<string, ActiveExecution>();
+const serverRunningSessions = new Set<string>();
+const pendingControlRuns = new Map<string, number>();
+const controlRunTrackers = new Map<string, { cancelled: boolean }>();
+const executionListeners = new Set<(sessionIds: Set<string>) => void>();
+const FOLLOW_UP_MODE_KEY = 'eido-follow-up-mode';
+
+function initialFollowUpMode(): 'queue' | 'steer' {
+  try {
+    return localStorage.getItem(FOLLOW_UP_MODE_KEY) === 'steer' ? 'steer' : 'queue';
+  } catch {
+    return 'queue';
+  }
+}
+
+function publishExecutions() {
+  const snapshot = new Set([
+    ...activeExecutions.keys(),
+    ...serverRunningSessions,
+    ...[...pendingControlRuns.entries()]
+      .filter(([, count]) => count > 0)
+      .map(([sessionId]) => sessionId),
+  ]);
+  executionListeners.forEach(listener => listener(snapshot));
 }
 
 const ChatArea: React.FC<ChatAreaProps> = ({
@@ -116,11 +154,18 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onMoveSession,
   onOpenProject,
   onImportProjectFile,
+  onRefreshSession,
+  onRunningSessionsChange,
   harness,
   browserContext,
 }) => {
   const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(
+    () => new Set(activeExecutions.keys())
+  );
+  const [deliveryMode, setDeliveryMode] = useState<'queue' | 'steer'>(initialFollowUpMode);
+  const [deliveryMenuOpen, setDeliveryMenuOpen] = useState(false);
+  const [serverSteerAvailable, setServerSteerAvailable] = useState(false);
   const [attachments, setAttachments] = useState<{ name: string; path: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [projectImportStatus, setProjectImportStatus] = useState<Record<string, 'adding' | 'added'>>({});
@@ -137,15 +182,159 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const previousSessionIdRef = useRef<string | null>(null);
   const currentSessionIdRef = useRef<string | null>(session?.id ?? null);
+  const visibleMessageIdsRef = useRef<Set<string>>(new Set());
+  const visibleMessagesRef = useRef<Map<string, Message>>(new Map());
+  const lastQueueStatusRef = useRef<Record<string, string>>({});
   currentSessionIdRef.current = session?.id ?? null;
-  const abortControllerRef = useRef<AbortController | null>(null);
+  visibleMessageIdsRef.current = new Set(session?.messages.map(message => message.id) || []);
+  visibleMessagesRef.current = new Map(
+    (session?.messages || []).map(message => [message.id, message])
+  );
   // 每条 assistant 消息的 thinking 事件累积日志：msgId → string[]
   const thinkingLogsRef = useRef<Record<string, string[]>>({});
 
-  useEffect(() => () => {
-    // 离开聊天页时停止仍在运行的请求，避免控制器随组件卸载丢失后出现同会话并发。
-    abortControllerRef.current?.abort();
+  const persistedSessionRunning = Boolean(
+    session?.messages.some(message => message.role === 'assistant' && message.streaming)
+  );
+  const activeSessionRunning = Boolean(
+    session?.id && (runningSessionIds.has(session.id) || persistedSessionRunning)
+  );
+  const activeSessionCanStop = Boolean(session?.id && activeExecutions.has(session.id));
+  const activeExecutionHarness = session?.id ? activeExecutions.get(session.id)?.harness : undefined;
+  const steerAvailable = (activeExecutionHarness || harness) === 'claude_code'
+    && serverSteerAvailable;
+  const effectiveDeliveryMode = deliveryMode === 'steer' && steerAvailable
+    ? 'steer'
+    : 'queue';
+  const queuedMessages = useMemo(
+    () => (session?.messages || [])
+      .filter(message => message.role === 'user' && message.deliveryStatus === 'queued')
+      .sort((left, right) => (left.queuePosition || 0) - (right.queuePosition || 0)),
+    [session?.messages]
+  );
+  const conversationMessages = useMemo(
+    () => (session?.messages || []).filter(
+      message => message.deliveryStatus !== 'queued' && message.deliveryStatus !== 'cancelled'
+    ),
+    [session?.messages]
+  );
+
+  useEffect(() => {
+    executionListeners.add(setRunningSessionIds);
+    publishExecutions();
+    return () => executionListeners.delete(setRunningSessionIds);
   }, []);
+
+  useEffect(() => {
+    onRunningSessionsChange?.(runningSessionIds);
+  }, [onRunningSessionsChange, runningSessionIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FOLLOW_UP_MODE_KEY, deliveryMode);
+    } catch {}
+  }, [deliveryMode]);
+
+  useEffect(() => {
+    if (!activeSessionRunning) setDeliveryMenuOpen(false);
+  }, [activeSessionRunning]);
+
+  const markSessionRunning = (sessionId: string, execution?: ActiveExecution) => {
+    if (execution) activeExecutions.set(sessionId, execution);
+    else activeExecutions.delete(sessionId);
+    publishExecutions();
+  };
+
+  const trackControlRun = (sessionId: string, messageId: string, assistantId: string) => {
+    const tracker = { cancelled: false };
+    controlRunTrackers.set(messageId, tracker);
+    pendingControlRuns.set(sessionId, (pendingControlRuns.get(sessionId) || 0) + 1);
+    publishExecutions();
+    void (async () => {
+      try {
+        for (let attempt = 0; attempt < 180; attempt += 1) {
+          if (tracker.cancelled) return;
+          await new Promise(resolve => window.setTimeout(resolve, 1500));
+          if (tracker.cancelled) return;
+          const detail = await api.getSession(sessionId);
+          if (detail.messages.some(message => message.id === assistantId)) {
+            await onRefreshSession(sessionId);
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('刷新排队执行结果失败:', error);
+      } finally {
+        if (controlRunTrackers.get(messageId) === tracker) {
+          controlRunTrackers.delete(messageId);
+        }
+        const remaining = Math.max(0, (pendingControlRuns.get(sessionId) || 1) - 1);
+        if (remaining) pendingControlRuns.set(sessionId, remaining);
+        else pendingControlRuns.delete(sessionId);
+        publishExecutions();
+      }
+    })();
+  };
+
+  useEffect(() => {
+    if (!session?.id) return;
+    const sessionId = session.id;
+    let cancelled = false;
+    const syncStatus = async () => {
+      try {
+        const status = await api.getChatQueue(sessionId);
+        if (cancelled) return;
+        setServerSteerAvailable(status.steer_available);
+
+        status.items.forEach(item => {
+          if (visibleMessageIdsRef.current.has(item.message_id)) {
+            const visible = visibleMessagesRef.current.get(item.message_id);
+            if (visible?.queuePosition !== item.position || visible.deliveryStatus !== 'queued') {
+              onUpdateMessage(sessionId, item.message_id, {
+                deliveryMode: item.mode,
+                deliveryStatus: 'queued',
+                queuePosition: item.position,
+              });
+            }
+            return;
+          }
+          visibleMessageIdsRef.current.add(item.message_id);
+          onSendMessage(sessionId, {
+            id: item.message_id,
+            role: 'user',
+            content: item.content,
+            deliveryMode: item.mode,
+            deliveryStatus: 'queued',
+            queuePosition: item.position,
+            timestamp: Date.now(),
+          });
+        });
+
+        const statusSignature = `${status.active}:${status.count}`;
+        const previousStatus = lastQueueStatusRef.current[sessionId];
+        lastQueueStatusRef.current[sessionId] = statusSignature;
+        if (previousStatus !== undefined && previousStatus !== statusSignature) {
+          await onRefreshSession(sessionId);
+        }
+
+        if (!activeExecutions.has(sessionId) && !pendingControlRuns.has(sessionId)) {
+          if (status.active || status.count > 0) serverRunningSessions.add(sessionId);
+          else serverRunningSessions.delete(sessionId);
+        }
+        publishExecutions();
+      } catch {
+        // An older backend may not expose queue status yet.
+        setServerSteerAvailable(false);
+      }
+    };
+    void syncStatus();
+    const timer = window.setInterval(syncStatus, 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      setServerSteerAvailable(false);
+    };
+  }, [session?.id]);
 
   const getTextareaEl = () => {
     const ref = inputRef.current;
@@ -157,7 +346,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [session?.messages, isTyping]);
+  }, [session?.messages, activeSessionRunning]);
 
   // 当切换到财报点评技能的新会话时，自动设置默认输入
   useEffect(() => {
@@ -294,7 +483,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     context?: string,
     skillHint?: string
   ) => {
-    abortControllerRef.current = new AbortController();
+    const controller = new AbortController();
+    markSessionRunning(sessionId, { assistantId, controller, harness });
     try {
       await api.streamChat(
         msgs,
@@ -303,28 +493,32 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         assistantId,
         context,
         skillHint ?? undefined,
-        abortControllerRef.current.signal,
+        controller.signal,
         harness
       );
     } finally {
       delete thinkingLogsRef.current[assistantId];
+      if (activeExecutions.get(sessionId)?.assistantId === assistantId) {
+        markSessionRunning(sessionId);
+      }
     }
   };
 
   /** 用户点击停止，中断当前执行 */
   const handleStop = () => {
-    abortControllerRef.current?.abort();
+    if (session) activeExecutions.get(session.id)?.controller.abort();
   };
 
   /** 多技能串行流水线：每个技能独立生成一条 assistant 消息，前一步输出传给下一步 */
   const runPipeline = async (sessionId: string, baseMessages: Message[], orderedSkills: typeof skills) => {
     let previousOutput = '';
     let contextMessages = [...baseMessages];
-    abortControllerRef.current = new AbortController();
+    const controller = new AbortController();
 
     for (let i = 0; i < orderedSkills.length; i++) {
       const skill = orderedSkills[i];
       const assistantId = createMessageId(`pipeline-${i}`);
+      markSessionRunning(sessionId, { assistantId, controller, harness });
 
       const placeholder: Message = {
         id: assistantId,
@@ -349,7 +543,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           assistantId,
           [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
           skill.id,
-          abortControllerRef.current?.signal,
+          controller.signal,
           harness
         );
       } catch {
@@ -359,6 +553,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       delete thinkingLogsRef.current[assistantId];
       previousOutput = finalContent;
       contextMessages = [...contextMessages, { ...placeholder, content: finalContent }];
+    }
+    if (activeExecutions.get(sessionId)?.controller === controller) {
+      markSessionRunning(sessionId);
     }
   };
 
@@ -370,14 +567,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       return;
     }
     const targetSessionId = session.id;
-    const allowed = ['.md', '.pdf', '.csv', '.xls', '.xlsx'];
     setUploading(true);
     try {
       for (let i = 0; i < files.length; i++) {
         if (currentSessionIdRef.current !== targetSessionId) break;
         const f = files[i];
-        const ext = f.name.toLowerCase().slice(f.name.lastIndexOf('.'));
-        if (!allowed.includes(ext)) {
+        if (!isSupportedFileName(f.name)) {
           console.warn(`跳过不支持格式: ${f.name}`);
           continue;
         }
@@ -409,10 +604,94 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     return parts.join('');
   };
 
+  const submitFollowUp = async (
+    content: string,
+    requestedMode: 'queue' | 'steer',
+    existingMessage?: Message,
+  ) => {
+    if (!session) return;
+    const targetSessionId = session.id;
+    const userMsg: Message = existingMessage || {
+      id: createMessageId('user'),
+      role: 'user',
+      content,
+      timestamp: Date.now(),
+    };
+    const nextStatus = requestedMode === 'queue' ? 'queued' : 'applied';
+    if (existingMessage) {
+      onUpdateMessage(targetSessionId, userMsg.id, {
+        deliveryMode: requestedMode,
+        deliveryStatus: nextStatus,
+        queuePosition: undefined,
+      });
+    } else {
+      onSendMessage(targetSessionId, {
+        ...userMsg,
+        deliveryMode: requestedMode,
+        deliveryStatus: nextStatus,
+      });
+    }
+
+    try {
+      const assistantId = createMessageId('assistant');
+      const controlHarness = activeExecutionHarness || harness;
+      const result = await api.controlChat({
+        mode: requestedMode,
+        session_id: targetSessionId,
+        message: { id: userMsg.id, role: 'user', content },
+        assistant_message_id: assistantId,
+        context: browserContext || undefined,
+        harness: controlHarness,
+      });
+      onUpdateMessage(targetSessionId, userMsg.id, {
+        deliveryMode: requestedMode,
+        deliveryStatus: result.status === 'queued' ? 'queued' : 'applied',
+        queuePosition: result.position,
+      });
+      if (result.status === 'queued') {
+        trackControlRun(targetSessionId, userMsg.id, assistantId);
+      } else if (existingMessage) {
+        const tracker = controlRunTrackers.get(existingMessage.id);
+        if (tracker) tracker.cancelled = true;
+      }
+    } catch (error) {
+      onUpdateMessage(targetSessionId, userMsg.id, { deliveryStatus: 'failed' });
+      window.alert(error instanceof Error ? error.message : '提交消息失败');
+    }
+  };
+
+  const deleteQueuedMessage = async (message: Message) => {
+    if (!session) return;
+    try {
+      await api.deleteQueuedChatMessage(session.id, message.id);
+      const tracker = controlRunTrackers.get(message.id);
+      if (tracker) tracker.cancelled = true;
+      onUpdateMessage(session.id, message.id, { deliveryStatus: 'cancelled' });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '删除排队消息失败');
+      await onRefreshSession(session.id);
+    }
+  };
+
+  const editQueuedMessage = async (message: Message) => {
+    if (!session) return;
+    try {
+      await api.deleteQueuedChatMessage(session.id, message.id);
+      const tracker = controlRunTrackers.get(message.id);
+      if (tracker) tracker.cancelled = true;
+      onUpdateMessage(session.id, message.id, { deliveryStatus: 'cancelled' });
+      setInput(message.content);
+      window.setTimeout(() => getTextareaEl()?.focus(), 0);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '消息已开始执行，无法编辑');
+      await onRefreshSession(session.id);
+    }
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const hasContent = input.trim() || attachments.length > 0;
-    if (!hasContent || isTyping || !session) return;
+    if (!hasContent || !session) return;
     // 整次异步执行固定写回发起时的会话，切换侧栏不会改变目标。
     const targetSessionId = session.id;
 
@@ -426,6 +705,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
     const content = buildContentWithAttachments(input.trim() || '请分析我上传的文件。');
 
+    if (activeSessionRunning) {
+      const requestedMode = effectiveDeliveryMode;
+      setInput('');
+      setAttachments([]);
+      await submitFollowUp(content, requestedMode);
+      return;
+    }
+
     const userMsg: Message = {
       id: createMessageId('user'),
       role: 'user',
@@ -438,8 +725,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     onSendMessage(targetSessionId, userMsg);
 
     const baseMessages = [...(session?.messages || []), userMsg];
-    setIsTyping(true);
-
     try {
       if (mentionedSkills.length >= 2) {
         // 多技能流水线
@@ -459,8 +744,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       }
     } catch (err) {
       console.error('执行失败:', err);
-    } finally {
-      setIsTyping(false);
     }
   };
 
@@ -480,6 +763,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       } else if (e.key === 'Escape') {
         setMentionMenu(prev => ({ ...prev, visible: false }));
       }
+      return;
+    }
+    if (e.key === 'Escape' && deliveryMenuOpen) {
+      setDeliveryMenuOpen(false);
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !(e.nativeEvent as KeyboardEvent).isComposing) {
+      e.preventDefault();
+      void handleSubmit();
     }
   };
 
@@ -502,19 +794,13 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           m.id === messageId ? { ...m, pendingConfirmation: undefined, executionSteps: updatedSteps } : m
         ) || [];
         
-        setIsTyping(true);
-        try {
-          await runSingleSkill(targetSessionId, updatedMessages, messageId, browserContext || undefined);
-        } finally {
-          setIsTyping(false);
-        }
+        await runSingleSkill(targetSessionId, updatedMessages, messageId, browserContext || undefined);
       }
     } else {
       onUpdateMessage(targetSessionId, messageId, {
         pendingConfirmation: undefined,
         thinking: "Workflow halted. Data access denied by user." 
       });
-      setIsTyping(false);
     }
   };
 
@@ -672,7 +958,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-        {session.messages.map((m, idx) => (
+        {conversationMessages.map((m, idx) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] space-y-3 ${m.role === 'user' ? 'text-right' : ''}`}>
               {(() => {
@@ -728,10 +1014,31 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                     remarkPlugins={[remarkGfm]}
                     components={MarkdownComponents}
                   >
-                    {m.content || (isTyping && idx === session.messages.length - 1 ? "..." : "")}
+                    {m.content || (activeSessionRunning && idx === conversationMessages.length - 1 ? "..." : "")}
                   </ReactMarkdown>
                 </div>
               </div>
+              {m.role === 'user' && m.deliveryMode && (
+                <div className="flex justify-end">
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                    m.deliveryStatus === 'failed'
+                      ? 'bg-red-50 text-red-600'
+                      : m.deliveryMode === 'steer'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {m.deliveryStatus === 'failed'
+                      ? '提交失败'
+                      : m.deliveryMode === 'steer'
+                        ? 'Steer · 已应用'
+                        : m.deliveryStatus === 'completed'
+                          ? '排队任务 · 已完成'
+                          : m.deliveryStatus === 'running'
+                            ? '排队任务 · 执行中'
+                            : `排队中${m.queuePosition ? ` · 第 ${m.queuePosition} 位` : ''}`}
+                  </span>
+                </div>
+              )}
 
               {m.role === 'assistant' && generatedFiles.length > 0 && (
                 <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
@@ -764,9 +1071,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                             <button
                               type="button"
                               onClick={() => importGeneratedFile(file)}
-                              disabled={isTyping || Boolean(projectImportStatus[file.path])}
+                              disabled={activeSessionRunning || Boolean(projectImportStatus[file.path])}
                               className="rounded-lg border border-gray-700 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
-                              title={isTyping ? '会话执行完成后可加入项目资料' : `加入「${project?.name || ''}」项目资料`}
+                              title={activeSessionRunning ? '会话执行完成后可加入项目资料' : `加入「${project?.name || ''}」项目资料`}
                             >
                               {projectImportStatus[file.path] === 'adding'
                                 ? '加入中...'
@@ -799,7 +1106,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 </div>
               )}
 
-              {m.role === 'assistant' && activeSkill && !isTyping && idx === session.messages.length - 1 && activeSkill.actions && activeSkill.actions.length > 0 && m.content && (
+              {m.role === 'assistant' && activeSkill && !activeSessionRunning && idx === conversationMessages.length - 1 && activeSkill.actions && activeSkill.actions.length > 0 && m.content && (
                 <div className="flex flex-wrap gap-2 mt-4 animate-in fade-in slide-in-from-top-2">
                   <div className="w-full text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 ml-1">工作流部署:</div>
                   {activeSkill.actions.map(action => (
@@ -865,11 +1172,57 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".md,.pdf,.csv,.xls,.xlsx"
+            accept={SUPPORTED_FILE_ACCEPT}
             multiple
             className="hidden"
             onChange={handleFileSelect}
           />
+          {queuedMessages.length > 0 && (
+            <div className="mb-2 max-h-48 space-y-1 overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50 p-2 shadow-sm">
+              <div className="flex items-center justify-between px-2 py-1 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                <span>已排队 · {queuedMessages.length}</span>
+                <span className="normal-case tracking-normal">当前任务完成后依次执行</span>
+              </div>
+              {queuedMessages.map((message, index) => (
+                <div
+                  key={message.id}
+                  className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-left ring-1 ring-gray-200"
+                >
+                  <span className="shrink-0 text-[10px] font-bold text-gray-400">{index + 1}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-700">
+                    {message.content}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={!steerAvailable}
+                    onClick={() => void submitFollowUp(message.content, 'steer', message)}
+                    className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-bold text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={steerAvailable ? '不打断当前任务，立即注入这条指令' : '正在连接 Claude Code，暂不可 Steer'}
+                  >
+                    Steer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void editQueuedMessage(message)}
+                    className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                    title="编辑排队消息"
+                    aria-label="编辑排队消息"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7m-1.5-9.5a2.121 2.121 0 013 3L12 16l-4 1 1-4 9.5-9.5z" /></svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteQueuedMessage(message)}
+                    className="shrink-0 rounded-lg p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                    title="删除排队消息"
+                    aria-label="删除排队消息"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               {attachments.map((a, i) => (
@@ -895,22 +1248,56 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Ask me anything... 支持上传 .md / .pdf / .csv / .xls / .xlsx 文件"
+              placeholder={`Ask me anything... 支持上传${SUPPORTED_FILE_HINT}`}
               autoSize={{ minRows: 4, maxRows: 8 }}
-              disabled={isTyping}
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isTyping || uploading}
+              disabled={uploading}
               className="absolute left-4 bottom-4 p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition-all disabled:opacity-50"
-              title="上传文件 (.md / .pdf / .csv / .xls / .xlsx)"
+              title={`上传${SUPPORTED_FILE_HINT}`}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
               </svg>
             </button>
-            {isTyping ? (
+            {activeSessionRunning && (
+              <div className="absolute bottom-4 right-14 z-20">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryMenuOpen(open => !open)}
+                  className="flex h-9 items-center gap-1 rounded-xl border border-gray-200 bg-white px-2.5 text-[11px] font-bold text-gray-600 shadow-sm hover:bg-gray-50"
+                  title="选择追问发送方式"
+                  aria-expanded={deliveryMenuOpen}
+                >
+                  <span>{effectiveDeliveryMode === 'queue' ? '排队' : 'Steer'}</span>
+                  <svg className={`h-3 w-3 transition-transform ${deliveryMenuOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {deliveryMenuOpen && (
+                  <div className="absolute bottom-11 right-0 w-64 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 text-left shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => { setDeliveryMode('queue'); setDeliveryMenuOpen(false); }}
+                      className={`w-full rounded-lg px-3 py-2 text-left ${deliveryMode === 'queue' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                    >
+                      <div className="text-xs font-bold text-gray-800">加入队列</div>
+                      <div className="mt-0.5 text-[11px] text-gray-500">当前任务完成后按顺序执行</div>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!steerAvailable}
+                      onClick={() => { setDeliveryMode('steer'); setDeliveryMenuOpen(false); }}
+                      className={`mt-1 w-full rounded-lg px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-40 ${deliveryMode === 'steer' ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
+                    >
+                      <div className="text-xs font-bold text-gray-800">Steer 当前任务</div>
+                      <div className="mt-0.5 text-[11px] text-gray-500">不打断模型，立即补充或调整方向</div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {activeSessionCanStop && !input.trim() && attachments.length === 0 ? (
               <button
                 type="button"
                 onClick={handleStop}
@@ -924,20 +1311,26 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                 type="submit"
                 disabled={!input.trim() && attachments.length === 0}
                 className={`absolute right-4 bottom-4 p-2 rounded-xl transition-all ${(input.trim() || attachments.length > 0) ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-500'}`}
+                title={activeSessionRunning ? (effectiveDeliveryMode === 'steer' ? 'Steer 当前任务' : '加入队列') : '发送'}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
               </button>
             )}
           </div>
+          {activeSessionRunning && (
+            <div className="mt-2 px-1 text-[11px] font-medium text-gray-400">
+              Enter {effectiveDeliveryMode === 'queue' ? '加入队列' : 'Steer 当前任务'} · Shift + Enter 换行
+            </div>
+          )}
           <div className="mt-2 flex min-w-0 items-center px-1">
             <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-500">
               <span className="shrink-0">项目归属</span>
               <select
                 value={project?.id || ''}
-                disabled={isTyping}
+                disabled={activeSessionRunning}
                 onChange={(event) => onMoveSession(event.target.value || null).catch(() => undefined)}
                 className="min-w-0 max-w-56 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-semibold text-gray-700 outline-none hover:border-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
-                title={isTyping ? '执行中不能移动会话' : '移动会话到项目'}
+                title={activeSessionRunning ? '执行中不能移动会话' : '移动会话到项目'}
               >
                 <option value="">未归属</option>
                 {projects.filter(item => !item.archived_at || item.id === project?.id).map(item => (

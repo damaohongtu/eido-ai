@@ -262,16 +262,6 @@ def create_application() -> FastAPI:
         except Exception as e:
             logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
 
-        # ---------- OpenHarness 服务（始终初始化，前端可按请求切换）---------- #
-        try:
-            from app.services.open_harness_service import init_open_harness_service
-            init_open_harness_service(
-                Path(settings.SKILLS_DIR), Path(settings.WORKSPACE_ROOT)
-            )
-            logger.info("✓ OpenHarnessService 初始化完成")
-        except Exception as e:
-            logger.error(f"✗ OpenHarnessService 初始化失败: {e}", exc_info=True)
-
         # ---------- OpenCode CLI 服务（始终初始化，前端可按请求切换）---------- #
         try:
             from app.services.open_code_service import init_open_code_service
@@ -380,6 +370,13 @@ def create_application() -> FastAPI:
                 await claude_service.shutdown()
         except Exception:
             logger.exception("关闭 Claude SDK session pool 失败")
+
+        try:
+            from app.services.mcp_config_store import close_mcp_config_store
+
+            close_mcp_config_store()
+        except Exception:
+            logger.exception("关闭 MCP 配置存储失败")
 
         # gateway 关停 sandbox idle gc + httpx client
         if (settings.EIDO_SANDBOX_MODE or "").lower() == "docker" and not settings.EIDO_TRUST_GATEWAY:

@@ -1,200 +1,452 @@
-"""
-Execute scheduled tasks by type: skill, script, chat.
+"""Execute every automatic-task run inside a newly-created conversation.
 
-调度位于 gateway 进程（或单租户进程）：
-- local 模式：直接调用本进程内的技能服务 / 文件子进程
-- docker 模式：先 ensure_running(user_id) 拉起对应用户容器，再发起内部 HTTP
-  调用，避免绕过沙箱边界（SQLite / workspace 都在 user 容器里）
+The scheduler lives in the gateway (or the single-tenant process).  A run always
+gets its own visible chat session first; local mode writes directly to the local
+session store, while Docker sandbox mode creates and executes the conversation
+through the owning user's container.
 """
+
+from __future__ import annotations
+
 import asyncio
-import json
 import logging
 import subprocess
+import time
 import uuid
-from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
+class _PersistedTaskFailure(RuntimeError):
+    """The task failed after its visible assistant placeholder was updated."""
+
+    def __init__(self, cause: Exception):
+        super().__init__(str(cause))
+        self.cause = cause
+
+
 def _is_docker_sandbox() -> bool:
-    return (settings.EIDO_SANDBOX_MODE or "").lower() == "docker" and not settings.EIDO_TRUST_GATEWAY
+    return (
+        settings.EIDO_SANDBOX_MODE or ""
+    ).lower() == "docker" and not settings.EIDO_TRUST_GATEWAY
 
 
-async def execute_task(task: dict):
-    """Dispatch execution based on task type."""
-    task_type = task["type"]
-    task_id = task["id"]
-    user_id = task["user_id"]
-    params = task.get("params", {})
-
-    logger.info(f"[TaskExecutor] 开始执行 task={task_id} type={task_type} user={user_id}")
-
-    try:
-        if task_type == "skill":
-            if _is_docker_sandbox():
-                await _execute_chat_via_sandbox(task_id, user_id, _build_skill_messages(params))
-            else:
-                await _execute_skill(task_id, user_id, params)
-        elif task_type == "script":
-            await _execute_script(task_id, params)
-        elif task_type == "chat":
-            if _is_docker_sandbox():
-                msgs = params.get("messages") or []
-                await _execute_chat_via_sandbox(task_id, user_id, msgs)
-            else:
-                await _execute_chat(task_id, user_id, params)
-        else:
-            logger.error(f"[TaskExecutor] 未知任务类型: {task_type}")
-    except Exception:
-        logger.exception(f"[TaskExecutor] task={task_id} 执行失败")
+def _conversation_title(task: dict) -> str:
+    name = " ".join(str(task.get("name") or "未命名任务").split())
+    return f"[自动任务] {name[:60]}"
 
 
-def _build_skill_messages(params: dict) -> list[dict]:
-    skill_id = params.get("skill_id", "")
-    if not skill_id:
-        return []
-    msg = {"role": "user", "content": f"请执行技能 {skill_id}"}
-    extra = params.get("extra_prompt", "")
-    if extra:
-        msg["content"] += f"\n{extra}"
-    return [msg]
+def _task_messages(task: dict) -> list[dict[str, str]]:
+    task_type = task.get("type")
+    params = task.get("params") or {}
+    if task_type == "skill":
+        skill_id = str(params.get("skill_id") or "").strip()
+        content = f"请执行技能 {skill_id}" if skill_id else "请执行这个自动技能任务"
+        extra = str(params.get("extra_prompt") or "").strip()
+        if extra:
+            content += f"\n{extra}"
+        return [{"role": "user", "content": content}]
+    if task_type == "script":
+        script_path = str(params.get("script_path") or "").strip()
+        args = [str(value) for value in params.get("args") or []]
+        command = " ".join([script_path, *args]).strip() or "（未配置脚本）"
+        return [{"role": "user", "content": f"执行自动脚本任务：`{command}`"}]
+
+    messages: list[dict[str, str]] = []
+    for item in params.get("messages") or []:
+        if not isinstance(item, dict):
+            continue
+        content = str(item.get("content") or "").strip()
+        role = str(item.get("role") or "user")
+        if content and role in {"user", "assistant", "system"}:
+            messages.append({"role": role, "content": content})
+    return messages
 
 
-async def _execute_skill(task_id: str, user_id: str, params: dict):
-    skill_id = params.get("skill_id", "")
-    if not skill_id:
-        logger.error(f"[TaskExecutor] task={task_id} 缺少 skill_id")
-        return
+async def _sandbox_connection(user_id: str):
+    from app.gateway.proxy import get_proxy_client, inject_trust_headers
+    from app.gateway.sandbox_manager import get_sandbox_manager
 
-    from app.services.claude_skill_service import get_claude_skill_service
-
-    svc = get_claude_skill_service()
-    if not svc:
-        logger.error("[TaskExecutor] 技能服务未初始化")
-        return
-
-    messages = [{"role": "user", "content": f"请执行技能 {skill_id}"}]
-    extra = params.get("extra_prompt", "")
-    if extra:
-        messages[0]["content"] += f"\n{extra}"
-
-    collected: list[str] = []
-    async for chunk in svc.execute_stream(messages, user_id=user_id):
-        collected.append(chunk)
-
-    logger.info(f"[TaskExecutor] task={task_id} skill={skill_id} 执行完成, chunks={len(collected)}")
-
-
-async def _execute_script(task_id: str, params: dict):
-    script_path = params.get("script_path", "")
-    args = params.get("args", [])
-    if not script_path:
-        logger.error(f"[TaskExecutor] task={task_id} 缺少 script_path")
-        return
-
-    result = await asyncio.to_thread(
-        subprocess.run,
-        [script_path, *args],
-        capture_output=True,
-        text=True,
-        cwd=settings.WORKSPACE_ROOT,
-        timeout=300,
-    )
-    if result.returncode != 0:
-        logger.error(f"[TaskExecutor] task={task_id} script 退出码={result.returncode}\n{result.stderr}")
-    else:
-        logger.info(f"[TaskExecutor] task={task_id} script 执行成功")
-
-
-async def _execute_chat(task_id: str, user_id: str, params: dict):
-    messages = params.get("messages", [])
-    if not messages:
-        logger.error(f"[TaskExecutor] task={task_id} 缺少 messages")
-        return
-
-    from app.services.claude_skill_service import get_claude_skill_service
-
-    svc = get_claude_skill_service()
-    if not svc:
-        logger.error("[TaskExecutor] 技能服务未初始化")
-        return
-
-    collected: list[str] = []
-    async for chunk in svc.execute_stream(messages, user_id=user_id):
-        collected.append(chunk)
-    logger.info(f"[TaskExecutor] task={task_id} chat 执行完成, chunks={len(collected)}")
-
-
-async def _execute_chat_via_sandbox(task_id: str, user_id: str, messages: list[dict]):
-    """sandbox 模式：通过 gateway → user 容器内部 HTTP 触发 /chat/chat 流式执行。
-
-    - 自动 ensure_running 拉起容器
-    - 在 user 容器内借助 sessions API 拿到/创建调度专属会话（标题以 "[scheduled]" 标记）
-    - 完整消费 SSE 流以推动后端落库 assistant 输出
-    """
-    if not messages:
-        logger.error(f"[TaskExecutor] task={task_id} 缺少 messages")
-        return
-
-    try:
-        from app.gateway.sandbox_manager import get_sandbox_manager
-        from app.gateway.proxy import get_proxy_client, inject_trust_headers
-    except Exception as e:
-        logger.error(f"[TaskExecutor] gateway 模块不可用: {e}", exc_info=True)
-        return
-
-    mgr = get_sandbox_manager()
-    handle = await mgr.ensure_running(user_id)
-    client = get_proxy_client()
-    base = handle.base_url
+    handle = await get_sandbox_manager().ensure_running(user_id)
     headers = inject_trust_headers({}, user_id)
     headers["Content-Type"] = "application/json"
+    return get_proxy_client(), handle.base_url, headers
 
-    # 在 user 容器中创建/复用调度会话
-    session_id: Optional[str] = None
-    try:
-        r = await client.post(
+
+async def create_task_conversation(task: dict) -> dict:
+    """Create the visible conversation before a manual or scheduled run starts."""
+    user_id = task["user_id"]
+    title = _conversation_title(task)
+    if _is_docker_sandbox():
+        client, base, headers = await _sandbox_connection(user_id)
+        response = await client.post(
             f"{base}/api/v1/sessions/",
-            json={"title": f"[scheduled] {task_id}"},
+            json={"title": title},
             headers=headers,
         )
-        if r.status_code == 200:
-            session_id = r.json().get("id")
-    except Exception as e:
-        logger.warning(f"[TaskExecutor] 创建调度会话失败: {e}")
-        return
+        response.raise_for_status()
+        session = response.json()
+    else:
+        from app.services.chat_session_store import get_chat_session_store
+        from app.services.session_workspace import get_session_workspace_manager
 
-    if not session_id:
-        logger.warning(f"[TaskExecutor] task={task_id} 无法获取 session_id，放弃")
-        return
+        session = get_chat_session_store().create_session(user_id, title=title)
+        get_session_workspace_manager().session_root(session["id"])
 
-    payload_msgs = [
+    logger.info(
+        "[TaskExecutor] 已创建任务会话 task=%s session=%s user=%s",
+        task.get("id"),
+        session["id"],
+        user_id,
+    )
+    return session
+
+
+async def _append_local_message(
+    user_id: str,
+    session_id: str,
+    *,
+    role: str,
+    content: str,
+    message_id: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    from app.services.chat_session_store import get_chat_session_store
+
+    get_chat_session_store().append_message(
+        user_id,
+        session_id,
+        role=role,
+        content=content,
+        message_id=message_id,
+        extra=extra or {},
+    )
+
+
+async def _append_sandbox_message(
+    user_id: str,
+    session_id: str,
+    *,
+    role: str,
+    content: str,
+    message_id: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    client, base, headers = await _sandbox_connection(user_id)
+    response = await client.post(
+        f"{base}/api/v1/sessions/{session_id}/messages",
+        json={
+            "id": message_id,
+            "role": role,
+            "content": content,
+            "extra": extra or {},
+        },
+        headers=headers,
+    )
+    response.raise_for_status()
+
+
+async def _append_task_message(
+    user_id: str,
+    session_id: str,
+    *,
+    role: str,
+    content: str,
+    message_id: str | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    append = _append_sandbox_message if _is_docker_sandbox() else _append_local_message
+    await append(
+        user_id,
+        session_id,
+        role=role,
+        content=content,
+        message_id=message_id,
+        extra=extra,
+    )
+
+
+async def _execute_agent_local(
+    task: dict,
+    session_id: str,
+    messages: list[dict[str, str]],
+    *,
+    started_event: asyncio.Event | None = None,
+) -> None:
+    from app.api.v1.endpoints.chat import (
+        _accumulate_sse_event,
+        _message_extra_from_stream_state,
+        _parse_sse_payload,
+    )
+    from app.services.claude_skill_service import get_claude_skill_service
+    from app.services.chat_execution_guard import get_chat_execution_guard
+
+    user_id = task["user_id"]
+    guard = get_chat_execution_guard()
+    if not guard.try_acquire(session_id):
+        raise RuntimeError("自动任务会话正在执行")
+
+    payload_messages: list[dict[str, str]] = []
+    assistant_message_id = uuid.uuid4().hex[:12]
+    try:
+        for message in messages:
+            message_id = uuid.uuid4().hex[:12]
+            payload = {**message, "id": message_id}
+            payload_messages.append(payload)
+            await _append_local_message(
+                user_id,
+                session_id,
+                role=message["role"],
+                content=message["content"],
+                message_id=message_id,
+            )
+        await _append_local_message(
+            user_id,
+            session_id,
+            role="assistant",
+            content="",
+            message_id=assistant_message_id,
+            extra={"thinking": "自动任务正在启动...", "streaming": True},
+        )
+        if started_event is not None:
+            started_event.set()
+
+        service = get_claude_skill_service()
+        if service is None:
+            raise RuntimeError("技能服务未初始化")
+
+        state: dict[str, Any] = {"content": ""}
+        last_persisted_at = 0.0
+        async for event in service.execute_stream(
+            payload_messages,
+            user_id=user_id,
+            session_id=session_id,
+        ):
+            payload = _parse_sse_payload(event)
+            if not payload:
+                continue
+            _accumulate_sse_event(state, payload)
+            now = time.monotonic()
+            if now - last_persisted_at >= 0.25:
+                await _append_local_message(
+                    user_id,
+                    session_id,
+                    role="assistant",
+                    content=(state.get("content") or "").strip(),
+                    message_id=assistant_message_id,
+                    extra={**_message_extra_from_stream_state(state), "streaming": True},
+                )
+                last_persisted_at = now
+
+        await _append_local_message(
+            user_id,
+            session_id,
+            role="assistant",
+            content=(state.get("content") or "").strip(),
+            message_id=assistant_message_id,
+            extra={**_message_extra_from_stream_state(state), "streaming": False},
+        )
+    except Exception as exc:
+        await _append_local_message(
+            user_id,
+            session_id,
+            role="assistant",
+            content=f"自动任务执行失败：{exc}",
+            message_id=assistant_message_id,
+            extra={"thinking": "✗ 自动任务执行失败", "streaming": False},
+        )
+        raise _PersistedTaskFailure(exc) from exc
+    finally:
+        guard.release(session_id)
+        try:
+            from app.services.chat_execution_queue import get_chat_execution_queue
+
+            get_chat_execution_queue().kick(user_id, session_id)
+        except Exception:
+            logger.exception("恢复自动任务会话队列失败 session=%s", session_id)
+
+
+async def _execute_agent_via_sandbox(
+    task: dict,
+    session_id: str,
+    messages: list[dict[str, str]],
+    *,
+    started_event: asyncio.Event | None = None,
+) -> None:
+    user_id = task["user_id"]
+    client, base, headers = await _sandbox_connection(user_id)
+    payload_messages = [
         {
             "id": uuid.uuid4().hex[:12],
-            "role": m.get("role", "user"),
-            "content": m.get("content", ""),
+            "role": message["role"],
+            "content": message["content"],
         }
-        for m in messages
+        for message in messages
     ]
+
+    # Persist the complete visible turn before returning from "run now". The
+    # chat endpoint upserts these same ids, so ordering remains stable.
+    for message in payload_messages:
+        response = await client.post(
+            f"{base}/api/v1/sessions/{session_id}/messages",
+            json={**message, "extra": {}},
+            headers=headers,
+        )
+        response.raise_for_status()
+
+    assistant_message_id = uuid.uuid4().hex[:12]
     chat_body = {
-        "messages": payload_msgs,
+        "messages": payload_messages,
         "session_id": session_id,
-        "assistant_message_id": uuid.uuid4().hex[:12],
+        "assistant_message_id": assistant_message_id,
     }
+    async with client.stream(
+        "POST",
+        f"{base}/api/v1/chat/chat",
+        headers=headers,
+        json=chat_body,
+    ) as response:
+        response.raise_for_status()
+        # At this point /chat/chat has acquired the session lease and captured
+        # its trusted input history, so the UI placeholder cannot leak into the
+        # model prompt.
+        placeholder = await client.post(
+            f"{base}/api/v1/sessions/{session_id}/messages",
+            json={
+                "id": assistant_message_id,
+                "role": "assistant",
+                "content": "",
+                "extra": {"thinking": "自动任务正在执行...", "streaming": True},
+            },
+            headers=headers,
+        )
+        placeholder.raise_for_status()
+        if started_event is not None:
+            started_event.set()
+        async for _ in response.aiter_bytes():
+            pass
+
+
+async def _execute_script(
+    task: dict,
+    session_id: str,
+    *,
+    started_event: asyncio.Event | None = None,
+) -> None:
+    params = task.get("params") or {}
+    script_path = str(params.get("script_path") or "").strip()
+    args = [str(value) for value in params.get("args") or []]
+    user_id = task["user_id"]
+    prompt = _task_messages(task)[0]["content"]
+    assistant_message_id = uuid.uuid4().hex[:12]
+    await _append_task_message(user_id, session_id, role="user", content=prompt)
+    await _append_task_message(
+        user_id,
+        session_id,
+        role="assistant",
+        content="",
+        message_id=assistant_message_id,
+        extra={"thinking": "自动脚本正在执行...", "streaming": True},
+    )
+    if started_event is not None:
+        started_event.set()
+    try:
+        if not script_path:
+            raise ValueError("缺少 script_path")
+
+        result = await asyncio.to_thread(
+            subprocess.run,
+            [script_path, *args],
+            capture_output=True,
+            text=True,
+            cwd=settings.WORKSPACE_ROOT,
+            timeout=300,
+        )
+        sections = [f"脚本执行完成，退出码：{result.returncode}"]
+        if result.stdout.strip():
+            sections.append(f"标准输出：\n```text\n{result.stdout.strip()[:100_000]}\n```")
+        if result.stderr.strip():
+            sections.append(f"标准错误：\n```text\n{result.stderr.strip()[:100_000]}\n```")
+        await _append_task_message(
+            user_id,
+            session_id,
+            role="assistant",
+            content="\n\n".join(sections),
+            message_id=assistant_message_id,
+            extra={"streaming": False},
+        )
+    except Exception as exc:
+        await _append_task_message(
+            user_id,
+            session_id,
+            role="assistant",
+            content=f"自动任务执行失败：{exc}",
+            message_id=assistant_message_id,
+            extra={"thinking": "✗ 自动任务执行失败", "streaming": False},
+        )
+        raise _PersistedTaskFailure(exc) from exc
+
+
+async def execute_task(
+    task: dict,
+    *,
+    session_id: str | None = None,
+    started_event: asyncio.Event | None = None,
+) -> dict:
+    """Run a task in a new (or explicitly pre-created) visible conversation."""
+    task_id = task["id"]
+    user_id = task["user_id"]
+    conversation = (
+        {"id": session_id} if session_id is not None else await create_task_conversation(task)
+    )
+    session_id = conversation["id"]
+    logger.info(
+        "[TaskExecutor] 开始执行 task=%s type=%s user=%s session=%s",
+        task_id,
+        task.get("type"),
+        user_id,
+        session_id,
+    )
 
     try:
-        async with client.stream(
-            "POST",
-            f"{base}/api/v1/chat/chat",
-            headers=headers,
-            json=chat_body,
-        ) as resp:
-            chunks = 0
-            async for _ in resp.aiter_bytes():
-                chunks += 1
-        logger.info(f"[TaskExecutor] task={task_id} via sandbox 完成 chunks={chunks}")
-    except Exception:
-        logger.exception(f"[TaskExecutor] task={task_id} via sandbox 失败")
+        if task.get("type") == "script":
+            await _execute_script(task, session_id, started_event=started_event)
+        else:
+            messages = _task_messages(task)
+            if not messages:
+                raise ValueError("任务缺少可执行的对话消息")
+            if _is_docker_sandbox():
+                await _execute_agent_via_sandbox(
+                    task,
+                    session_id,
+                    messages,
+                    started_event=started_event,
+                )
+            else:
+                await _execute_agent_local(
+                    task,
+                    session_id,
+                    messages,
+                    started_event=started_event,
+                )
+        logger.info("[TaskExecutor] task=%s session=%s 执行完成", task_id, session_id)
+    except Exception as exc:
+        logger.exception("[TaskExecutor] task=%s session=%s 执行失败", task_id, session_id)
+        if not isinstance(exc, _PersistedTaskFailure):
+            try:
+                await _append_task_message(
+                    user_id,
+                    session_id,
+                    role="assistant",
+                    content=f"自动任务执行失败：{exc}",
+                    extra={"thinking": "✗ 自动任务执行失败", "streaming": False},
+                )
+            except Exception:
+                logger.exception("[TaskExecutor] 无法把失败状态写入会话 %s", session_id)
+    finally:
+        if started_event is not None:
+            started_event.set()
+    return conversation

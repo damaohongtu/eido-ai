@@ -11,8 +11,19 @@ user 沙箱容器内：路由聚合走 _user_only_router()，仅保留 chat / se
 """
 from fastapi import APIRouter
 
+from app.api.v1.endpoints import (
+    auth,
+    chat,
+    mcp,
+    projects,
+    search,
+    sessions,
+    skills,
+    tasks,
+    workflow,
+    workspace,
+)
 from app.core.config import settings
-from app.api.v1.endpoints import auth, chat, projects, sessions, tasks, workflow, skills, workspace
 
 
 def _is_user_sandbox_runtime() -> bool:
@@ -33,6 +44,8 @@ if _is_user_sandbox_runtime():
     api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
     api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
     api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
+    api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
+    api_router.include_router(search.router, prefix="/search", tags=["search"])
 elif _is_gateway_sandbox_mode():
     # eido-gateway：业务路由用反代，其它路由直连
     from app.gateway import router_user  # 延迟导入，避免单镜像部署时强依赖 docker SDK
@@ -52,6 +65,8 @@ else:
     api_router.include_router(workflow.router, prefix="/workflow", tags=["workflow"])
     api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
     api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
+    api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
+    api_router.include_router(search.router, prefix="/search", tags=["search"])
 
     # 让单租户也支持 sandbox/warmup（no-op）以便前端代码逻辑统一
     @api_router.post("/sandbox/warmup", tags=["sandbox"])

@@ -16,6 +16,8 @@ Jinja2==3.1.6
 markdown-it-py==4.0.0
 python-dateutil==2.9.0.post0
 python-multipart==0.0.22
+cryptography==46.0.3
+mcp==1.25.0
 pandas==3.0.1
 numpy==2.4.1
 openpyxl==3.1.5
@@ -29,6 +31,16 @@ scikit-learn==1.8.0
 joblib==1.5.3
 threadpoolctl==3.6.0
 PyMuPDF==1.27.1
+# PDF extraction, merging and generation
+pypdf==6.14.2
+pdfplumber==0.11.10
+reportlab==5.0.0
+fpdf2==2.8.7
+Pillow==12.3.0
+# Office/OpenDocument reading and generation
+python-docx==1.2.0
+python-pptx==1.0.2
+odfpy==1.4.1
 xmltodict==1.0.4
 
 requests

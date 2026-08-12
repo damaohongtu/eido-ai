@@ -19,7 +19,7 @@ class ProjectLease:
 class ChatExecutionGuard:
     """Coordinate session single-flight with Project readers/writers.
 
-    Provider-native resume stores and OpenHarness engines are session-scoped and
+    Provider-native resume stores are session-scoped and
     are not safe to mutate concurrently. Deployments currently run one backend
     process per user container, so a process-local guard matches that boundary.
 

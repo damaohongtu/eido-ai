@@ -3,6 +3,7 @@
 Every fixture uses a temporary SQLite database and temporary workspace roots.
 The repository's ``.eido`` directory must never be opened by this module.
 """
+
 from __future__ import annotations
 
 import shutil
@@ -18,11 +19,10 @@ from app.core.auth import get_current_user_id
 from app.core.config import settings
 from app.services import chat_session_store as store_module
 from app.services import claude_skill_service as claude_service_module
-from app.services import open_harness_service as open_harness_service_module
 from app.services import project_context as project_context_module
 from app.services import project_workspace as project_workspace_module
-from app.services.chat_session_store import ChatSessionStore
 from app.services.chat_execution_guard import get_chat_execution_guard
+from app.services.chat_session_store import ChatSessionStore
 from app.services.project_context import ProjectContext
 from app.services.project_workspace import (
     ProjectWorkspaceManager,
@@ -38,9 +38,27 @@ class CapturingChatService:
         self.project_context: ProjectContext | None = None
         self.reset_sessions: list[str] = []
         self.messages: list = []
+        self.steerable_sessions: set[tuple[str, str]] = set()
+        self.steered_messages: list[tuple[str, str, str]] = []
+        self.interrupted_sessions: list[tuple[str, str]] = []
 
     def reset_session(self, session_id: str) -> None:
         self.reset_sessions.append(session_id)
+
+    def can_steer_session(self, user_id: str, session_id: str) -> bool:
+        return (user_id, session_id) in self.steerable_sessions
+
+    async def interrupt_session(self, user_id: str, session_id: str) -> bool:
+        if not self.can_steer_session(user_id, session_id):
+            return False
+        self.interrupted_sessions.append((user_id, session_id))
+        return True
+
+    async def steer_session(self, user_id: str, session_id: str, content: str) -> bool:
+        if not self.can_steer_session(user_id, session_id):
+            return False
+        self.steered_messages.append((user_id, session_id, content))
+        return True
 
     async def execute_stream(
         self,
@@ -81,30 +99,17 @@ def project_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     # get_chat_session_store() resolves this module singleton at request time.
     monkeypatch.setattr(store_module, "_instance", store)
-    monkeypatch.setattr(
-        sessions, "get_session_workspace_manager", lambda: session_workspaces
-    )
-    monkeypatch.setattr(
-        projects, "get_session_workspace_manager", lambda: session_workspaces
-    )
-    monkeypatch.setattr(
-        projects, "get_project_workspace_manager", lambda: project_workspaces
-    )
+    monkeypatch.setattr(sessions, "get_session_workspace_manager", lambda: session_workspaces)
+    monkeypatch.setattr(projects, "get_session_workspace_manager", lambda: session_workspaces)
+    monkeypatch.setattr(projects, "get_project_workspace_manager", lambda: project_workspaces)
     monkeypatch.setattr(chat, "get_session_workspace_manager", lambda: session_workspaces)
-    monkeypatch.setattr(
-        workspace, "get_session_workspace_manager", lambda: session_workspaces
-    )
+    monkeypatch.setattr(workspace, "get_session_workspace_manager", lambda: session_workspaces)
     monkeypatch.setattr(
         project_context_module,
         "get_project_workspace_manager",
         lambda: project_workspaces,
     )
-    monkeypatch.setattr(
-        claude_service_module, "get_claude_skill_service", lambda: chat_service
-    )
-    monkeypatch.setattr(
-        open_harness_service_module, "get_open_harness_service", lambda: chat_service
-    )
+    monkeypatch.setattr(claude_service_module, "get_claude_skill_service", lambda: chat_service)
 
     identity = {"user_id": "user-a"}
     app = FastAPI()
@@ -193,20 +198,14 @@ def test_project_crud_filters_and_cross_user_isolation(project_api: ProjectApiHa
     # Empty Projects are metadata-only; the shared-files directory is created lazily.
     assert not (project_api.project_workspaces.root / project_id).exists()
 
-    assigned = _create_session(
-        project_api, title="Assigned", project_id=project_id
-    )
+    assigned = _create_session(project_api, title="Assigned", project_id=project_id)
     unassigned = _create_session(project_api, title="Unassigned")
 
-    by_project = project_api.client.get(
-        "/api/v1/sessions/", params={"project_id": project_id}
-    )
+    by_project = project_api.client.get("/api/v1/sessions/", params={"project_id": project_id})
     assert by_project.status_code == 200, by_project.text
     assert {item["id"] for item in by_project.json()} == {assigned["id"]}
 
-    without_project = project_api.client.get(
-        "/api/v1/sessions/", params={"unassigned": "true"}
-    )
+    without_project = project_api.client.get("/api/v1/sessions/", params={"unassigned": "true"})
     assert without_project.status_code == 200, without_project.text
     assert {item["id"] for item in without_project.json()} == {unassigned["id"]}
 
@@ -224,55 +223,64 @@ def test_project_crud_filters_and_cross_user_isolation(project_api: ProjectApiHa
     assert patched.json()["name"] == "Renamed"
     assert patched.json()["archived_at"] is not None
     assert project_api.client.get("/api/v1/projects/").json() == []
-    archived = project_api.client.get(
-        "/api/v1/projects/", params={"include_archived": "true"}
-    )
+    archived = project_api.client.get("/api/v1/projects/", params={"include_archived": "true"})
     assert [item["id"] for item in archived.json()] == [project_id]
-    assert project_api.client.post(
-        "/api/v1/sessions/",
-        json={"title": "Archived", "project_id": project_id},
-    ).status_code == 409
-    assert project_api.client.post(
-        f"/api/v1/projects/{project_id}/files",
-        files={"file": ("blocked.md", b"blocked", "text/markdown")},
-    ).status_code == 409
+    assert (
+        project_api.client.post(
+            "/api/v1/sessions/",
+            json={"title": "Archived", "project_id": project_id},
+        ).status_code
+        == 409
+    )
+    assert (
+        project_api.client.post(
+            f"/api/v1/projects/{project_id}/files",
+            files={"file": ("blocked.md", b"blocked", "text/markdown")},
+        ).status_code
+        == 409
+    )
 
-    assert project_api.client.post(
-        "/api/v1/projects/", json={"name": "   "}
-    ).status_code == 400
-    assert project_api.client.patch(
-        f"/api/v1/projects/{project_id}", json={"name": None}
-    ).status_code == 400
-    assert project_api.client.patch(
-        f"/api/v1/projects/{project_id}", json={"archived": None}
-    ).status_code == 400
-    assert project_api.client.post(
-        "/api/v1/sessions/", json={"title": "Invalid", "project_id": ""}
-    ).status_code == 400
+    assert project_api.client.post("/api/v1/projects/", json={"name": "   "}).status_code == 400
+    assert (
+        project_api.client.patch(f"/api/v1/projects/{project_id}", json={"name": None}).status_code
+        == 400
+    )
+    assert (
+        project_api.client.patch(
+            f"/api/v1/projects/{project_id}", json={"archived": None}
+        ).status_code
+        == 400
+    )
+    assert (
+        project_api.client.post(
+            "/api/v1/sessions/", json={"title": "Invalid", "project_id": ""}
+        ).status_code
+        == 400
+    )
 
     project_api.login_as("user-b")
-    assert project_api.client.get(
-        f"/api/v1/projects/{project_id}"
-    ).status_code == 404
-    assert project_api.client.patch(
-        f"/api/v1/projects/{project_id}", json={"name": "stolen"}
-    ).status_code == 404
-    assert project_api.client.delete(
-        f"/api/v1/projects/{project_id}"
-    ).status_code == 404
-    assert project_api.client.post(
-        "/api/v1/sessions/",
-        json={"title": "Foreign project", "project_id": project_id},
-    ).status_code == 404
+    assert project_api.client.get(f"/api/v1/projects/{project_id}").status_code == 404
+    assert (
+        project_api.client.patch(
+            f"/api/v1/projects/{project_id}", json={"name": "stolen"}
+        ).status_code
+        == 404
+    )
+    assert project_api.client.delete(f"/api/v1/projects/{project_id}").status_code == 404
+    assert (
+        project_api.client.post(
+            "/api/v1/sessions/",
+            json={"title": "Foreign project", "project_id": project_id},
+        ).status_code
+        == 404
+    )
 
 
 def test_project_freeze_blocks_chat_and_new_or_moved_sessions(
     project_api: ProjectApiHarness,
 ):
     project = _create_project(project_api)
-    assigned = _create_session(
-        project_api, title="Assigned", project_id=project["id"]
-    )
+    assigned = _create_session(project_api, title="Assigned", project_id=project["id"])
     unassigned = _create_session(project_api, title="Unassigned")
     guard = get_chat_execution_guard()
     freeze = guard.try_acquire_project_exclusive(project["id"])
@@ -434,9 +442,7 @@ def test_delete_project_unbinds_but_preserves_session_messages_and_workspace(
     project_api: ProjectApiHarness,
 ):
     project = _create_project(project_api)
-    session = _create_session(
-        project_api, title="Keep me", project_id=project["id"]
-    )
+    session = _create_session(project_api, title="Keep me", project_id=project["id"])
     session_id = session["id"]
     sentinel = project_api.session_workspaces.outputs_dir(session_id) / "keep.txt"
     sentinel.write_text("session artifact", encoding="utf-8")
@@ -491,6 +497,129 @@ def _send_context_chat(
     )
 
 
+def _chat_control_payload(
+    session_id: str,
+    *,
+    mode: str = "queue",
+    message_id: str = "queued-user",
+) -> dict:
+    return {
+        "mode": mode,
+        "session_id": session_id,
+        "message": {"id": message_id, "role": "user", "content": "follow up"},
+        "assistant_message_id": f"assistant-{message_id}",
+        "harness": "claude_code",
+    }
+
+
+def test_chat_control_queues_for_owned_active_session_and_reports_status(
+    project_api: ProjectApiHarness,
+):
+    session = _create_session(project_api, title="Queue control")
+    guard = get_chat_execution_guard()
+    assert guard.try_acquire(session["id"])
+
+    try:
+        response = project_api.client.post(
+            "/api/v1/chat/control",
+            json=_chat_control_payload(session["id"]),
+        )
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "ok": True,
+            "mode": "queue",
+            "status": "queued",
+            "position": 1,
+        }
+
+        status = project_api.client.get(f"/api/v1/chat/queue/{session['id']}")
+        assert status.status_code == 200, status.text
+        assert status.json() == {
+            "active": True,
+            "steer_available": False,
+            "count": 1,
+            "items": [
+                {
+                    "message_id": "queued-user",
+                    "content": "follow up",
+                    "mode": "queue",
+                    "position": 1,
+                }
+            ],
+        }
+    finally:
+        from app.services.chat_execution_queue import get_chat_execution_queue
+
+        get_chat_execution_queue().remove("user-a", session["id"], "queued-user")
+        guard.release(session["id"])
+
+
+def test_chat_control_rejects_foreign_session(project_api: ProjectApiHarness):
+    session = _create_session(project_api, title="Private queue")
+    project_api.login_as("user-b")
+    response = project_api.client.post(
+        "/api/v1/chat/control",
+        json=_chat_control_payload(session["id"]),
+    )
+    assert response.status_code == 404
+
+
+def test_chat_control_steer_injects_without_interrupting_and_persists_instruction(
+    project_api: ProjectApiHarness,
+):
+    session = _create_session(project_api, title="Steer control")
+    session_id = session["id"]
+    guard = get_chat_execution_guard()
+    assert guard.try_acquire(session_id)
+    project_api.chat_service.steerable_sessions.add(("user-a", session_id))
+
+    try:
+        response = project_api.client.post(
+            "/api/v1/chat/control",
+            json=_chat_control_payload(session_id, mode="steer", message_id="steer-user"),
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "applied"
+        assert project_api.chat_service.steered_messages == [
+            ("user-a", session_id, "follow up")
+        ]
+        assert project_api.chat_service.interrupted_sessions == []
+
+        status = project_api.client.get(f"/api/v1/chat/queue/{session_id}").json()
+        assert status["items"] == []
+        messages = project_api.store.list_messages(session_id, user_id="user-a")
+        assert messages[-1]["content"] == "follow up"
+        assert messages[-1]["extra"] == {
+            "deliveryMode": "steer",
+            "deliveryStatus": "applied",
+        }
+    finally:
+        from app.services.chat_execution_queue import get_chat_execution_queue
+
+        get_chat_execution_queue().remove("user-a", session_id, "steer-user")
+        guard.release(session_id)
+
+
+def test_chat_queue_message_can_be_deleted(project_api: ProjectApiHarness):
+    session = _create_session(project_api, title="Delete queue item")
+    guard = get_chat_execution_guard()
+    assert guard.try_acquire(session["id"])
+    try:
+        queued = project_api.client.post(
+            "/api/v1/chat/control",
+            json=_chat_control_payload(session["id"]),
+        )
+        assert queued.status_code == 200, queued.text
+        deleted = project_api.client.delete(
+            f"/api/v1/chat/queue/{session['id']}/queued-user"
+        )
+        assert deleted.status_code == 200, deleted.text
+        status = project_api.client.get(f"/api/v1/chat/queue/{session['id']}").json()
+        assert status["count"] == 0
+    finally:
+        guard.release(session["id"])
+
+
 def test_project_context_snapshot_includes_owned_shared_files(
     project_api: ProjectApiHarness,
 ):
@@ -501,9 +630,7 @@ def test_project_context_snapshot_includes_owned_shared_files(
         files={"file": ("facts.md", b"verified facts", "text/markdown")},
     )
     assert upload.status_code == 200, upload.text
-    session = _create_session(
-        project_api, title="Context session", project_id=project_id
-    )
+    session = _create_session(project_api, title="Context session", project_id=project_id)
 
     captured = project_context_module.load_project_context("user-a", session["id"])
     assert captured is not None
@@ -520,9 +647,7 @@ def test_chat_derives_context_from_session_and_persists_stream_result(
     project_api: ProjectApiHarness,
 ):
     project = _create_project(project_api, name="Context project")
-    session = _create_session(
-        project_api, title="Context session", project_id=project["id"]
-    )
+    session = _create_session(project_api, title="Context session", project_id=project["id"])
 
     response = _send_context_chat(project_api, session["id"])
     assert response.status_code == 200, response.text
@@ -547,9 +672,7 @@ def test_chat_records_applied_project_context_revision(
     project_api: ProjectApiHarness,
 ):
     project = _create_project(project_api, name="Revision project")
-    session = _create_session(
-        project_api, title="Revision session", project_id=project["id"]
-    )
+    session = _create_session(project_api, title="Revision session", project_id=project["id"])
 
     response = _send_context_chat(
         project_api, session["id"], assistant_message_id="assistant-revision"
@@ -566,9 +689,7 @@ def test_context_revision_change_invalidates_native_context_before_chat(
     project_api: ProjectApiHarness,
 ):
     project = _create_project(project_api, name="Mutable context")
-    session = _create_session(
-        project_api, title="Mutable session", project_id=project["id"]
-    )
+    session = _create_session(project_api, title="Mutable session", project_id=project["id"])
     session_id = session["id"]
     assert project_api.store.append_message(
         "user-a",
@@ -602,7 +723,7 @@ def test_context_revision_change_invalidates_native_context_before_chat(
         project_api,
         session_id,
         assistant_message_id="assistant-updated-revision",
-        harness="open_harness",
+        harness="claude_code",
         messages=[
             {
                 "id": "untrusted-history",
@@ -618,14 +739,9 @@ def test_context_revision_change_invalidates_native_context_before_chat(
     assert stored_session is not None
     assert stored_session["claude_session_id"] is None
     assert stored_session["opencode_session_id"] is None
-    assert (
-        stored_session["applied_context_revision"]
-        == changed_project["context_revision"]
-    )
+    assert stored_session["applied_context_revision"] == changed_project["context_revision"]
     assert project_api.chat_service.reset_sessions == [session_id]
-    assert [
-        (message.role, message.content) for message in project_api.chat_service.messages
-    ] == [
+    assert [(message.role, message.content) for message in project_api.chat_service.messages] == [
         ("user", "Earlier question"),
         ("assistant", "Earlier answer"),
         ("user", "Use the facts"),
@@ -672,9 +788,7 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
     assert too_large.status_code == 413
     monkeypatch.setattr(projects, "MAX_PROJECT_FILE_SIZE", configured_limit)
 
-    fetched = project_api.client.get(
-        f"/api/v1/projects/{project_id}/files/{uploaded['id']}"
-    )
+    fetched = project_api.client.get(f"/api/v1/projects/{project_id}/files/{uploaded['id']}")
     assert fetched.status_code == 200, fetched.text
     assert fetched.content == b"# Shared context\n"
     assert fetched.headers["content-type"].startswith("text/markdown")
@@ -689,9 +803,7 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
     assert "<h1>Shared context</h1>" in previewed_markdown.text
     assert "script-src 'none'" in previewed_markdown.headers["content-security-policy"]
 
-    session = _create_session(
-        project_api, title="Source session", project_id=project_id
-    )
+    session = _create_session(project_api, title="Source session", project_id=project_id)
     source = project_api.session_workspaces.outputs_dir(session["id"]) / "source.csv"
     source.write_bytes(b"period,revenue\nQ1,42\n")
     imported_response = project_api.client.post(
@@ -711,9 +823,7 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
 
     # Import is a copy: removing the source must not invalidate Project context.
     source.unlink()
-    copied = project_api.client.get(
-        f"/api/v1/projects/{project_id}/files/{imported['id']}"
-    )
+    copied = project_api.client.get(f"/api/v1/projects/{project_id}/files/{imported['id']}")
     assert copied.status_code == 200, copied.text
     assert copied.content == b"period,revenue\nQ1,42\n"
 
@@ -743,9 +853,7 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
     other_session = _create_session(
         project_api, title="Other source", project_id=other_project["id"]
     )
-    other_output = (
-        project_api.session_workspaces.outputs_dir(other_session["id"]) / "other.csv"
-    )
+    other_output = project_api.session_workspaces.outputs_dir(other_session["id"]) / "other.csv"
     other_output.write_text("other", encoding="utf-8")
     cross_project = project_api.client.post(
         f"/api/v1/projects/{project_id}/files/import",
@@ -755,10 +863,13 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
     assert "不属于目标项目" in cross_project.json()["detail"]
 
     project_api.login_as("user-b")
-    assert project_api.client.get(
-        f"/api/v1/projects/{project_id}/files/{uploaded['id']}",
-        params={"preview": "true"},
-    ).status_code == 404
+    assert (
+        project_api.client.get(
+            f"/api/v1/projects/{project_id}/files/{uploaded['id']}",
+            params={"preview": "true"},
+        ).status_code
+        == 404
+    )
 
     project_api.login_as("user-a")
     private_record = project_api.store.get_project_file(
@@ -769,27 +880,71 @@ def test_project_file_upload_import_copy_delete_limits_and_user_isolation(
         project_id, private_record["storage_name"]
     )
     assert stored_path.is_file()
-    deleted = project_api.client.delete(
-        f"/api/v1/projects/{project_id}/files/{uploaded['id']}"
-    )
+    deleted = project_api.client.delete(f"/api/v1/projects/{project_id}/files/{uploaded['id']}")
     assert deleted.status_code == 200, deleted.text
     assert deleted.json() == {"deleted": True, "cleanup_pending": False}
     assert not stored_path.exists()
-    assert project_api.client.get(
-        f"/api/v1/projects/{project_id}/files/{uploaded['id']}"
-    ).status_code == 404
+    assert (
+        project_api.client.get(f"/api/v1/projects/{project_id}/files/{uploaded['id']}").status_code
+        == 404
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "media_type"),
+    [
+        ("notes.txt", "text/plain"),
+        ("service.log", "text/plain"),
+        ("brief.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        ("dataset.jsonl", "application/x-ndjson"),
+        ("analysis.py", "text/x-python"),
+        ("bundle.zip", "application/zip"),
+    ],
+)
+def test_rich_file_formats_are_supported_by_chat_and_project_uploads(
+    project_api: ProjectApiHarness,
+    filename: str,
+    media_type: str,
+):
+    session = _create_session(project_api, title=f"Upload {filename}")
+    chat_upload = project_api.client.post(
+        "/api/v1/chat/upload",
+        data={"session_id": session["id"]},
+        files={"file": (filename, b"sample content", "application/octet-stream")},
+    )
+    assert chat_upload.status_code == 200, chat_upload.text
+    assert Path(chat_upload.json()["path"]).read_bytes() == b"sample content"
+
+    project = _create_project(project_api, name=f"Project {filename}")
+    project_upload = project_api.client.post(
+        f"/api/v1/projects/{project['id']}/files",
+        files={"file": (filename, b"sample content", "application/octet-stream")},
+    )
+    assert project_upload.status_code == 200, project_upload.text
+    assert project_upload.json()["media_type"].startswith(media_type)
+
+
+def test_chat_upload_rejects_executables_with_full_supported_format_hint(
+    project_api: ProjectApiHarness,
+):
+    session = _create_session(project_api, title="Reject executable")
+    response = project_api.client.post(
+        "/api/v1/chat/upload",
+        data={"session_id": session["id"]},
+        files={"file": ("payload.exe", b"MZ", "application/octet-stream")},
+    )
+    assert response.status_code == 400
+    assert ".txt" in response.json()["detail"]
+    assert ".log" in response.json()["detail"]
+    assert ".docx" in response.json()["detail"]
 
 
 def test_project_file_import_rejects_symlinked_workspace_roots(
     project_api: ProjectApiHarness,
 ):
     project = _create_project(project_api, name="Symlink roots")
-    source_session = _create_session(
-        project_api, title="Source", project_id=project["id"]
-    )
-    sibling_session = _create_session(
-        project_api, title="Sibling", project_id=project["id"]
-    )
+    source_session = _create_session(project_api, title="Source", project_id=project["id"])
+    sibling_session = _create_session(project_api, title="Sibling", project_id=project["id"])
     source_root = project_api.session_workspaces.root / source_session["id"]
     source_uploads = source_root / "uploads"
     source_outputs = source_root / "outputs"
@@ -807,8 +962,7 @@ def test_project_file_import_rejects_symlinked_workspace_roots(
     source_outputs.unlink()
     source_outputs.mkdir()
     sibling_output = (
-        project_api.session_workspaces.outputs_dir(sibling_session["id"])
-        / "sibling.csv"
+        project_api.session_workspaces.outputs_dir(sibling_session["id"]) / "sibling.csv"
     )
     sibling_output.write_text("other session", encoding="utf-8")
     shutil.rmtree(source_root)
@@ -829,7 +983,11 @@ def test_project_file_import_rejects_symlinked_workspace_roots(
         ("notes.txt", "text/plain", False),
         ("data.json", "application/json", False),
         ("chart.png", "image/png", False),
-        ("deck.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", True),
+        (
+            "deck.pptx",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            True,
+        ),
     ],
 )
 def test_generated_result_formats_and_active_content_download_policy(
@@ -927,7 +1085,7 @@ def test_promoted_output_is_in_next_project_context_and_resets_provider_memory(
         project_api,
         session_id,
         assistant_message_id="assistant-after-promotion",
-        harness="open_harness",
+        harness="claude_code",
     )
     assert chat_response.status_code == 200, chat_response.text
     captured = project_api.chat_service.project_context
@@ -964,9 +1122,7 @@ def test_cumulative_project_quota_returns_413_without_orphaning_file(
     assert rejected.status_code == 413, rejected.text
     assert rejected.json()["detail"] == "项目共享资料总容量已达上限"
 
-    records = project_api.store.list_project_files(
-        "user-a", project_id, include_storage=True
-    )
+    records = project_api.store.list_project_files("user-a", project_id, include_storage=True)
     assert [record["id"] for record in records] == [accepted.json()["id"]]
     assert {
         path.name for path in project_api.project_workspaces.files_dir(project_id).iterdir()
@@ -1050,35 +1206,25 @@ def test_file_delete_reports_pending_cleanup_and_retry_removes_the_file(
         "user-a", project_id, upload.json()["id"], include_storage=True
     )
     assert record is not None
-    destination = project_api.project_workspaces.file_path(
-        project_id, record["storage_name"]
-    )
+    destination = project_api.project_workspaces.file_path(project_id, record["storage_name"])
     real_remove_file = project_api.project_workspaces.remove_file
 
     def fail_remove_file(_project_id: str, _storage_name: str) -> bool:
         raise OSError("injected file delete failure")
 
     monkeypatch.setattr(project_api.project_workspaces, "remove_file", fail_remove_file)
-    deleted = project_api.client.delete(
-        f"/api/v1/projects/{project_id}/files/{record['id']}"
-    )
+    deleted = project_api.client.delete(f"/api/v1/projects/{project_id}/files/{record['id']}")
     assert deleted.status_code == 200, deleted.text
     assert deleted.json() == {"deleted": True, "cleanup_pending": True}
-    assert project_api.store.get_project_file(
-        "user-a", project_id, record["id"]
-    ) is None
+    assert project_api.store.get_project_file("user-a", project_id, record["id"]) is None
     assert destination.is_file()
     jobs = project_api.store.list_storage_cleanup_jobs()
     assert [(job["resource_type"], job["storage_name"]) for job in jobs] == [
         ("file", record["storage_name"])
     ]
 
-    monkeypatch.setattr(
-        project_api.project_workspaces, "remove_file", real_remove_file
-    )
-    monkeypatch.setattr(
-        project_workspace_module, "_instance", project_api.project_workspaces
-    )
+    monkeypatch.setattr(project_api.project_workspaces, "remove_file", real_remove_file)
+    monkeypatch.setattr(project_workspace_module, "_instance", project_api.project_workspaces)
     assert retry_pending_storage_cleanup(project_api.store) == {
         "completed": 1,
         "failed": 0,
@@ -1099,18 +1245,14 @@ def test_project_delete_reports_pending_cleanup_and_retry_removes_the_directory(
         files={"file": ("cleanup.md", b"cleanup", "text/markdown")},
     )
     assert upload.status_code == 200, upload.text
-    project_root = project_api.project_workspaces.project_root(
-        project_id, create=False
-    )
+    project_root = project_api.project_workspaces.project_root(project_id, create=False)
     assert project_root.is_dir()
     real_remove_project = project_api.project_workspaces.remove_project
 
     def fail_remove_project(_project_id: str) -> bool:
         raise OSError("injected project delete failure")
 
-    monkeypatch.setattr(
-        project_api.project_workspaces, "remove_project", fail_remove_project
-    )
+    monkeypatch.setattr(project_api.project_workspaces, "remove_project", fail_remove_project)
     deleted = project_api.client.delete(f"/api/v1/projects/{project_id}")
     assert deleted.status_code == 200, deleted.text
     assert deleted.json() == {
@@ -1121,16 +1263,10 @@ def test_project_delete_reports_pending_cleanup_and_retry_removes_the_directory(
     assert project_api.store.get_project("user-a", project_id) is None
     assert project_root.is_dir()
     jobs = project_api.store.list_storage_cleanup_jobs()
-    assert [(job["resource_type"], job["project_id"]) for job in jobs] == [
-        ("project", project_id)
-    ]
+    assert [(job["resource_type"], job["project_id"]) for job in jobs] == [("project", project_id)]
 
-    monkeypatch.setattr(
-        project_api.project_workspaces, "remove_project", real_remove_project
-    )
-    monkeypatch.setattr(
-        project_workspace_module, "_instance", project_api.project_workspaces
-    )
+    monkeypatch.setattr(project_api.project_workspaces, "remove_project", real_remove_project)
+    monkeypatch.setattr(project_workspace_module, "_instance", project_api.project_workspaces)
     assert retry_pending_storage_cleanup(project_api.store) == {
         "completed": 1,
         "failed": 0,

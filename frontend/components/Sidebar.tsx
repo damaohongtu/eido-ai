@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ViewType, ChatSession, Project } from '../types';
 import { getAssetUrl } from '../config';
+import { api, NavigationSearchResult } from '../services/api';
 
 const SIDEBAR_COLLAPSE_STORAGE_KEY = 'eido_sidebar_collapse_v1';
 
@@ -69,6 +70,25 @@ function CollapseChevron({ expanded }: { expanded: boolean }) {
   );
 }
 
+function formatSessionTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const sameDay = date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+  if (sameDay) return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' });
+  }
+  return date.toLocaleDateString('zh-CN', { year: '2-digit', month: '2-digit', day: '2-digit' });
+}
+
+function fullSessionTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', { hour12: false });
+}
+
 interface SidebarProps {
   activeView: ViewType;
   onNavigate: (view: ViewType) => void;
@@ -76,6 +96,7 @@ interface SidebarProps {
   projects: Project[];
   activeProjectId: string | null;
   activeSessionId: string | null;
+  runningSessionIds?: Set<string>;
   onSelectSession: (id: string) => void;
   onNewChat: () => void;
   onNewProject: () => void;
@@ -104,6 +125,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   projects,
   activeProjectId,
   activeSessionId,
+  runningSessionIds = new Set(),
   onSelectSession,
   onNewChat,
   onNewProject,
@@ -118,6 +140,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [collapsePreferences, setCollapsePreferences] = useState<SidebarCollapsePreferences>(loadCollapsePreferences);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResult, setSearchResult] = useState<NavigationSearchResult | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -137,6 +163,40 @@ const Sidebar: React.FC<SidebarProps> = ({
     document.addEventListener('mousedown', onDocMouseDown);
     return () => document.removeEventListener('mousedown', onDocMouseDown);
   }, [userMenuOpen]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchResult(null);
+      setSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSearchLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await api.searchNavigation(query);
+        if (!cancelled) setSearchResult(result);
+      } catch {
+        if (!cancelled) setSearchResult({ projects: [], sessions: [] });
+      } finally {
+        if (!cancelled) setSearchLoading(false);
+      }
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!searchQuery) return;
+    const onDocMouseDown = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setSearchQuery('');
+        setSearchResult(null);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [searchQuery]);
 
   const NavItem = ({
     view,
@@ -164,7 +224,6 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const harnessOptions = [
     { value: 'claude_code', short: 'CC', label: 'Claude Code' },
-    // { value: 'open_harness', short: 'OH', label: 'OpenHarness' },
     { value: 'opencode', short: 'OC', label: 'OpenCode' },
   ];
 
@@ -200,6 +259,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
+    <>
     <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
       {/* ---- Top: logo + new chat + nav (shrink-0) ---- */}
       <div className="p-6 pb-2 shrink-0">
@@ -221,6 +281,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           <NavItem view={ViewType.HOME} label="探索发现" iconPath={getAssetUrl('/images/side/探索发现.png')} />
           <NavItem view={ViewType.SKILLS} label="我的技能" iconPath={getAssetUrl('/images/side/我的技能.png')} />
           <NavItem
+            view={ViewType.TOOLS}
+            label="我的工具"
+            icon={<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.7 6.3a4 4 0 0 0-5 5l-6.4 6.4a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l6.4-6.4a4 4 0 0 0 5-5l-2.4 2.4-3-3 2.4-2.4Z" /></svg>}
+          />
+          <NavItem
             view={ViewType.SCHEDULED_TASKS}
             label="自动任务"
             icon={
@@ -235,6 +300,23 @@ const Sidebar: React.FC<SidebarProps> = ({
             }
           />
         </nav>
+
+        <div ref={searchRef} className="relative mb-3">
+          <div className="flex items-center rounded-xl border border-gray-200 bg-gray-50 px-3 focus-within:border-gray-300 focus-within:bg-white">
+            <svg className="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z" /></svg>
+            <input value={searchQuery} onChange={event => setSearchQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setSearchQuery(''); }} placeholder="搜索项目和会话" aria-label="搜索项目和会话" className="min-w-0 flex-1 bg-transparent px-2 py-2 text-xs text-gray-700 outline-none placeholder:text-gray-400" />
+            {searchLoading ? <span className="h-3 w-3 animate-spin rounded-full border border-gray-300 border-t-gray-600" /> : null}
+          </div>
+          {searchQuery.trim() ? (
+            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl">
+              {(searchResult?.projects.length || 0) > 0 ? <div className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">项目</div> : null}
+              {searchResult?.projects.map(project => <button key={project.id} onClick={() => { selectProject(project.id); setSearchQuery(''); setSearchResult(null); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-gray-100"><span>📁</span><span className="min-w-0 flex-1 truncate text-xs font-bold text-gray-700">{project.name}</span><span className="text-[10px] text-gray-400">{project.session_count}</span></button>)}
+              {(searchResult?.sessions.length || 0) > 0 ? <div className="px-2 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">会话</div> : null}
+              {searchResult?.sessions.map(session => <button key={session.id} onClick={() => { onSelectSession(session.id); setSearchQuery(''); setSearchResult(null); }} className="block w-full rounded-lg px-2 py-2 text-left hover:bg-gray-100"><div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-xs font-bold text-gray-700">{session.title}</span><span className="text-[10px] text-gray-400">{formatSessionTime(Date.parse(session.updated_at))}</span></div>{session.match_snippet ? <div className="mt-1 truncate text-[10px] text-gray-400">{session.match_snippet}</div> : null}</button>)}
+              {!searchLoading && searchResult && searchResult.projects.length === 0 && searchResult.sessions.length === 0 ? <div className="px-3 py-5 text-center text-xs text-gray-400">没有匹配结果</div> : null}
+            </div>
+          ) : null}
+        </div>
 
         <div className="flex items-center justify-between gap-1 px-2">
           <button
@@ -316,6 +398,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                           className={`group flex cursor-pointer items-center rounded-lg px-2 py-1.5 ${activeSessionId === session.id ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:bg-gray-100'}`}
                         >
                           <span className="min-w-0 flex-1 truncate text-xs font-medium">{session.title}</span>
+                          {runningSessionIds.has(session.id) && <span className="ml-1 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" title="执行中" />}
+                          <time dateTime={new Date(session.updatedAt).toISOString()} title={fullSessionTime(session.updatedAt)} className="ml-1 shrink-0 text-[9px] text-gray-400">{formatSessionTime(session.updatedAt)}</time>
                           <button
                             type="button"
                             onClick={(event) => { event.stopPropagation(); onDeleteSession(session.id); }}
@@ -342,6 +426,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                     className={`group flex cursor-pointer items-center rounded-lg px-3 py-2 ${activeSessionId === session.id ? 'bg-amber-100 text-gray-900' : 'text-gray-600 hover:bg-amber-100/70'}`}
                   >
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">{session.title}</span>
+                    {runningSessionIds.has(session.id) && <span className="ml-1 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" title="执行中" />}
+                    <time dateTime={new Date(session.updatedAt).toISOString()} title={fullSessionTime(session.updatedAt)} className="ml-1 shrink-0 text-[9px] text-gray-400">{formatSessionTime(session.updatedAt)}</time>
                     <button
                       type="button"
                       onClick={(event) => { event.stopPropagation(); onDeleteSession(session.id); }}
@@ -382,6 +468,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onSelectSession(session.id)}
               >
                 <div className="min-w-0 flex-1 truncate text-sm font-medium">{session.title}</div>
+                {runningSessionIds.has(session.id) && <span className="ml-1 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" title="执行中" />}
+                <time dateTime={new Date(session.updatedAt).toISOString()} title={fullSessionTime(session.updatedAt)} className="ml-2 shrink-0 text-[10px] text-gray-400">{formatSessionTime(session.updatedAt)}</time>
                 <button
                   type="button"
                   onClick={(event) => { event.stopPropagation(); onDeleteSession(session.id); }}
@@ -461,6 +549,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
     </aside>
+    </>
   );
 };
 

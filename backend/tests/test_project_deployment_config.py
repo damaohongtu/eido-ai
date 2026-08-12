@@ -3,7 +3,6 @@ from pathlib import Path
 
 import yaml
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -55,3 +54,47 @@ def test_container_proxy_accepts_project_file_limit_with_multipart_overhead():
     nginx = (REPOSITORY_ROOT / "docker" / "nginx.conf").read_text(encoding="utf-8")
 
     assert "client_max_body_size 25M;" in nginx
+
+
+def test_runtime_images_include_pdf_tooling_and_cjk_fonts():
+    requirements = (REPOSITORY_ROOT / "backend" / "requirements.txt").read_text(
+        encoding="utf-8"
+    )
+    for package in (
+        "PyMuPDF==",
+        "pypdf==",
+        "pdfplumber==",
+        "reportlab==",
+        "fpdf2==",
+        "python-docx==",
+        "python-pptx==",
+    ):
+        assert package in requirements
+
+    for filename in ("app.Dockerfile", "gateway.Dockerfile", "user.Dockerfile"):
+        dockerfile = (REPOSITORY_ROOT / "docker" / filename).read_text(
+            encoding="utf-8"
+        )
+        assert "poppler-utils" in dockerfile
+        assert "fonts-noto-cjk" in dockerfile
+
+
+def test_frontend_and_backend_share_the_same_rich_file_extensions():
+    from app.services.supported_files import SUPPORTED_FILE_EXTENSIONS
+
+    source = (
+        REPOSITORY_ROOT / "frontend" / "utils" / "supportedFiles.ts"
+    ).read_text(encoding="utf-8")
+    frontend_extensions = {
+        token
+        for token in source.replace("'", '"').split('"')[1::2]
+        if token.isalnum() and token.lower() == token
+    }
+    assert frontend_extensions == {
+        extension.removeprefix(".") for extension in SUPPORTED_FILE_EXTENSIONS
+    }
+
+    mobile_source = (
+        REPOSITORY_ROOT / "frontend-mobile" / "src" / "utils" / "supportedFiles.ts"
+    ).read_text(encoding="utf-8")
+    assert "../../../frontend/utils/supportedFiles" in mobile_source

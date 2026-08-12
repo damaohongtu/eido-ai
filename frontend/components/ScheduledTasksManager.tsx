@@ -7,12 +7,15 @@ import ScheduledTaskModal from './ScheduledTaskModal';
 /**
  * 布局与「我的技能」(SkillManager) 一致：同外边距、max-w-6xl、标题行、md 三列卡片网格。
  */
-const ScheduledTasksManager: React.FC = () => {
+const ScheduledTasksManager: React.FC<{
+  onOpenSession: (sessionId: string) => Promise<void>;
+}> = ({ onOpenSession }) => {
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduledTask | null>(null);
+  const [runningTaskId, setRunningTaskId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -87,12 +90,14 @@ const ScheduledTasksManager: React.FC = () => {
 
   const handleRun = async (e: React.MouseEvent, t: ScheduledTask) => {
     e.stopPropagation();
+    setRunningTaskId(t.id);
     try {
-      await api.runTaskNow(t.id);
-      alert('已触发执行（后台运行）');
-      await load();
+      const result = await api.runTaskNow(t.id);
+      await onOpenSession(result.session_id);
     } catch (err) {
       alert(err instanceof Error ? err.message : '触发失败');
+    } finally {
+      setRunningTaskId(null);
     }
   };
 
@@ -192,9 +197,10 @@ const ScheduledTasksManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={(e) => handleRun(e, t)}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 hover:bg-gray-50"
+                    disabled={runningTaskId === t.id}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-gray-200 hover:bg-gray-50 disabled:cursor-wait disabled:opacity-50"
                   >
-                    立即执行
+                    {runningTaskId === t.id ? '正在创建对话…' : '立即执行'}
                   </button>
                   <button
                     type="button"

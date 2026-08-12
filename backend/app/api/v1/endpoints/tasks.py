@@ -2,8 +2,11 @@
 Task CRUD endpoints.
 User identity resolved from Session cookie or signed X-Eido-User-Token header.
 """
+
+import asyncio
 import logging
-from typing import Optional
+from collections.abc import Coroutine
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -16,6 +19,25 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _store: ScheduledTaskStore | None = None
+_running_task_runs: set[asyncio.Task[None]] = set()
+
+
+def _start_task_run(coroutine: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
+    """Keep a strong reference until a detached task run finishes."""
+    running = asyncio.create_task(coroutine)
+    _running_task_runs.add(running)
+
+    def finish(completed: asyncio.Task[None]) -> None:
+        _running_task_runs.discard(completed)
+        try:
+            completed.result()
+        except asyncio.CancelledError:
+            logger.info("自动任务执行已取消")
+        except Exception:
+            logger.exception("自动任务执行协程异常")
+
+    running.add_done_callback(finish)
+    return running
 
 
 def set_store(store: ScheduledTaskStore):
@@ -124,8 +146,33 @@ async def run_task(
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    from app.services.task_executor import execute_task
-    import asyncio
-    asyncio.create_task(execute_task(task))
-    logger.info(f"[{user_id}] 手动触发任务: {task_id}")
-    return {"ok": True, "message": "任务已触发"}
+    from app.services.task_executor import create_task_conversation, execute_task
+
+    conversation = await create_task_conversation(task)
+    started = asyncio.Event()
+
+    async def execute_and_mark() -> None:
+        await execute_task(
+            task,
+            session_id=conversation["id"],
+            started_event=started,
+        )
+        store.update_last_run(task_id)
+
+    _start_task_run(execute_and_mark())
+    # Do not navigate the browser to an apparently idle empty conversation.
+    # The executor sets this after the user turn and assistant running
+    # placeholder are durable (or after an early failure has been recorded).
+    await started.wait()
+    logger.info(
+        "[%s] 手动触发任务: %s conversation=%s",
+        user_id,
+        task_id,
+        conversation["id"],
+    )
+    return {
+        "ok": True,
+        "message": "已创建对话并开始执行",
+        "session_id": conversation["id"],
+        "session": conversation,
+    }

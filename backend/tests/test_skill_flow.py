@@ -7,7 +7,7 @@ import pytest
 
 # 该脚本属于已移除的 SQLAlchemy/LangGraph 运行时，下面引用的 database、models、
 # mcp_registry 等模块已不在当前代码树中。显式标为 legacy，避免阻断现有 pytest 契约测试；
-# 新的技能端到端测试应基于当前 Claude/OpenHarness/OpenCode Runtime 另行实现。
+# 新的技能端到端测试应基于当前 Claude/OpenCode Runtime 另行实现。
 pytest.skip("legacy skill runtime 已移除", allow_module_level=True)
 
 import asyncio

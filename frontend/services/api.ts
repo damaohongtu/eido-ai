@@ -69,6 +69,63 @@ export interface PersistedSessionDetail extends PersistedSession {
   messages: PersistedMessage[];
 }
 
+export interface NavigationSearchResult {
+  projects: Project[];
+  sessions: (PersistedSession & { match_snippet?: string })[];
+}
+
+export interface McpServerConfig {
+  id: string;
+  name: string;
+  transport: 'stdio' | 'http' | 'sse';
+  config: {
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    headers?: Record<string, string>;
+  };
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpServerPayload {
+  name: string;
+  transport: 'stdio' | 'http' | 'sse';
+  enabled: boolean;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+}
+
+export interface McpConfigFile {
+  mcpServers: Record<string, {
+    type: 'stdio' | 'http' | 'sse';
+    disabled?: boolean;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    headers?: Record<string, string>;
+  }>;
+}
+
+export interface McpServerStatus {
+  id: string;
+  name: string;
+  transport: 'stdio' | 'http' | 'sse';
+  enabled: boolean;
+  target: string;
+  updated_at: string;
+  status: 'connected' | 'disabled' | 'error';
+  tool_count: number;
+  tools: { name: string; description: string }[];
+  error?: string | null;
+}
+
 /** 后端 PersistedSession + messages → 前端 ChatSession */
 export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
   const messages: Message[] = detail.messages.length > 0 ? detail.messages.map(m => ({
@@ -82,6 +139,10 @@ export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
     workflowMermaid: m.extra?.workflowMermaid,
     pendingConfirmation: m.extra?.pendingConfirmation,
     references: m.extra?.references,
+    deliveryMode: m.extra?.deliveryMode,
+    deliveryStatus: m.extra?.deliveryStatus,
+    queuePosition: m.extra?.queuePosition,
+    streaming: m.extra?.streaming === true,
   })) : INITIAL_CHAT_STATE.map((m, i) => ({
     ...m,
     id: `${detail.id}-init-${i}`,
@@ -124,6 +185,81 @@ export class ApiService {
       throw new Error('未登录，正在跳转登录页');
     }
     return response;
+  }
+
+  async searchNavigation(query: string, limit = 20): Promise<NavigationSearchResult> {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/search?${params.toString()}`);
+    if (!response.ok) throw new Error(`搜索失败: ${response.status}`);
+    return response.json();
+  }
+
+  async listMcpServers(): Promise<McpServerConfig[]> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/mcp/servers`);
+    if (!response.ok) throw new Error(`获取 MCP 配置失败: ${response.status}`);
+    return response.json();
+  }
+
+  async getMcpServerStatuses(refresh = false): Promise<McpServerStatus[]> {
+    const params = refresh ? '?refresh=true' : '';
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/mcp/status${params}`);
+    if (!response.ok) throw new Error(`获取 MCP 状态失败: ${response.status}`);
+    return response.json();
+  }
+
+  async getMcpConfigFile(): Promise<McpConfigFile> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/mcp/config`);
+    if (!response.ok) throw new Error(`获取 MCP 配置失败: ${response.status}`);
+    return response.json();
+  }
+
+  async replaceMcpConfigFile(body: McpConfigFile): Promise<McpConfigFile> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/mcp/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      const detail = Array.isArray(error.detail)
+        ? error.detail.map((item: any) => item.msg || String(item)).join('；')
+        : error.detail;
+      throw new Error(detail || `保存 MCP 配置失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async createMcpServer(body: McpServerPayload): Promise<McpServerConfig> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/mcp/servers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `创建 MCP 配置失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async updateMcpServer(id: string, body: McpServerPayload): Promise<McpServerConfig> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/mcp/servers/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `更新 MCP 配置失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async deleteMcpServer(id: string): Promise<void> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/mcp/servers/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok && response.status !== 404) throw new Error(`删除 MCP 配置失败: ${response.status}`);
   }
 
   async checkAuth(): Promise<{ user_id: string; username: string } | null> {
@@ -890,6 +1026,60 @@ export class ApiService {
     }
   }
 
+  async controlChat(body: {
+    mode: 'queue' | 'steer';
+    session_id: string;
+    message: { id: string; role: 'user'; content: string };
+    assistant_message_id: string;
+    context?: string;
+    harness?: string;
+  }): Promise<{
+    ok: boolean;
+    mode: 'queue' | 'steer';
+    status: 'queued' | 'applied';
+    position?: number;
+  }> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/chat/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `提交消息失败: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async getChatQueue(sessionId: string): Promise<{
+    active: boolean;
+    steer_available: boolean;
+    count: number;
+    items: {
+      message_id: string;
+      content: string;
+      mode: 'queue' | 'steer';
+      position: number;
+    }[];
+  }> {
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/chat/queue/${encodeURIComponent(sessionId)}`
+    );
+    if (!response.ok) throw new Error(`获取会话队列失败: ${response.status}`);
+    return response.json();
+  }
+
+  async deleteQueuedChatMessage(sessionId: string, messageId: string): Promise<void> {
+    const response = await this._fetch(
+      `${BACKEND_URL}/api/v1/chat/queue/${encodeURIComponent(sessionId)}/${encodeURIComponent(messageId)}`,
+      { method: 'DELETE' }
+    );
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || `删除排队消息失败: ${response.status}`);
+    }
+  }
+
   /** 定时任务列表 */
   async listTasks(enabled?: boolean): Promise<ScheduledTask[]> {
     const q = new URLSearchParams();
@@ -946,11 +1136,17 @@ export class ApiService {
     if (!response.ok) throw new Error(`删除任务失败: ${response.status}`);
   }
 
-  async runTaskNow(taskId: string): Promise<void> {
+  async runTaskNow(taskId: string): Promise<{
+    ok: boolean;
+    message: string;
+    session_id: string;
+    session: PersistedSession;
+  }> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}/run`, {
       method: 'POST',
     });
     if (!response.ok) throw new Error(`触发任务失败: ${response.status}`);
+    return response.json();
   }
 }
 

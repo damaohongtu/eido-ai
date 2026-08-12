@@ -6,6 +6,7 @@ Chat endpoint：通过 claude_agent_sdk 自动规划执行技能
 - 流式过程中透传 SSE，同时累积 assistant 最终输出和 extra
 - 流结束/异常/客户端中断时，保存 assistant 最终状态
 """
+
 import json
 import logging
 import uuid
@@ -18,7 +19,8 @@ from fastapi.responses import StreamingResponse
 from app.core.auth import get_current_user_id
 from app.core.config import settings
 from app.core.logging_context import reset_session_id, set_session_id
-from app.schemas.chat import ChatRequest, Message as ChatMessage
+from app.schemas.chat import ChatControlRequest, ChatRequest
+from app.schemas.chat import Message as ChatMessage
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
 from app.services.project_context import load_project_context
@@ -26,11 +28,15 @@ from app.services.session_workspace import (
     get_session_workspace_manager,
     validate_session_id,
 )
+from app.services.supported_files import (
+    SUPPORTED_FILE_EXTENSIONS,
+    supported_extensions_label,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-ALLOWED_EXTENSIONS = {".md", ".pdf", ".csv", ".xls", ".xlsx"}
+ALLOWED_EXTENSIONS = SUPPORTED_FILE_EXTENSIONS
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 
 
@@ -138,7 +144,8 @@ async def upload_chat_file(
 ):
     """上传聊天附件到指定会话工作区。
 
-    支持 .md/.pdf/.csv/.xls/.xlsx，最大 20 MB。文件写入 `.eido/workspaces/<session_id>/uploads/`，
+    支持常见文档、文本/日志、表格、代码、图片和压缩包，最大 20 MB。文件写入
+    `.eido/workspaces/<session_id>/uploads/`，
     返回的绝对路径供 agent 读取。
     """
     session_token = set_session_id(session_id)
@@ -147,7 +154,7 @@ async def upload_chat_file(
         try:
             validate_session_id(session_id)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
         if get_chat_session_store().get_session(user_id, session_id) is None:
             raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
@@ -156,7 +163,9 @@ async def upload_chat_file(
         if ext not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"仅支持 .md/.pdf/.csv/.xls/.xlsx 格式，当前: {ext or '无扩展名'}"
+                detail=(
+                    f"不支持 {ext or '无扩展名'} 格式。" f"当前支持: {supported_extensions_label()}"
+                ),
             )
         content = await file.read()
         if len(content) > MAX_FILE_SIZE:
@@ -195,25 +204,26 @@ async def chat_completion(
         try:
             validate_session_id(request.session_id)
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(status_code=400, detail=str(e)) from e
         request_session_token = set_session_id(request.session_id)
         raw_request.state.session_id = request.session_id
 
-        harness_type = (request.harness or "").strip().lower() or settings.AGENT_HARNESS.strip().lower()
+        harness_type = (
+            request.harness or ""
+        ).strip().lower() or settings.AGENT_HARNESS.strip().lower()
 
-        if harness_type == "open_harness":
-            from app.services.open_harness_service import get_open_harness_service
-            svc = get_open_harness_service()
-        elif harness_type == "opencode":
+        if harness_type == "opencode":
             from app.services.open_code_service import get_open_code_service
+
             svc = get_open_code_service()
         elif harness_type == "claude_code":
             from app.services.claude_skill_service import get_claude_skill_service
+
             svc = get_claude_skill_service()
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"不支持的 AI 后端: {harness_type}（可选: claude_code, open_harness, opencode）",
+                detail=f"不支持的 AI 后端: {harness_type}（可选: claude_code, opencode）",
             )
 
         if svc is None:
@@ -231,9 +241,7 @@ async def chat_completion(
 
         guard = get_chat_execution_guard()
         locked_project_id = session.get("project_id")
-        if not guard.try_acquire(
-            request.session_id, project_id=locked_project_id
-        ):
+        if not guard.try_acquire(request.session_id, project_id=locked_project_id):
             raise HTTPException(
                 status_code=409,
                 detail="该会话正在执行或所属项目正在变更，请稍后重试",
@@ -253,20 +261,15 @@ async def chat_completion(
         project_context = load_project_context(user_id, request.session_id)
         if (
             project_context
-            and project_context.applied_context_revision
-            != project_context.context_revision
+            and project_context.applied_context_revision != project_context.context_revision
         ):
-            # Revision 变化后原生 provider / OpenHarness 记忆可能仍含旧项目资料。
+            # Revision 变化后 provider 记忆可能仍含旧项目资料。
             # 先驱逐内存 engine，再原子清理 provider SID 并绑定本次快照。
             try:
                 from app.services.claude_skill_service import get_claude_skill_service
-                from app.services.open_harness_service import get_open_harness_service
 
-                open_harness = get_open_harness_service()
-                if open_harness is not None:
-                    open_harness.reset_session(request.session_id)
                 claude_service = get_claude_skill_service()
-                if claude_service is not None and claude_service is not open_harness:
+                if claude_service is not None:
                     claude_service.reset_session(request.session_id)
             except Exception as exc:
                 logger.error(
@@ -303,9 +306,7 @@ async def chat_completion(
         # 历史构造执行输入，避免信任客户端伪造历史，也能在重建时恢复上下文。
         execution_messages = [
             ChatMessage(id=item["id"], role=item["role"], content=item["content"])
-            for item in store.list_messages(
-                request.session_id, user_id=user_id, limit=80
-            )
+            for item in store.list_messages(request.session_id, user_id=user_id, limit=80)
         ]
 
         async def stream_with_persistence():
@@ -349,6 +350,9 @@ async def chat_completion(
                         logger.error(f"保存 assistant 消息失败: {e}", exc_info=True)
                 try:
                     execution_guard.release(request.session_id)
+                    from app.services.chat_execution_queue import get_chat_execution_queue
+
+                    get_chat_execution_queue().kick(user_id, request.session_id)
                 finally:
                     reset_session_id(stream_session_token)
 
@@ -360,12 +364,155 @@ async def chat_completion(
         raise
     except Exception as e:
         logger.error(f"聊天处理异常: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
     finally:
         if execution_guard is not None and not stream_owns_guard:
             execution_guard.release(request.session_id)
+            try:
+                from app.services.chat_execution_queue import get_chat_execution_queue
+
+                get_chat_execution_queue().kick(user_id, request.session_id)
+            except Exception:
+                logger.exception("恢复会话队列失败 session=%s", request.session_id)
         if request_session_token is not None:
             reset_session_id(request_session_token)
+
+
+@router.post("/control")
+async def control_active_chat(
+    request: ChatControlRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Queue another turn or inject a Steer message into an active Claude turn."""
+    message_id = request.message.id or uuid.uuid4().hex[:12]
+    try:
+        validate_session_id(request.session_id)
+        validate_session_id(message_id)
+        validate_session_id(request.assistant_message_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    store = get_chat_session_store()
+    if request.message.role != "user":
+        raise HTTPException(status_code=400, detail="执行中追加内容必须是 user 消息")
+    content = request.message.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="消息内容为空")
+
+    session_id = request.session_id
+    session = store.get_session(user_id, session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+
+    harness = (request.harness or settings.AGENT_HARNESS).strip().lower()
+    if harness not in {"claude_code", "opencode"}:
+        raise HTTPException(status_code=400, detail=f"不支持的 AI 后端: {harness}")
+    guard = get_chat_execution_guard()
+    active = guard.is_active(session_id)
+
+    if request.mode == "steer":
+        if not active:
+            raise HTTPException(status_code=409, detail="该会话当前没有可调整的执行")
+        from app.services.claude_skill_service import get_claude_skill_service
+
+        service = get_claude_skill_service()
+        if service is None:
+            raise HTTPException(status_code=503, detail="Claude Code 服务未初始化")
+        from app.services.chat_execution_queue import get_chat_execution_queue
+
+        # Promotion must take the row atomically before the active turn can
+        # finish and kick the queue, otherwise the same instruction could be
+        # injected and then run again as a normal queued turn.
+        queue = get_chat_execution_queue()
+        promoted_run = queue.take(user_id, session_id, message_id)
+        try:
+            steered = await service.steer_session(user_id, session_id, content)
+        except Exception:
+            if promoted_run is not None:
+                queue.enqueue(promoted_run, front=True)
+            raise
+        if not steered:
+            if promoted_run is not None:
+                queue.enqueue(promoted_run, front=True)
+            raise HTTPException(status_code=409, detail="当前执行尚未进入可 Steer 阶段，请改用排队")
+
+        store.append_message(
+            user_id,
+            session_id,
+            message_id=message_id,
+            role="user",
+            content=content,
+            extra={"deliveryMode": "steer", "deliveryStatus": "applied"},
+        )
+        return {"ok": True, "mode": "steer", "status": "applied"}
+
+    from app.services.chat_execution_queue import QueuedChatRun, get_chat_execution_queue
+
+    queue = get_chat_execution_queue()
+    position = queue.enqueue(
+        QueuedChatRun(
+            user_id=user_id,
+            session_id=session_id,
+            message_id=message_id,
+            content=content,
+            assistant_message_id=request.assistant_message_id,
+            harness=harness,
+            context=request.context,
+        ),
+    )
+    return {"ok": True, "mode": "queue", "status": "queued", "position": position}
+
+
+@router.get("/queue/{session_id}")
+async def get_chat_queue(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    try:
+        validate_session_id(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if get_chat_session_store().get_session(user_id, session_id) is None:
+        raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+    from app.services.chat_execution_queue import get_chat_execution_queue
+
+    items = get_chat_execution_queue().pending(user_id, session_id)
+    active = get_chat_execution_guard().is_active(session_id)
+    steer_available = False
+    if active:
+        from app.services.claude_skill_service import get_claude_skill_service
+
+        service = get_claude_skill_service()
+        steer_available = bool(
+            service is not None and service.can_steer_session(user_id, session_id)
+        )
+    return {
+        "active": active,
+        "steer_available": steer_available,
+        "count": len(items),
+        "items": items,
+    }
+
+
+@router.delete("/queue/{session_id}/{message_id}")
+async def delete_queued_chat_message(
+    session_id: str,
+    message_id: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Delete a pending follow-up before its execution starts."""
+    try:
+        validate_session_id(session_id)
+        validate_session_id(message_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if get_chat_session_store().get_session(user_id, session_id) is None:
+        raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
+    from app.services.chat_execution_queue import get_chat_execution_queue
+
+    if not get_chat_execution_queue().remove(user_id, session_id, message_id):
+        raise HTTPException(status_code=409, detail="消息已开始执行或已不在队列中")
+    return {"ok": True}
 
 
 @router.get("/health")

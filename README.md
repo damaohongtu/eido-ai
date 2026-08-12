@@ -6,12 +6,14 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 
 ## 核心亮点
 
-- **智能体执行内核**：后端通过 Claude Agent SDK / Claude Code harness 驱动流式对话、工具调用、文件产出和多轮执行，并提供 OpenHarness 与 OpenCode 兼容入口。
+- **智能体执行内核**：后端通过 Claude Agent SDK / Claude Code harness 驱动流式对话、工具调用、文件产出和多轮执行，并提供 OpenCode 兼容入口。
 - **技能系统**：以 `SKILL.md` 描述技能能力、使用边界和工具约束，支持系统技能、用户私有技能、在线创建、上传、编辑、删除和文件级管理。
 - **多技能协作**：前端支持在对话中选择或 `@` 提及技能，后端可把多个技能串成任务上下文，适合投研、文档解析、邮件、搜索、文件处理等复合场景。
 - **过程可观测**：流式返回模型思考、执行步骤、引用来源、工作流 Mermaid 图、待确认操作和最终回答，前端可逐步展示任务进展。
-- **会话工作区**：每个会话拥有独立 workspace，支持附件上传、结果文件查看/下载/删除，历史消息和文件上下文可持续复用。
+- **会话工作区**：每个会话拥有独立 workspace，支持 Word、PDF、TXT/LOG、表格、代码、图片、压缩包等丰富附件上传，以及结果文件查看/下载/删除；历史消息和文件上下文可持续复用。
 - **项目知识沉淀**：Project 会话自动获得项目指令和共享资料；会话 `outputs/` 中的生成结果可一键复制为项目资料，供后续会话继续使用。
+- **持久记忆与 MCP**：Claude Code auto-memory 按用户及个人/Project 范围隔离持久化；用户可在界面配置私有 HTTP、SSE 或 Stdio MCP Server，敏感配置加密保存。
+- **统一检索**：桌面侧栏可检索 Project 元数据、会话标题和历史消息正文，并显示会话最近更新时间。
 - **网页上下文分析**：Chrome 插件在当前浏览器右侧 Side Panel 打开，可读取当前页内容，也可选择用户已打开的其他标签页加入分析。
 - **本机 Agent 模式**：Chrome 插件可直接连接本机 OpenCode；除用户认证外，会话、网页上下文、附件和执行结果均保留在浏览器与本机，不经过 Eido 后端。
 - **定时任务**：支持技能、脚本和对话类任务的创建、编辑、手动运行和周期调度，用于日报、监控、摘要生成等自动化场景。
@@ -24,7 +26,8 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 | 模块 | 主要技术 |
 | --- | --- |
 | 后端 | FastAPI, Pydantic v2, Uvicorn, SQLite, APScheduler, python-cas, Docker SDK |
-| Agent | claude-agent-sdk, Claude Code harness, OpenHarness/OpenCode 兼容层, LiteLLM 相关依赖 |
+| Agent | claude-agent-sdk, Claude Code harness, OpenCode 兼容层, LiteLLM 相关依赖 |
+| 文件处理 | PyMuPDF, pypdf, pdfplumber, ReportLab, fpdf2, python-docx, python-pptx, pandas/openpyxl |
 | 桌面前端 | React 19, Vite 6, TypeScript, Ant Design 6, Tailwind CSS, Mermaid, react-markdown |
 | 移动端 H5 | React 19, Vite 6, antd-mobile, Tailwind CSS, 共享桌面端 API/type 层 |
 | Chrome 插件 | Manifest V3, Chrome Side Panel API, React 19, antd-mobile, content/background scripts |
@@ -55,13 +58,13 @@ flowchart LR
 
   subgraph UserA["用户 A 沙盒容器"]
     ApiA["Eido API"]
-    AgentA["Agent Runtime<br/>Claude Code / OpenHarness / OpenCode"]
+    AgentA["Agent Runtime<br/>Claude Code / OpenCode"]
     DataA["用户 A 数据<br/>会话 / 工作区 / 私有技能 / 定时任务"]
   end
 
   subgraph UserB["用户 B 沙盒容器"]
     ApiB["Eido API"]
-    AgentB["Agent Runtime<br/>Claude Code / OpenHarness / OpenCode"]
+    AgentB["Agent Runtime<br/>Claude Code / OpenCode"]
     DataB["用户 B 数据<br/>会话 / 工作区 / 私有技能 / 定时任务"]
   end
 
@@ -265,7 +268,7 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | Agent SDK 非交互式模型服务凭据；官方 API 推荐 `ANTHROPIC_API_KEY` |
 | `ANTHROPIC_MODEL` | 主模型名称 |
 | `ANTHROPIC_SMALL_FAST_MODEL` | 快速/小模型名称 |
-| `AGENT_HARNESS` | 默认 agent harness：`claude_code`、`open_harness` 或 `opencode` |
+| `AGENT_HARNESS` | 默认 agent harness：`claude_code` 或 `opencode` |
 | `OPENCODE_MODEL` | OpenCode 使用的可选模型，格式为 `provider/model`；留空时使用 OpenCode 自身默认配置 |
 | `AUTH_DISABLED` | 本地开发免登录开关 |
 | `SESSION_SECRET_KEY` | 登录 session 加密密钥，生产环境必须修改 |
@@ -284,6 +287,10 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 
 - 技能目录：默认 `.claude/skills/`，包含 `system/` 和 `users/<username>/`。
 - 会话数据库：默认 `.eido/chat_sessions.db`。
+- Claude Code 持久数据：默认 `.eido/claude/<user>/`，包含 transcript 和按个人/Project 隔离的 auto-memory。
+- 用户 MCP 配置：默认 `.eido/mcp_servers.db`，环境变量和请求头使用本机持久化密钥加密保存。
+  桌面端通过标准 `{ "mcpServers": { ... } }` JSON 配置文件整体编辑；`disabled: true`
+  表示保留但不加载，已保存密钥回显为 `__EIDO_SECRET__` 并可原样保留。
 - 定时任务数据库：默认 `.eido/scheduled_tasks.db`。
 - 会话工作区：默认 `.eido/workspaces/<session_id>/`。
 - 项目共享资料：默认 `.eido/projects/<project_id>/files/`；普通直接聊天不创建或绑定默认项目。

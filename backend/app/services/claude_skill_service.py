@@ -12,6 +12,7 @@
 
 权限通过路径区分：在 system/ 下即系统技能；在 users/<uid>/ 下即该用户私有。
 """
+
 import asyncio
 import json
 import logging
@@ -78,10 +79,11 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
         return {}, content
 
     fm_text = content[3:end].strip()
-    body = content[end + 4:].lstrip("\n")
+    body = content[end + 4 :].lstrip("\n")
 
     try:
         import yaml  # type: ignore
+
         metadata = yaml.safe_load(fm_text) or {}
     except Exception:
         # 简单 fallback：仅支持 key: value 单行，不支持 YAML list
@@ -97,11 +99,12 @@ def _parse_frontmatter(content: str) -> tuple[dict, str]:
 @dataclass
 class SkillMeta:
     """技能元数据，从 SKILL.md frontmatter 解析"""
-    id: str                        # 目录名，即 slug，如 financial-report-analyst
+
+    id: str  # 目录名，即 slug，如 financial-report-analyst
     name: str
     description: str
     allowed_tools: List[str]
-    content: str                   # SKILL.md 完整原文
+    content: str  # SKILL.md 完整原文
     skill_dir: Path
     created_at: str = ""
     updated_at: str = ""
@@ -291,9 +294,7 @@ class ClaudeSkillService:
         if user_id:
             user_dir = self.user_private_dir(user_id) / skill_id
             if (user_dir / "SKILL.md").exists():
-                return self._load_skill(
-                    user_dir, owner_type="user", owner_user_id=user_id
-                )
+                return self._load_skill(user_dir, owner_type="user", owner_user_id=user_id)
         sys_dir = self.system_dir / skill_id
         if (sys_dir / "SKILL.md").exists():
             return self._load_skill(sys_dir, owner_type="system")
@@ -367,19 +368,12 @@ class ClaudeSkillService:
         切换到原生 resume 后，对话历史由 Claude Code 自己的 jsonl 维护，
         后端不再重复重建历史，prompt 只携带"本轮最新一条 user 输入"。
         """
+
         def _role(m: object) -> str:
-            return (
-                getattr(m, "role", None)
-                or (m.get("role") if isinstance(m, dict) else "")
-                or ""
-            )
+            return getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else "") or ""
 
         def _content(m: object) -> str:
-            c = (
-                getattr(m, "content", None)
-                if not isinstance(m, dict)
-                else m.get("content")
-            )
+            c = getattr(m, "content", None) if not isinstance(m, dict) else m.get("content")
             return (c or "").strip()
 
         for msg in reversed(messages or []):
@@ -600,11 +594,7 @@ class ClaudeSkillService:
 
         if len(self._clients) > CLIENT_POOL_MAX:
             candidates = sorted(
-                (
-                    item
-                    for item in self._clients.values()
-                    if not item.busy and item is not entry
-                ),
+                (item for item in self._clients.values() if not item.busy and item is not entry),
                 key=lambda item: item.last_used,
             )
             while len(self._clients) > CLIENT_POOL_MAX and candidates:
@@ -613,9 +603,7 @@ class ClaudeSkillService:
                     self._schedule_client_close(victim)
         return entry, False, connect_ms
 
-    async def _release_client(
-        self, entry: _ClaudeClientEntry, *, healthy: bool
-    ) -> None:
+    async def _release_client(self, entry: _ClaudeClientEntry, *, healthy: bool) -> None:
         entry.busy = False
         entry.last_used = time.monotonic()
         if not healthy or entry.stale:
@@ -634,6 +622,57 @@ class ClaudeSkillService:
             if not entry.busy and self._clients.pop(key, None) is entry:
                 self._schedule_client_close(entry)
 
+    def reset_user(self, user_id: str) -> None:
+        """Evict every warm Claude client after user-scoped MCP config changes."""
+        for key, entry in list(self._clients.items()):
+            if key[0] != user_id:
+                continue
+            entry.stale = True
+            if not entry.busy and self._clients.pop(key, None) is entry:
+                self._schedule_client_close(entry)
+
+    def can_steer_session(self, user_id: Optional[str], session_id: str) -> bool:
+        entry = self._clients.get(self._client_key(user_id, session_id))
+        return bool(entry is not None and entry.busy and not entry.stale)
+
+    async def steer_session(
+        self,
+        user_id: Optional[str],
+        session_id: str,
+        content: str,
+    ) -> bool:
+        """Inject additional user input into the active streaming Claude turn.
+
+        ``ClaudeSDKClient`` keeps stdin open in streaming mode. Sending another
+        user message while ``receive_response()`` is active is the Claude Code
+        equivalent of Codex Steer: the model receives the new direction without
+        first cancelling the running turn.
+        """
+        key = self._client_key(user_id, session_id)
+        entry = self._clients.get(key)
+        # The chat lease is acquired slightly before the Claude subprocess has
+        # connected. Absorb that short startup race so clicking Steer as soon as
+        # a run begins does not fail spuriously.
+        for _ in range(20):
+            if entry is not None and entry.busy and not entry.stale:
+                break
+            await asyncio.sleep(0.05)
+            entry = self._clients.get(key)
+        if entry is None or not entry.busy or entry.stale:
+            return False
+        await entry.client.query(content)
+        logger.info("Claude session 已注入 steer: session=%s", session_id)
+        return True
+
+    async def interrupt_session(self, user_id: Optional[str], session_id: str) -> bool:
+        """Interrupt an active turn. Reserved for the explicit stop action."""
+        entry = self._clients.get(self._client_key(user_id, session_id))
+        if entry is None or not entry.busy or entry.stale:
+            return False
+        await entry.client.interrupt()
+        logger.info("Claude session 已中断: session=%s", session_id)
+        return True
+
     async def shutdown(self) -> None:
         """应用关闭时回收所有 Claude Code 子进程。"""
         entries = list(self._clients.values())
@@ -647,8 +686,12 @@ class ClaudeSkillService:
             await asyncio.gather(*tuple(self._client_cleanup_tasks), return_exceptions=True)
 
     async def execute_stream(
-        self, messages: list, context: Optional[str] = None,
-        *, user_id: Optional[str] = None, session_id: Optional[str] = None,
+        self,
+        messages: list,
+        context: Optional[str] = None,
+        *,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
         project_context: Optional[ProjectContext] = None,
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
@@ -678,6 +721,7 @@ class ClaudeSkillService:
         # 解析 cwd（按 session 隔离时使用 session 工作区）
         if session_id:
             from app.services.session_workspace import get_session_workspace_manager
+
             try:
                 cwd = get_session_workspace_manager().session_root(session_id)
             except ValueError as e:
@@ -692,9 +736,7 @@ class ClaudeSkillService:
         skill_count = 0
         if native_skills:
             try:
-                skill_revision, skill_count = self._materialize_native_skills(
-                    cwd, user_id=user_id
-                )
+                skill_revision, skill_count = self._materialize_native_skills(cwd, user_id=user_id)
             except Exception:
                 logger.exception("原生技能映射失败，回退到兼容技能索引")
                 native_skills = False
@@ -708,10 +750,12 @@ class ClaudeSkillService:
             )
         except ImportError:
             logger.error("claude_agent_sdk 未安装")
-            yield self._sse({
-                "type": "error",
-                "message": "claude_agent_sdk 未安装，请运行: pip install claude-agent-sdk"
-            })
+            yield self._sse(
+                {
+                    "type": "error",
+                    "message": "claude_agent_sdk 未安装，请运行: pip install claude-agent-sdk",
+                }
+            )
             yield "data: [DONE]\n\n"
             return
 
@@ -720,12 +764,18 @@ class ClaudeSkillService:
             yield self._sse({"type": "error", "message": "未找到用户输入"})
             yield "data: [DONE]\n\n"
             return
-        claude_sid = self._load_claude_sid(
-            user_id, session_id, project_context=project_context
-        )
+        claude_sid = self._load_claude_sid(user_id, session_id, project_context=project_context)
         agent_env = self._build_agent_env(
             user_id, session_id, project_context.id if project_context else None
         )
+        from app.services.mcp_config_store import get_mcp_config_store
+
+        mcp_servers, mcp_revision = get_mcp_config_store().sdk_servers(user_id)
+        profile_dir = Path(agent_env["CLAUDE_CONFIG_DIR"])
+        memory_scope = f"project-{project_context.id}" if project_context else "personal"
+        memory_dir = profile_dir / "eido-memory" / memory_scope
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        memory_dir.mkdir(parents=True, exist_ok=True)
         auth_error = self._agent_auth_error(agent_env)
         if auth_error:
             logger.error("Claude Agent SDK 认证配置缺失: %s", auth_error)
@@ -735,10 +785,19 @@ class ClaudeSkillService:
         auth_mode, provider = self._agent_auth_summary(agent_env)
         logger.info("  [ClaudeAuth] mode=%s provider=%s", auth_mode, provider)
         project_signature = (
-            project_context.id,
-            project_context.context_revision,
-        ) if project_context else (None, None)
-        client_signature = (str(cwd.resolve()), project_signature, skill_revision)
+            (
+                project_context.id,
+                project_context.context_revision,
+            )
+            if project_context
+            else (None, None)
+        )
+        client_signature = (
+            str(cwd.resolve()),
+            project_signature,
+            skill_revision,
+            mcp_revision,
+        )
 
         async def _run_once(resume_sid: Optional[str]) -> AsyncGenerator[str, None]:
             """单次 SDK 调用，按 resume 模式构建不同 prompt/options。"""
@@ -757,8 +816,10 @@ class ClaudeSkillService:
             available_tools = list(self.AUTO_ALLOWED_TOOLS)
             if native_skills:
                 available_tools.append("Skill")
+            allowed_tools = list(available_tools)
+            allowed_tools.extend(f"mcp__{name}__*" for name in mcp_servers)
             options = ClaudeAgentOptions(
-                allowed_tools=self.AUTO_ALLOWED_TOOLS,
+                allowed_tools=allowed_tools,
                 tools=available_tools,
                 cwd=str(cwd),
                 setting_sources=["project"] if native_skills else [],
@@ -768,6 +829,14 @@ class ClaudeSkillService:
                 include_partial_messages=False,
                 max_buffer_size=10 * 1024 * 1024,
                 resume=resume_sid,
+                mcp_servers=mcp_servers,
+                strict_mcp_config=True,
+                settings=json.dumps(
+                    {
+                        "autoMemoryEnabled": True,
+                        "autoMemoryDirectory": str(memory_dir),
+                    }
+                ),
             )
             entry: Optional[_ClaudeClientEntry] = None
             warm_hit = False
@@ -816,12 +885,11 @@ class ClaudeSkillService:
                     message_seen = True
                     self._log_message(message)
                     if self._is_not_logged_in_message(message):
-                        raise _AgentAuthenticationError(
-                            self._agent_auth_failure_message()
-                        )
+                        raise _AgentAuthenticationError(self._agent_auth_failure_message())
                     # 捕获原生 session_id，持久化以便进程回收/服务重启后 resume
                     try:
                         from claude_agent_sdk.types import ResultMessage  # type: ignore
+
                         if isinstance(message, ResultMessage):
                             saw_result = True
                             if session_id and getattr(message, "session_id", None):
@@ -951,9 +1019,7 @@ class ClaudeSkillService:
         context_section = ""
         if context and context.strip():
             truncated = context.strip()[:4000]
-            context_section = (
-                f"\n\n---\n\n## 上一步执行结果（供参考）\n\n{truncated}\n"
-            )
+            context_section = f"\n\n---\n\n## 上一步执行结果（供参考）\n\n{truncated}\n"
 
         if resume:
             # Project revision 变化会先清 provider SID，因此续接时无需重复注入
@@ -962,9 +1028,7 @@ class ClaudeSkillService:
 
         project_text = format_project_context(project_context)
         project_section = f"{project_text}\n\n---\n\n" if project_text else ""
-        history_section = (
-            f"{conversation_history}\n\n---\n\n" if conversation_history else ""
-        )
+        history_section = f"{conversation_history}\n\n---\n\n" if conversation_history else ""
 
         skills_root_abs = Path(self.skills_dir).resolve()
         workspace_section = (
@@ -1007,16 +1071,35 @@ class ClaudeSkillService:
     ) -> dict:
         from app.core.config import settings
 
-        # 多租户 session 不应读取宿主机 ~/.claude/projects 的自动记忆；关闭它也
-        # 避免每个冷启动把无关 memory 重复塞入 system prompt。
+        # Claude Code 的配置、transcript 和 auto-memory 都放入 Eido 的用户私有
+        # 持久化数据目录。Docker 模式中每个用户已有独立 /data volume；本地模式
+        # 再按 safe user id 隔离，避免读取宿主机 ~/.claude 或其他 Eido 用户数据。
         # Provider 配置来自 Settings，而不是依赖父进程 export。这样
         # backend/.env 中的 API key/base URL 会被确定性传给 SDK 内置 CLI。
         env: dict[str, str] = {
             **settings.claude_agent_env,
-            "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+            "CLAUDE_CONFIG_DIR": str(
+                settings.claude_data_root
+                / (
+                    "profile"
+                    if settings.EIDO_TRUST_GATEWAY
+                    else _safe_user_id(user_id or "anonymous")
+                )
+            ),
         }
+        # Local MCP endpoints must bypass macOS/system HTTP proxies. Preserve
+        # deployment-specific exclusions while adding canonical loopback forms.
+        inherited_no_proxy = os.getenv("NO_PROXY") or os.getenv("no_proxy") or ""
+        no_proxy_hosts = [item.strip() for item in inherited_no_proxy.split(",") if item.strip()]
+        for host in ("127.0.0.1", "localhost", "::1"):
+            if host not in no_proxy_hosts:
+                no_proxy_hosts.append(host)
+        no_proxy = ",".join(no_proxy_hosts)
+        env["NO_PROXY"] = no_proxy
+        env["no_proxy"] = no_proxy
         if user_id:
             from app.core.user_token import create_user_token
+
             env["EIDO_USER_TOKEN"] = create_user_token(user_id)
         if session_id:
             env["EIDO_SESSION_ID"] = session_id
@@ -1096,6 +1179,7 @@ class ClaudeSkillService:
             return None
         try:
             from app.services.chat_session_store import get_chat_session_store
+
             return get_chat_session_store().get_claude_session_id(
                 user_id,
                 session_id,
@@ -1119,6 +1203,7 @@ class ClaudeSkillService:
         if not (user_id and session_id):
             return
         from app.services.chat_session_store import get_chat_session_store
+
         saved = get_chat_session_store().set_claude_session_id(
             user_id,
             session_id,
@@ -1236,10 +1321,14 @@ class ClaudeSkillService:
                 elif isinstance(block, ThinkingBlock):
                     preview = block.thinking[:300].strip()
                     if preview:
-                        events.append(self._sse({
-                            "type": "thinking",
-                            "content": f"[深度思考] {preview}{'…' if len(block.thinking) > 300 else ''}"
-                        }))
+                        events.append(
+                            self._sse(
+                                {
+                                    "type": "thinking",
+                                    "content": f"[深度思考] {preview}{'…' if len(block.thinking) > 300 else ''}",
+                                }
+                            )
+                        )
                 elif isinstance(block, ToolUseBlock):
                     hint = self._tool_hint(block.name, block.input)
                     events.append(self._sse({"type": "thinking", "content": hint}))
@@ -1249,8 +1338,8 @@ class ClaudeSkillService:
                 for block in message.content:
                     if isinstance(block, ToolResultBlock):
                         raw = block.content
-                        content_str = raw if isinstance(raw, str) else (
-                            str(raw) if raw is not None else ""
+                        content_str = (
+                            raw if isinstance(raw, str) else (str(raw) if raw is not None else "")
                         )
                         preview = content_str[:200].strip()
                         status = "✗ 工具出错" if block.is_error else "✓ 工具完成"
@@ -1262,40 +1351,43 @@ class ClaudeSkillService:
                 tools = message.data.get("tools", [])
                 if tools:
                     tool_list = ", ".join(tools[:6]) + ("…" if len(tools) > 6 else "")
-                    events.append(self._sse({
-                        "type": "thinking",
-                        "content": f"已加载工具: {tool_list}"
-                    }))
+                    events.append(
+                        self._sse({"type": "thinking", "content": f"已加载工具: {tool_list}"})
+                    )
 
         elif isinstance(message, ResultMessage):
             # 不重复发送 result：AssistantMessage 的 TextBlock 已包含完整回复，
             # ResultMessage.result 与之相同，再发会导致前端显示重复内容
             cost = f"${message.total_cost_usd:.4f}" if message.total_cost_usd else "N/A"
             duration = f"{message.duration_ms / 1000:.1f}s"
-            events.append(self._sse({
-                "type": "thinking",
-                "content": (
-                    f"执行完成 | 用时: {duration} | "
-                    f"费用: {cost} | 轮次: {message.num_turns}"
-                    + (" | ⚠️ 出错" if message.is_error else "")
+            events.append(
+                self._sse(
+                    {
+                        "type": "thinking",
+                        "content": (
+                            f"执行完成 | 用时: {duration} | "
+                            f"费用: {cost} | 轮次: {message.num_turns}"
+                            + (" | ⚠️ 出错" if message.is_error else "")
+                        ),
+                    }
                 )
-            }))
+            )
 
         return events
 
     def _tool_hint(self, tool_name: str, tool_input: dict) -> str:
         """根据工具名称和参数生成人类可读的思考提示"""
         hints = {
-            "Read":      lambda i: f"读取文件: {i.get('file_path', '')}",
-            "Bash":      lambda i: f"执行命令: {str(i.get('command', ''))[:120]}",
-            "Glob":      lambda i: f"查找文件: {i.get('pattern', '')}",
-            "WebFetch":  lambda i: f"获取网页: {i.get('url', '')}",
+            "Read": lambda i: f"读取文件: {i.get('file_path', '')}",
+            "Bash": lambda i: f"执行命令: {str(i.get('command', ''))[:120]}",
+            "Glob": lambda i: f"查找文件: {i.get('pattern', '')}",
+            "WebFetch": lambda i: f"获取网页: {i.get('url', '')}",
             "WebSearch": lambda i: f"搜索: {i.get('query', '')}",
-            "Write":     lambda i: f"写入文件: {i.get('file_path', '')}",
-            "Edit":      lambda i: f"编辑文件: {i.get('file_path', '')}",
-            "Grep":      lambda i: f"搜索内容: {i.get('pattern', '')}",
+            "Write": lambda i: f"写入文件: {i.get('file_path', '')}",
+            "Edit": lambda i: f"编辑文件: {i.get('file_path', '')}",
+            "Grep": lambda i: f"搜索内容: {i.get('pattern', '')}",
             "MultiEdit": lambda i: f"批量编辑: {i.get('file_path', '')}",
-            "Skill":     lambda i: f"加载技能: {i.get('skill', i.get('name', ''))}",
+            "Skill": lambda i: f"加载技能: {i.get('skill', i.get('name', ''))}",
         }
         fn = hints.get(tool_name)
         if fn:
@@ -1328,11 +1420,9 @@ def get_claude_skill_service() -> Optional[ClaudeSkillService]:
     return _instance
 
 
-def init_claude_skill_service(
-    skills_dir: Path, workspace_root: Path
-) -> ClaudeSkillService:
+def init_claude_skill_service(skills_dir: Path, workspace_root: Path) -> ClaudeSkillService:
     global _instance, claude_skill_service
     _instance = ClaudeSkillService(skills_dir, workspace_root)
-    claude_skill_service = _instance          # 保持兼容
+    claude_skill_service = _instance  # 保持兼容
     logger.info(f"ClaudeSkillService 初始化完成 - 技能目录: {skills_dir}")
     return _instance

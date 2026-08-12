@@ -17,6 +17,10 @@ RUN apt-get -o Acquire::Retries=5 update \
     && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
         curl \
         ca-certificates \
+        fonts-dejavu-core \
+        fonts-noto-cjk \
+        libmagic1 \
+        poppler-utils \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && if ! command -v npm >/dev/null 2>&1; then \
@@ -44,6 +48,7 @@ ENV EIDO_DATA_ROOT=/data
 ENV EIDO_TRUST_GATEWAY=1
 ENV LOG_DIR=/var/log/eido/app
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV MPLCONFIGDIR=/tmp/matplotlib
 
 # 非 root 运行：volume 与 log 目录都让 eido 用户拥有
 RUN useradd -r -u 10001 -m -s /usr/sbin/nologin eido \

@@ -1150,6 +1150,68 @@ class ChatSessionStore:
             rows = self.conn.execute(sql, params).fetchall()
             return [_session_row_to_dict(row) for row in rows]
 
+    def search_navigation(
+        self, user_id: str, query: str, *, limit: int = 20
+    ) -> dict[str, list[dict]]:
+        """Search project metadata plus session titles and persisted message text."""
+        normalized = " ".join((query or "").strip().split())
+        if not normalized:
+            return {"projects": [], "sessions": []}
+        escaped = normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        bounded = max(1, min(int(limit), 50))
+        with self._lock:
+            projects = self.conn.execute(
+                """
+                SELECT p.*, COUNT(DISTINCT s.id) AS session_count
+                FROM projects p
+                LEFT JOIN chat_sessions s
+                  ON s.project_id = p.id AND s.user_id = p.user_id
+                WHERE p.user_id = ? AND (
+                    p.name LIKE ? ESCAPE '\\' COLLATE NOCASE OR
+                    p.description LIKE ? ESCAPE '\\' COLLATE NOCASE OR
+                    p.instructions LIKE ? ESCAPE '\\' COLLATE NOCASE
+                )
+                GROUP BY p.id
+                ORDER BY p.last_activity_at DESC
+                LIMIT ?
+                """,
+                (user_id, pattern, pattern, pattern, bounded),
+            ).fetchall()
+            sessions = self.conn.execute(
+                """
+                SELECT s.*,
+                       CASE WHEN s.title LIKE ? ESCAPE '\\' COLLATE NOCASE
+                            THEN '' ELSE COALESCE((
+                         SELECT substr(m.content, 1, 160)
+                         FROM chat_messages m
+                         WHERE m.session_id = s.id
+                           AND m.content LIKE ? ESCAPE '\\' COLLATE NOCASE
+                         ORDER BY m.created_at DESC LIMIT 1
+                       ), '') END AS match_snippet
+                FROM chat_sessions s
+                WHERE s.user_id = ? AND (
+                    s.title LIKE ? ESCAPE '\\' COLLATE NOCASE OR EXISTS (
+                        SELECT 1 FROM chat_messages m
+                        WHERE m.session_id = s.id
+                          AND m.content LIKE ? ESCAPE '\\' COLLATE NOCASE
+                    )
+                )
+                ORDER BY s.updated_at DESC
+                LIMIT ?
+                """,
+                (pattern, pattern, user_id, pattern, pattern, bounded),
+            ).fetchall()
+        session_results = []
+        for row in sessions:
+            item = _session_row_to_dict(row)
+            item["match_snippet"] = row["match_snippet"]
+            session_results.append(item)
+        return {
+            "projects": [_project_row_to_dict(row) for row in projects],
+            "sessions": session_results,
+        }
+
     def update_session(
         self, user_id: str, session_id: str, **fields
     ) -> Optional[dict]:

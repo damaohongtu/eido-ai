@@ -4,6 +4,7 @@ export enum ViewType {
   CHAT = 'chat',
   PROJECT = 'project',
   SKILLS = 'skills',
+  TOOLS = 'tools',
   SKILL_DETAIL = 'skill_detail',
   /** 定时自动任务 */
   SCHEDULED_TASKS = 'scheduled_tasks',
@@ -176,6 +177,10 @@ export interface Message {
     description: string;
   };
   references?: Reference[];
+  deliveryMode?: 'queue' | 'steer';
+  deliveryStatus?: 'queued' | 'running' | 'applied' | 'completed' | 'failed' | 'cancelled';
+  queuePosition?: number;
+  streaming?: boolean;
   timestamp: number;
 }
 

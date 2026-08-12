@@ -17,6 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         supervisor \
         logrotate \
+        fonts-dejavu-core \
+        fonts-noto-cjk \
+        libmagic1 \
+        poppler-utils \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -60,6 +64,7 @@ RUN mkdir -p /workspace/.claude/skills
 ENV WORKSPACE_ROOT=/workspace
 ENV SKILLS_DIR=/workspace/.claude/skills
 ENV LOG_DIR=/var/log/eido/app
+ENV MPLCONFIGDIR=/tmp/matplotlib
 
 EXPOSE 80
 

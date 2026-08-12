@@ -87,12 +87,73 @@ Windows 使用系统文件夹选择器。启动 OpenCode 时使用独立进程�
 
 发布工作流还会复用 `EIDO_CHROME_EXTENSION_ID` 与 `SMARTBROWSER_CHROME_EXTENSION_ID`。同一个 `native-launcher-v*` 标签会同时触发 macOS 与 Windows 发布；两个工作流安全地合并资产到同一个 GitHub Release。
 
+## 当前扩展 ID 与本地打包命令
+
+当前安装包同时授权以下两个 Chrome 扩展：
+
+```text
+Eido:         oggjajedgdgedecijokcknbbmfnpfjnc
+SmartBrowser: jldhcggijlefaianfbgohldekklcbpai
+```
+
+扩展 ID 是公开标识，不是密码。正式 CI 发布时仍应分别写入 GitHub Actions Secrets `EIDO_CHROME_EXTENSION_ID` 和 `SMARTBROWSER_CHROME_EXTENSION_ID`。Native Messaging 不允许通配符；插件 ID 变化后必须重新打包 Launcher。
+
+在 macOS 上生成未签名的 universal 测试安装包：
+
+```bash
+cd native-launcher
+
+./installers/macos/build-package.sh \
+  --extension-id oggjajedgdgedecijokcknbbmfnpfjnc \
+  --extension-id jldhcggijlefaianfbgohldekklcbpai \
+  --version 0.1.4 \
+  --unsigned
+```
+
+输出文件：
+
+```text
+native-launcher/dist/Eido-OpenCode-Launcher-0.1.4.pkg
+native-launcher/dist/Eido-OpenCode-Launcher-0.1.4.pkg.sha256
+```
+
+在安装了 Go 1.22+ 与 Inno Setup 6 的 Windows PowerShell 中生成未签名测试安装器：
+
+```powershell
+Set-Location native-launcher
+
+$ids = @(
+  "oggjajedgdgedecijokcknbbmfnpfjnc",
+  "jldhcggijlefaianfbgohldekklcbpai"
+)
+
+foreach ($architecture in @("amd64", "arm64")) {
+  .\installers\windows\build-installer.ps1 `
+    -ExtensionId $ids `
+    -Version 0.1.4 `
+    -Architecture $architecture `
+    -Unsigned
+}
+```
+
+输出文件：
+
+```text
+native-launcher\dist\Eido-OpenCode-Launcher-0.1.4-Windows-x64.exe
+native-launcher\dist\Eido-OpenCode-Launcher-0.1.4-Windows-arm64.exe
+```
+
+`--unsigned`/`-Unsigned` 产物只用于本地验证。正式分发应通过 macOS 和 Windows 发布工作流完成签名；macOS 工作流还会执行 Apple 公证。
+
 ## Windows 本地验证安装器
 
 在安装了 Go 1.22+ 与 Inno Setup 6 的 Windows 环境中运行：
 
 ```powershell
-$ids = @("EIDO_EXTENSION_ID", "SMARTBROWSER_EXTENSION_ID")
+$ids = @(
+  "oggjajedgdgedecijokcknbbmfnpfjnc",
+  "jldhcggijlefaianfbgohldekklcbpai"
+)
 .\installers\windows\build-installer.ps1 `
   -ExtensionId $ids `
   -Version 0.1.4 `
@@ -109,8 +170,8 @@ $ids = @("EIDO_EXTENSION_ID", "SMARTBROWSER_EXTENSION_ID")
 ```bash
 GO_BINARY=/path/to/go \
   ./installers/macos/build-package.sh \
-  --extension-id EIDO_EXTENSION_ID \
-  --extension-id SMARTBROWSER_EXTENSION_ID \
+  --extension-id oggjajedgdgedecijokcknbbmfnpfjnc \
+  --extension-id jldhcggijlefaianfbgohldekklcbpai \
   --version 0.1.4 \
   --unsigned
 ```
@@ -122,8 +183,8 @@ GO_BINARY=/path/to/go \
 ```bash
 ./installers/macos/verify-package.sh \
   dist/Eido-OpenCode-Launcher-0.1.4.pkg \
-  --extension-id EIDO_EXTENSION_ID \
-  --extension-id SMARTBROWSER_EXTENSION_ID \
+  --extension-id oggjajedgdgedecijokcknbbmfnpfjnc \
+  --extension-id jldhcggijlefaianfbgohldekklcbpai \
   --require-signed
 ```
 
@@ -141,7 +202,9 @@ go build ./cmd/eido-opencode-launcher
 从 `chrome://extensions` 复制已加载开发版插件的 32 位 ID，然后执行：
 
 ```bash
-./installers/macos/install-dev.sh EIDO_EXTENSION_ID SMARTBROWSER_EXTENSION_ID
+./installers/macos/install-dev.sh \
+  oggjajedgdgedecijokcknbbmfnpfjnc \
+  jldhcggijlefaianfbgohldekklcbpai
 ```
 
 也可以只传当前正在调试的一个 ID；单 ID 调用保持兼容。开发脚本将 Launcher 安装到当前用户目录，并生成只允许所传开发扩展 ID 调用的 Host Manifest。它与正式 `.pkg` 分发相互独立，仅供开发调试。修改授权列表后，需从 `chrome://extensions` 重载扩展。
@@ -153,7 +216,10 @@ Launcher 的 stdout 仅用于 Native Messaging 长度前缀 JSON。OpenCode 的 
 在 PowerShell 中传入一个或多个开发版插件 ID：
 
 ```powershell
-$ids = @("EIDO_EXTENSION_ID", "SMARTBROWSER_EXTENSION_ID")
+$ids = @(
+  "oggjajedgdgedecijokcknbbmfnpfjnc",
+  "jldhcggijlefaianfbgohldekklcbpai"
+)
 .\installers\windows\install-dev.ps1 -ExtensionId $ids
 ```
 

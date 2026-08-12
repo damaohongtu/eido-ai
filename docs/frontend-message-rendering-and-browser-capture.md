@@ -570,7 +570,7 @@ h2: ...
 
 1. `eidoCloudRuntime` 复用 `ApiService.streamChat()`。
 2. 前端将上下文放到 `POST /api/v1/chat/chat` 的 JSON `context` 字段。
-3. 当前后端 Claude/OpenCode/OpenHarness 实现会把 `context` 截到前 4,000 字符，再作为“上一步执行结果（供参考）”拼入提示词。
+3. 当前后端 Claude/OpenCode 实现会把 `context` 截到前 4,000 字符，再作为“上一步执行结果（供参考）”拼入提示词。
 
 本机 OpenCode 模式：
 
@@ -584,7 +584,7 @@ h2: ...
 - 属性传递：`frontend-extension/src/main.tsx:301-345`
 - 发送：`frontend-mobile/src/hooks/useChatSend.ts:75-94, 120-132`
 - 云端请求：`frontend/services/api.ts:590-629`
-- 云端 4,000 字符截断：`backend/app/services/claude_skill_service.py:476-481`、`backend/app/services/open_code_service.py:101-104`、`backend/app/services/open_harness_service.py:97-100`
+- 云端 4,000 字符截断：`backend/app/services/claude_skill_service.py`、`backend/app/services/open_code_service.py`
 - 本地安全包装与 120,000 字符限制：`frontend-extension/src/localAgentRuntime.ts:117-137`
 
 ## 5. 当前实现的边界与风险

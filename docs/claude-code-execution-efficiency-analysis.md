@@ -21,7 +21,7 @@
 - session 可见技能映射到原生 `.claude/skills/<id>`，使用 `skills="all"` 和 `Skill` 工具按需加载正文。
 - 技能元数据增加 TTL 缓存、stat 指纹校验和 CRUD 主动失效。
 - `resume` 提示词不再重复项目上下文；原生 session 失效时才用持久化历史和最新项目上下文重建。
-- 禁用未被消费的 partial-message 流；限定实际可见工具集合；关闭跨租户的 Claude auto-memory。
+- 禁用未被消费的 partial-message 流；限定实际可见工具集合；将 Claude auto-memory 隔离到 Eido 的用户私有持久化目录。
 - 日志新增 warm/cold、连接耗时、首消息耗时、提示词字符数、技能数、token/cache token、terminal reason 和 API 状态。
 - 修复升级后的认证回归：`backend/.env` 中的 provider 配置现在由 `Settings`
   显式传给 SDK 内置 CLI；缺少非交互式凭据时在启动模型前返回可操作的中文错误，
@@ -172,7 +172,7 @@ Project 说明、共享文件清单和历史只在新会话或失效重建时注
 ### 4.5 安全与上下文卫生
 
 - `setting_sources` 只启用 session 的 project source，不加载用户级配置。
-- 注入 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`，防止多租户进程读取宿主机 `~/.claude/projects/.../memory`，同时减少冷启动 system prompt 的无关动态内容。
+- 注入用户隔离的 `CLAUDE_CONFIG_DIR`，并通过 `autoMemoryDirectory` 将记忆按个人会话与 Project 分区，防止读取宿主机 `~/.claude` 或其他 Eido 用户的记忆。
 - 原生 Skills 只映射该用户可见的 system/private 合并结果。
 - session 并发仍由原有 single-flight guard 控制。
 
@@ -250,7 +250,7 @@ Pydantic 作为 extra 忽略，且 `.env` 不会自动导出到 `os.environ`，�
 - `ClaudeSDKClient` 长连接；
 - resume 项目上下文去重；
 - 技能元数据缓存；
-- 日志与 auto-memory 隔离。
+- transcript、配置与 auto-memory 均按 Eido 用户隔离；auto-memory 进一步按个人/Project 范围隔离并持久化。
 
 ## 8. 后续建议
 

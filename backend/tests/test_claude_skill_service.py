@@ -267,7 +267,49 @@ def test_client_pool_reuses_connection_and_reset_disconnects(
     asyncio.run(exercise())
 
 
-def test_agent_env_passes_settings_credentials_and_disables_auto_memory(
+def test_reset_user_evicts_only_that_users_clients(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    clients = []
+
+    class FakeClient:
+        def __init__(self, options):
+            self.disconnected = False
+            clients.append(self)
+
+        async def connect(self):
+            pass
+
+        async def disconnect(self):
+            self.disconnected = True
+
+    fake_sdk = types.ModuleType("claude_agent_sdk")
+    fake_sdk.ClaudeSDKClient = FakeClient
+    monkeypatch.setitem(sys.modules, "claude_agent_sdk", fake_sdk)
+    service = ClaudeSkillService(tmp_path / "skills", tmp_path)
+
+    async def exercise():
+        first, _, _ = await service._acquire_client(
+            options=object(), user_id="u1", session_id="s1", signature=("rev",)
+        )
+        second, _, _ = await service._acquire_client(
+            options=object(), user_id="u2", session_id="s2", signature=("rev",)
+        )
+        await service._release_client(first, healthy=True)
+        await service._release_client(second, healthy=True)
+
+        service.reset_user("u1")
+        if service._client_cleanup_tasks:
+            await asyncio.gather(*tuple(service._client_cleanup_tasks))
+        assert clients[0].disconnected
+        assert not clients[1].disconnected
+        assert list(service._clients) == [("u2", "s2")]
+        await service.shutdown()
+
+    asyncio.run(exercise())
+
+
+def test_agent_env_passes_settings_credentials_and_isolates_auto_memory(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(
@@ -281,7 +323,12 @@ def test_agent_env_passes_settings_credentials_and_disables_auto_memory(
     assert env["ANTHROPIC_API_KEY"] == "test-api-key"
     assert "ANTHROPIC_AUTH_TOKEN" not in env
     assert env["API_TIMEOUT_MS"] == str(settings.API_TIMEOUT_MS)
-    assert env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] == "1"
+    assert "CLAUDE_CODE_DISABLE_AUTO_MEMORY" not in env
+    assert env["CLAUDE_CONFIG_DIR"]
+    assert {"127.0.0.1", "localhost", "::1"}.issubset(
+        set(env["NO_PROXY"].split(","))
+    )
+    assert env["no_proxy"] == env["NO_PROXY"]
     assert env["EIDO_USER_TOKEN"] == "token-for-u1"
     assert env["EIDO_SESSION_ID"] == "s1"
     assert env["EIDO_PROJECT_ID"] == "p1"

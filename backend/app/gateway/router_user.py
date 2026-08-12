@@ -8,6 +8,7 @@ chat / sessions / workspace 直连业务逻辑：
 - ensure_running(user_id) 后获得容器内部地址
 - proxy_request 透传请求与响应（含 SSE）
 """
+
 from __future__ import annotations
 
 import logging
@@ -38,6 +39,7 @@ async def resolve_user_id(user_id: str = Depends(get_current_user_id)) -> str:
 
 # ----------------------------- chat ----------------------------- #
 
+
 @router.post("/chat/chat")
 async def proxy_chat_chat(request: Request, user_id: str = Depends(resolve_user_id)):
     handle = await get_sandbox_manager().ensure_running(user_id)
@@ -50,6 +52,26 @@ async def proxy_chat_upload(request: Request, user_id: str = Depends(resolve_use
     return await proxy_request(request, handle, upstream_path="/api/v1/chat/upload")
 
 
+@router.post("/chat/control")
+async def proxy_chat_control(request: Request, user_id: str = Depends(resolve_user_id)):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path="/api/v1/chat/control")
+
+
+@router.get("/chat/queue/{session_id}")
+async def proxy_chat_queue(
+    session_id: str,
+    request: Request,
+    user_id: str = Depends(resolve_user_id),
+):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(
+        request,
+        handle,
+        upstream_path=f"/api/v1/chat/queue/{session_id}",
+    )
+
+
 @router.get("/chat/health")
 async def proxy_chat_health(request: Request, user_id: str = Depends(resolve_user_id)):
     handle = await get_sandbox_manager().ensure_running(user_id)
@@ -58,6 +80,7 @@ async def proxy_chat_health(request: Request, user_id: str = Depends(resolve_use
 
 # --------------------------- sessions --------------------------- #
 
+
 @router.api_route("/sessions/", methods=["GET", "POST"])
 async def proxy_sessions_root(request: Request, user_id: str = Depends(resolve_user_id)):
     handle = await get_sandbox_manager().ensure_running(user_id)
@@ -65,14 +88,13 @@ async def proxy_sessions_root(request: Request, user_id: str = Depends(resolve_u
 
 
 @router.api_route("/sessions/{rest:path}", methods=["GET", "POST", "PATCH", "DELETE", "PUT"])
-async def proxy_sessions_rest(
-    rest: str, request: Request, user_id: str = Depends(resolve_user_id)
-):
+async def proxy_sessions_rest(rest: str, request: Request, user_id: str = Depends(resolve_user_id)):
     handle = await get_sandbox_manager().ensure_running(user_id)
     return await proxy_request(request, handle, upstream_path=f"/api/v1/sessions/{rest}")
 
 
 # --------------------------- projects --------------------------- #
+
 
 @router.api_route("/projects/", methods=["GET", "POST"])
 async def proxy_projects_root(request: Request, user_id: str = Depends(resolve_user_id)):
@@ -81,14 +103,13 @@ async def proxy_projects_root(request: Request, user_id: str = Depends(resolve_u
 
 
 @router.api_route("/projects/{rest:path}", methods=["GET", "POST", "PATCH", "DELETE", "PUT"])
-async def proxy_projects_rest(
-    rest: str, request: Request, user_id: str = Depends(resolve_user_id)
-):
+async def proxy_projects_rest(rest: str, request: Request, user_id: str = Depends(resolve_user_id)):
     handle = await get_sandbox_manager().ensure_running(user_id)
     return await proxy_request(request, handle, upstream_path=f"/api/v1/projects/{rest}")
 
 
 # --------------------------- workspace --------------------------- #
+
 
 @router.get("/workspace/file")
 async def proxy_workspace_file(request: Request, user_id: str = Depends(resolve_user_id)):
@@ -108,7 +129,23 @@ async def proxy_workspace_file_delete(request: Request, user_id: str = Depends(r
     return await proxy_request(request, handle, upstream_path="/api/v1/workspace/file")
 
 
+# --------------------------- MCP configuration --------------------------- #
+
+
+@router.api_route("/mcp/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def proxy_mcp_rest(rest: str, request: Request, user_id: str = Depends(resolve_user_id)):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path=f"/api/v1/mcp/{rest}")
+
+
+@router.get("/search")
+async def proxy_search(request: Request, user_id: str = Depends(resolve_user_id)):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path="/api/v1/search")
+
+
 # --------------------------- sandbox warmup --------------------------- #
+
 
 @router.post("/sandbox/warmup")
 async def warmup_sandbox(user_id: str = Depends(resolve_user_id)):

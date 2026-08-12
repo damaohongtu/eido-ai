@@ -1,9 +1,8 @@
 import type { Message } from '../shared';
+import { SUPPORTED_FILE_EXTENSIONS } from './supportedFiles';
 
-const DOWNLOADABLE_FILE_EXTENSIONS = [
-  'md', 'pdf', 'csv', 'xlsx', 'xls', 'html', 'htm', 'txt', 'json',
-  'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'docx', 'doc', 'pptx', 'ppt',
-];
+const DOWNLOADABLE_FILE_EXTENSIONS = [...SUPPORTED_FILE_EXTENSIONS]
+  .sort((left, right) => right.length - left.length);
 const DOWNLOADABLE_FILE_SOURCE =
   `((?:/|(?:outputs?|uploads|\\.claude/skills/[^\\s/]+/output)/)[^\\s"'()\`<>]+\\.(?:${DOWNLOADABLE_FILE_EXTENSIONS.join('|')}))`;
 const DOWNLOADABLE_FILE_PATTERN = new RegExp(DOWNLOADABLE_FILE_SOURCE, 'gi');

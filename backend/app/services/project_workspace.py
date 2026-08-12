@@ -9,38 +9,17 @@ import logging
 import re
 import shutil
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from app.core.config import settings
+from app.services.supported_files import SUPPORTED_FILE_EXTENSIONS
 
 if TYPE_CHECKING:
     from app.services.chat_session_store import ChatSessionStore
 
 logger = logging.getLogger(__name__)
 
-PROJECT_FILE_EXTENSIONS = frozenset(
-    {
-        ".md",
-        ".pdf",
-        ".csv",
-        ".xls",
-        ".xlsx",
-        ".html",
-        ".htm",
-        ".txt",
-        ".json",
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".webp",
-        ".svg",
-        ".doc",
-        ".docx",
-        ".ppt",
-        ".pptx",
-    }
-)
+PROJECT_FILE_EXTENSIONS = SUPPORTED_FILE_EXTENSIONS
 _PROJECT_FILE_EXTENSION_PATTERN = "(?:" + "|".join(
     re.escape(extension) for extension in sorted(PROJECT_FILE_EXTENSIONS)
 ) + ")"

@@ -10,6 +10,7 @@ import SkillManager from './components/SkillManager';
 import SkillDetailPage from './components/SkillDetailPage';
 import ScheduledTasksManager from './components/ScheduledTasksManager';
 import ProjectView, { CreateProjectModal } from './components/ProjectView';
+import McpToolsView from './components/McpToolsView';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api, hydrateSession, summaryToSession } from './services/api';
@@ -44,9 +45,11 @@ function fixStaleRunningSteps(sessions: ChatSession[]): ChatSession[] {
     ...session,
     messages: session.messages.map(msg => ({
       ...msg,
-      executionSteps: msg.executionSteps?.map(step =>
-        step.status === 'running' ? { ...step, status: 'waiting' as const } : step
-      )
+      executionSteps: msg.streaming
+        ? msg.executionSteps
+        : msg.executionSteps?.map(step =>
+            step.status === 'running' ? { ...step, status: 'waiting' as const } : step
+          )
     }))
   }));
 }
@@ -60,6 +63,10 @@ function buildMessageExtra(msg: Message): Record<string, any> {
   if (msg.workflowMermaid) extra.workflowMermaid = msg.workflowMermaid;
   if (msg.references && msg.references.length) extra.references = msg.references;
   if (msg.pendingConfirmation) extra.pendingConfirmation = msg.pendingConfirmation;
+  if (msg.deliveryMode) extra.deliveryMode = msg.deliveryMode;
+  if (msg.deliveryStatus) extra.deliveryStatus = msg.deliveryStatus;
+  if (msg.queuePosition) extra.queuePosition = msg.queuePosition;
+  if (msg.streaming !== undefined) extra.streaming = msg.streaming;
   return extra;
 }
 
@@ -127,6 +134,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   }, [authRequired, checkAuthState, extensionMode]);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(new Set());
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
@@ -135,6 +143,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   const projectFilesRequestRef = useRef(0);
   const projectsRequestRef = useRef(0);
   const navigationRequestRef = useRef(0);
+  const taskSessionPollTimerRef = useRef<number | null>(null);
+  const taskSessionPollGenerationRef = useRef(0);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
@@ -220,6 +230,44 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     })();
   }, [authChecked]);
 
+  // 定时任务可能在页面打开期间创建会话；周期同步摘要，让新会话自动出现在左栏。
+  useEffect(() => {
+    if (!authChecked || authRequired) return;
+    const refreshSessionSummaries = async () => {
+      try {
+        const summaries = (await api.listSessions()).map(summaryToSession);
+        setSessions(previous => {
+          const existing = new Map<string, ChatSession>(
+            previous.map(session => [session.id, session] as const)
+          );
+          return summaries.map(summary => {
+            const current = existing.get(summary.id);
+            return current
+              ? {
+                  ...current,
+                  title: summary.title,
+                  projectId: summary.projectId,
+                  skillId: summary.skillId,
+                  updatedAt: summary.updatedAt,
+                }
+              : summary;
+          });
+        });
+      } catch (err) {
+        console.warn('同步自动任务会话失败:', err);
+      }
+    };
+    const timer = window.setInterval(refreshSessionSummaries, 10_000);
+    return () => window.clearInterval(timer);
+  }, [authChecked, authRequired]);
+
+  useEffect(() => () => {
+    taskSessionPollGenerationRef.current += 1;
+    if (taskSessionPollTimerRef.current !== null) {
+      window.clearInterval(taskSessionPollTimerRef.current);
+    }
+  }, []);
+
   const refreshProjects = useCallback(async () => {
     const requestId = ++projectsRequestRef.current;
     try {
@@ -294,6 +342,50 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     }
   }, [executingAction, activeSessionId]);
 
+  /** 轮询服务端持久化消息，直到自动任务写入最终 assistant 回复。 */
+  const pollTaskSession = (id: string) => {
+    const generation = ++taskSessionPollGenerationRef.current;
+    if (taskSessionPollTimerRef.current !== null) {
+      window.clearInterval(taskSessionPollTimerRef.current);
+    }
+    let attempts = 0;
+    taskSessionPollTimerRef.current = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const detail = await api.getSession(id);
+        if (taskSessionPollGenerationRef.current !== generation) return;
+        const current = hydrateSession(detail);
+        setSessions(previous => previous.map(session =>
+          session.id === id ? current : session
+        ));
+        // hydrateSession 会为空会话补一条前端欢迎语；结束判断必须只看后端消息。
+        const latest = detail.messages[detail.messages.length - 1];
+        if (latest?.role === 'assistant' && latest.extra?.streaming !== true) {
+          if (taskSessionPollTimerRef.current !== null) {
+            window.clearInterval(taskSessionPollTimerRef.current);
+            taskSessionPollTimerRef.current = null;
+          }
+        }
+      } catch {
+        if (
+          taskSessionPollGenerationRef.current === generation
+          && taskSessionPollTimerRef.current !== null
+        ) {
+          window.clearInterval(taskSessionPollTimerRef.current);
+          taskSessionPollTimerRef.current = null;
+        }
+      }
+      if (
+        attempts >= 60
+        && taskSessionPollGenerationRef.current === generation
+        && taskSessionPollTimerRef.current !== null
+      ) {
+        window.clearInterval(taskSessionPollTimerRef.current);
+        taskSessionPollTimerRef.current = null;
+      }
+    }, 1500);
+  };
+
   /** 切换激活会话；若该会话尚未拉取过完整消息则按需拉取一次。 */
   const selectSession = async (id: string) => {
     const requestId = ++navigationRequestRef.current;
@@ -314,6 +406,40 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     setActiveSessionId(id);
     setActiveProjectId(target?.projectId ?? null);
     setActiveView(ViewType.CHAT);
+    if (target?.title.startsWith('[自动任务]')) {
+      pollTaskSession(id);
+    } else if (taskSessionPollTimerRef.current !== null) {
+      taskSessionPollGenerationRef.current += 1;
+      window.clearInterval(taskSessionPollTimerRef.current);
+      taskSessionPollTimerRef.current = null;
+    }
+  };
+
+  /** 自动任务会在服务端先创建会话；刷新列表后立即打开，并短期轮询执行结果。 */
+  const openTaskSession = async (id: string) => {
+    const requestId = ++navigationRequestRef.current;
+    try {
+      const [detail, list] = await Promise.all([
+        api.getSession(id),
+        api.listSessions(),
+      ]);
+      if (navigationRequestRef.current !== requestId) return;
+      const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+      const summaries = list.map(summaryToSession);
+      setSessions([
+        hydrated,
+        ...summaries.filter(session => session.id !== id),
+      ]);
+      setActiveSessionId(id);
+      setActiveProjectId(hydrated.projectId);
+      setActiveView(ViewType.CHAT);
+
+      // 后端执行与页面跳转并行；定时刷新让用户能在新会话里看到结果出现。
+      pollTaskSession(id);
+    } catch (err) {
+      console.error('打开自动任务会话失败:', err);
+      window.alert(err instanceof Error ? err.message : '打开自动任务会话失败');
+    }
   };
 
   const createNewSession = async (options: CreateSessionOptions = {}) => {
@@ -420,6 +546,19 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         return { ...s, messages };
       }
       return s;
+    }));
+  };
+
+  const refreshSessionMessages = async (sessionId: string) => {
+    const detail = await api.getSession(sessionId);
+    const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+    setSessions(previous => previous.map(session => {
+      if (session.id !== sessionId) return session;
+      const persistedIds = new Set(hydrated.messages.map(message => message.id));
+      const locallyQueued = session.messages.filter(message =>
+        !persistedIds.has(message.id) && !message.id.includes('-init-')
+      );
+      return { ...hydrated, messages: [...hydrated.messages, ...locallyQueued] };
     }));
   };
 
@@ -654,6 +793,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         projects={projects}
         activeProjectId={activeView === ViewType.CHAT ? activeSession?.projectId ?? null : activeProjectId}
         activeSessionId={activeSessionId}
+        runningSessionIds={runningSessionIds}
         onSelectSession={(id) => { selectSession(id); }}
         onNewChat={() => createNewSession({ projectId: null })}
         onNewProject={() => setCreateProjectOpen(true)}
@@ -716,6 +856,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
                 onMoveSession={(projectId) => activeSessionId ? moveSession(activeSessionId, projectId) : Promise.resolve()}
                 onOpenProject={openProject}
                 onImportProjectFile={activeSessionProject && !activeSessionProject.archived_at ? importSessionFileToProject : undefined}
+                onRefreshSession={refreshSessionMessages}
+                onRunningSessionsChange={setRunningSessionIds}
                 harness={harness}
                 browserContext={browserContext}
              />
@@ -748,6 +890,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
           />
         )}
 
+        {activeView === ViewType.TOOLS && <McpToolsView />}
+
         {activeView === ViewType.SKILL_DETAIL && detailSkill && (
           <SkillDetailPage
             skill={detailSkill}
@@ -767,7 +911,9 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
           />
         )}
 
-        {activeView === ViewType.SCHEDULED_TASKS && <ScheduledTasksManager />}
+        {activeView === ViewType.SCHEDULED_TASKS && (
+          <ScheduledTasksManager onOpenSession={openTaskSession} />
+        )}
 
           </>
         )}

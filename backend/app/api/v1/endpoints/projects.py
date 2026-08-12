@@ -11,8 +11,8 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
-from python_multipart.exceptions import MultipartParseError
 from pydantic import BaseModel, Field
+from python_multipart.exceptions import MultipartParseError
 from starlette.datastructures import FormData, UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
@@ -34,44 +34,18 @@ from app.services.project_workspace import (
     validate_project_id,
 )
 from app.services.session_workspace import get_session_workspace_manager, validate_session_id
+from app.services.supported_files import (
+    FORCE_ATTACHMENT_FILE_EXTENSIONS,
+    SUPPORTED_FILE_MEDIA_TYPES,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-MEDIA_TYPES_BY_EXTENSION = {
-    ".md": "text/markdown; charset=utf-8",
-    ".pdf": "application/pdf",
-    ".csv": "text/csv; charset=utf-8",
-    ".xls": "application/vnd.ms-excel",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".html": "text/html; charset=utf-8",
-    ".htm": "text/html; charset=utf-8",
-    ".txt": "text/plain; charset=utf-8",
-    ".json": "application/json",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".svg": "image/svg+xml",
-    ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".ppt": "application/vnd.ms-powerpoint",
-    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-}
+MEDIA_TYPES_BY_EXTENSION = SUPPORTED_FILE_MEDIA_TYPES
 # Active same-origin content is attached by default and only rendered inline in
 # the explicit sandboxed preview mode. Office formats always remain attachments.
-FORCE_ATTACHMENT_EXTENSIONS = {
-    ".html",
-    ".htm",
-    ".svg",
-    ".doc",
-    ".docx",
-    ".ppt",
-    ".pptx",
-    ".xls",
-    ".xlsx",
-}
+FORCE_ATTACHMENT_EXTENSIONS = FORCE_ATTACHMENT_FILE_EXTENSIONS
 MAX_PROJECT_FILE_SIZE = 20 * 1024 * 1024
 _CHUNK_SIZE = 1024 * 1024
 
@@ -430,14 +404,8 @@ async def delete_project(project_id: str, user_id: str = Depends(get_current_use
             )
         try:
             from app.services.claude_skill_service import get_claude_skill_service
-            from app.services.open_harness_service import get_open_harness_service
-
-            open_harness = get_open_harness_service()
             claude_service = get_claude_skill_service()
-            if open_harness is not None:
-                for session in affected_sessions:
-                    open_harness.reset_session(session["id"])
-            if claude_service is not None and claude_service is not open_harness:
+            if claude_service is not None:
                 for session in affected_sessions:
                     claude_service.reset_session(session["id"])
         except Exception:

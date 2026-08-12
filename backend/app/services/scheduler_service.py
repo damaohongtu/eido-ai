@@ -1,6 +1,7 @@
 """
 APScheduler wrapper: loads tasks from SQLite, manages job lifecycle.
 """
+
 import asyncio
 import logging
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 _store: ScheduledTaskStore | None = None
 _scheduler: BackgroundScheduler | None = None
+_application_loop: asyncio.AbstractEventLoop | None = None
 
 
 def _parse_trigger(schedule: str):
@@ -38,11 +40,14 @@ def _run_task_job(task_id: str):
         logger.warning(f"Task {task_id} not found or disabled, skipping")
         return
 
-    loop = asyncio.new_event_loop()
-    try:
-        loop.run_until_complete(execute_task(task))
-    finally:
-        loop.close()
+    # BackgroundScheduler invokes jobs in a worker thread. Route the coroutine
+    # back to FastAPI's application loop so shared async HTTP clients are never
+    # reused across event loops in Docker gateway mode.
+    if _application_loop is not None and _application_loop.is_running():
+        future = asyncio.run_coroutine_threadsafe(execute_task(task), _application_loop)
+        future.result()
+    else:
+        asyncio.run(execute_task(task))
 
     _store.update_last_run(task_id)
 
@@ -75,8 +80,12 @@ def remove_job(task_id: str):
 
 
 def init_scheduler(store: ScheduledTaskStore):
-    global _store, _scheduler
+    global _store, _scheduler, _application_loop
     _store = store
+    try:
+        _application_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _application_loop = None
     _scheduler = BackgroundScheduler()
 
     tasks = store.list_all_enabled()
@@ -88,8 +97,9 @@ def init_scheduler(store: ScheduledTaskStore):
 
 
 def shutdown_scheduler():
-    global _scheduler
+    global _scheduler, _application_loop
     if _scheduler:
         _scheduler.shutdown(wait=False)
         logger.info("Scheduler stopped")
         _scheduler = None
+    _application_loop = None

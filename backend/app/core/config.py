@@ -1,7 +1,9 @@
 """
 Configuration management for the application.
 """
+
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings
@@ -61,6 +63,10 @@ class Settings(BaseSettings):
     EIDO_USER_IMAGE: str = "eido-user:latest"
     # gateway / user 共享的 docker 网络
     EIDO_NET: str = "eido-net"
+    EIDO_GATEWAY_CONTAINER: str = "eido-gateway"
+    EIDO_GATEWAY_INTERNAL_URL: str = "http://eido-gateway/ai-eido"
+    EIDO_SANDBOX_HEALTH_TTL: int = Field(default=15, ge=0)
+    EIDO_USER_TMPFS_SIZE: str = "512m"
     # 闲置回收 TTL（秒），默认 15min
     EIDO_SANDBOX_IDLE_TTL: int = 900
     # gateway 持久化 sandbox 注册表的 SQLite
@@ -87,8 +93,6 @@ class Settings(BaseSettings):
     # 管理员白名单（逗号分隔 user_id），命中者上传/修改的技能写入 system 区
     EIDO_ADMIN_USERS: str = "admin"
 
-    AGENT_HARNESS: str = "claude_code"
-
     # Claude Agent SDK / Claude Code provider configuration.  These fields must
     # be declared explicitly: pydantic-settings reads backend/.env into the
     # Settings object, but does not export arbitrary/extra keys to os.environ.
@@ -98,6 +102,11 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
     ANTHROPIC_AUTH_TOKEN: SecretStr = SecretStr("")
     ANTHROPIC_MODEL: str = ""
+    CLAUDE_MODELS: list[str] = ["sonnet", "opus", "haiku"]
+    CLAUDE_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] | None = None
+    CLAUDE_COMPACT_PERCENT: int = Field(default=80, ge=50, le=95)
+    CLAUDE_CLI_PATH: str = ""
+    CLAUDE_SIMPLE_SYSTEM_PROMPT: bool = True
     ANTHROPIC_SMALL_FAST_MODEL: str = ""
     API_TIMEOUT_MS: int = Field(default=300000, gt=0)
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: bool = False
@@ -212,6 +221,16 @@ class Settings(BaseSettings):
             if enabled:
                 env[key] = "1"
         return env
+
+    @field_validator("CLAUDE_EFFORT", mode="before")
+    @classmethod
+    def empty_effort_uses_default(cls, value):
+        return value or None
+
+    @field_validator("CLAUDE_MODELS")
+    @classmethod
+    def normalize_models(cls, value: list[str]) -> list[str]:
+        return list(dict.fromkeys(model.strip() for model in value if model.strip()))
 
     @field_validator("CAS_SERVER_URL", mode="before")
     @classmethod

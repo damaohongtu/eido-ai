@@ -3,6 +3,7 @@
 
 所有接口均按当前登录 user_id 过滤，杜绝越权访问。
 """
+
 from __future__ import annotations
 
 import logging
@@ -168,9 +169,7 @@ async def patch_session(
     # 只要请求显式修改 project_id，就原子持有 session single-flight 与目标
     # Project 共享租约。这样独占删除无法夹在目标校验和数据库更新之间。
     guard = get_chat_execution_guard() if "project_id" in fields else None
-    if guard is not None and not guard.try_acquire(
-        session_id, project_id=target_project_id
-    ):
+    if guard is not None and not guard.try_acquire(session_id, project_id=target_project_id):
         raise HTTPException(
             status_code=409,
             detail="会话正在执行或目标项目正在变更，暂时不能移动项目",
@@ -185,10 +184,7 @@ async def patch_session(
                 raise HTTPException(status_code=404, detail="目标项目不存在")
             if project.get("archived_at"):
                 raise HTTPException(status_code=409, detail="目标项目已归档")
-        project_changed = (
-            "project_id" in fields
-            and existing.get("project_id") != target_project_id
-        )
+        project_changed = "project_id" in fields and existing.get("project_id") != target_project_id
         try:
             sess = store.update_session(user_id, session_id, **fields)
         except ValueError as exc:
@@ -198,10 +194,11 @@ async def patch_session(
         if project_changed:
             # 内存 engine / Claude 长连接都含旧项目上下文；项目切换后必须驱逐。
             try:
-                from app.services.claude_skill_service import get_claude_skill_service
-                claude_service = get_claude_skill_service()
-                if claude_service is not None:
-                    claude_service.reset_session(session_id)
+                from app.services.claude_runtime import get_claude_runtime
+
+                claude_runtime = get_claude_runtime()
+                if claude_runtime is not None:
+                    claude_runtime.reset_session(session_id)
             except Exception as e:
                 logger.warning("重置 agent 会话失败 session=%s: %s", session_id, e)
         return sess
@@ -231,10 +228,11 @@ async def delete_session(
         if not deleted:
             raise HTTPException(status_code=404, detail="会话不存在")
         try:
-            from app.services.claude_skill_service import get_claude_skill_service
-            claude_service = get_claude_skill_service()
-            if claude_service is not None:
-                claude_service.reset_session(session_id)
+            from app.services.claude_runtime import get_claude_runtime
+
+            claude_runtime = get_claude_runtime()
+            if claude_runtime is not None:
+                claude_runtime.reset_session(session_id)
         except Exception as e:
             logger.warning("删除前重置 agent 会话失败 session=%s: %s", session_id, e)
         try:

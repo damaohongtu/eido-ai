@@ -1,4 +1,5 @@
 """Retryable Project filesystem cleanup tests using only temporary paths."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,9 +36,7 @@ def test_symlink_cleanup_unlinks_only_the_link_and_never_follows_its_target(
 
     files_link_project = manager.root / "files-link"
     files_link_project.mkdir()
-    (files_link_project / "files").symlink_to(
-        protected_files, target_is_directory=True
-    )
+    (files_link_project / "files").symlink_to(protected_files, target_is_directory=True)
     with pytest.raises(ValueError, match="项目文件目录不能是符号链接"):
         manager.remove_file("files-link", protected_file.name)
     assert manager.remove_project("files-link") is True
@@ -183,9 +182,7 @@ def test_startup_reconcile_isolates_one_unreadable_project_directory(
             raise OSError("injected unreadable directory")
         return real_enqueue(store_arg, project_path, project_owners, file_keys)
 
-    monkeypatch.setattr(
-        workspace_module, "_enqueue_project_orphans", fail_one_directory
-    )
+    monkeypatch.setattr(workspace_module, "_enqueue_project_orphans", fail_one_directory)
     try:
         assert retry_pending_storage_cleanup(store) == {
             "completed": 1,
@@ -207,15 +204,15 @@ def test_periodic_cleanup_does_not_scan_an_active_upload_temp_file(
     manager = ProjectWorkspaceManager(tmp_path / "projects")
     monkeypatch.setattr(workspace_module, "_instance", manager)
     project = store.create_project("u1", name="active upload")
-    temp_file = manager.files_dir(project["id"]) / (
-        "." + "d" * 32 + ".pdf." + "e" * 32 + ".upload"
-    )
+    temp_file = manager.files_dir(project["id"]) / ("." + "d" * 32 + ".pdf." + "e" * 32 + ".upload")
     temp_file.write_bytes(b"in progress")
 
     try:
-        assert retry_pending_storage_cleanup(
-            store, reconcile_orphans=False
-        ) == {"completed": 0, "failed": 0, "missing": 0}
+        assert retry_pending_storage_cleanup(store, reconcile_orphans=False) == {
+            "completed": 0,
+            "failed": 0,
+            "missing": 0,
+        }
         assert temp_file.read_bytes() == b"in progress"
     finally:
         store.close()
@@ -233,9 +230,7 @@ def test_stale_project_job_does_not_clear_active_projects_file_jobs(
     storage_name = "orphan.md"
     orphan = manager.file_path(project["id"], storage_name, create_parent=True)
     orphan.write_bytes(b"pending")
-    store.enqueue_storage_cleanup(
-        resource_type="project", project_id=project["id"], user_id="u1"
-    )
+    store.enqueue_storage_cleanup(resource_type="project", project_id=project["id"], user_id="u1")
     store.enqueue_storage_cleanup(
         resource_type="file",
         project_id=project["id"],
@@ -246,18 +241,22 @@ def test_stale_project_job_does_not_clear_active_projects_file_jobs(
     )
 
     try:
-        assert retry_pending_storage_cleanup(
-            store, limit=1, reconcile_orphans=False
-        ) == {"completed": 1, "failed": 0, "missing": 0}
+        assert retry_pending_storage_cleanup(store, limit=1, reconcile_orphans=False) == {
+            "completed": 1,
+            "failed": 0,
+            "missing": 0,
+        }
         jobs = store.list_storage_cleanup_jobs()
         assert [(job["resource_type"], job["storage_name"]) for job in jobs] == [
             ("file", storage_name)
         ]
         assert orphan.is_file()
 
-        assert retry_pending_storage_cleanup(
-            store, reconcile_orphans=False
-        ) == {"completed": 1, "failed": 0, "missing": 0}
+        assert retry_pending_storage_cleanup(store, reconcile_orphans=False) == {
+            "completed": 1,
+            "failed": 0,
+            "missing": 0,
+        }
         assert not orphan.exists()
     finally:
         store.close()

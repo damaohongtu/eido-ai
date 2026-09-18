@@ -258,11 +258,7 @@ const AppDrawer: React.FC<AppDrawerProps> = ({ visible, onClose, store }) => {
                 </div>
               ) : null}
             </>
-          ) : (
-            <div className="mx-3 mb-2 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-700">
-              本机模式使用当前 OpenCode 项目目录，不读取或发送 Eido 云端项目资料。
-            </div>
-          )}
+          ) : null}
 
           <button
             type="button"

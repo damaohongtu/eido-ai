@@ -1,19 +1,4 @@
-import {
-  buildNativeLauncherRequest,
-  NATIVE_LAUNCHER_HOST,
-  nativeLauncherTimeout,
-  normalizeNativeLauncherError,
-} from './native-launcher-protocol.js';
-
 const INVALID_TAB_URL = /^(chrome|edge|brave|vivaldi|about|devtools):/i;
-const NATIVE_MESSAGE_TYPES = new Set([
-  'EIDO_NATIVE_LAUNCHER_PING',
-  'EIDO_OPENCODE_DETECT',
-  'EIDO_OPENCODE_SELECT_DIRECTORY',
-  'EIDO_OPENCODE_LAUNCH',
-  'EIDO_OPENCODE_STATUS',
-]);
-
 chrome.runtime.onUpdateAvailable.addListener(() => {
   chrome.runtime.reload();
 });
@@ -79,72 +64,7 @@ async function captureTab(tabId) {
   return chrome.tabs.sendMessage(tabId, { type: 'EIDO_EXTRACT_PAGE' });
 }
 
-function sendNativeLauncherMessage(message) {
-  return new Promise((resolve) => {
-    let request;
-    try {
-      request = buildNativeLauncherRequest(message);
-    } catch (error) {
-      resolve(normalizeNativeLauncherError(error));
-      return;
-    }
-
-    let settled = false;
-    let port;
-    const finish = (response) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try {
-        port?.disconnect();
-      } catch {
-        // The native process may already have closed its side of the port.
-      }
-      resolve(response);
-    };
-    const timer = setTimeout(() => {
-      finish({
-        ok: false,
-        code: 'NATIVE_REQUEST_TIMEOUT',
-        message: request.command === 'select_directory'
-          ? '文件夹选择器等待超时，请重试'
-          : '本机启动组件响应超时，请重试',
-      });
-    }, nativeLauncherTimeout(request.command));
-
-    try {
-      port = chrome.runtime.connectNative(NATIVE_LAUNCHER_HOST);
-      port.onMessage.addListener((response) => {
-        if (!response || typeof response !== 'object') {
-          finish({ ok: false, code: 'NATIVE_HOST_ERROR', message: '本机启动组件未返回有效结果' });
-          return;
-        }
-        finish(response);
-      });
-      port.onDisconnect.addListener(() => {
-        if (settled) return;
-        const runtimeError = chrome.runtime.lastError;
-        finish(normalizeNativeLauncherError(
-          runtimeError || new Error('本机启动组件在返回结果前已退出')
-        ));
-      });
-      port.postMessage(request);
-    } catch (error) {
-      finish(normalizeNativeLauncherError(error));
-    }
-  });
-}
-
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (NATIVE_MESSAGE_TYPES.has(message?.type)) {
-    if (sender.id !== chrome.runtime.id) {
-      sendResponse({ ok: false, code: 'NATIVE_HOST_FORBIDDEN', message: '不允许的调用来源' });
-      return false;
-    }
-    sendNativeLauncherMessage(message).then(sendResponse);
-    return true;
-  }
-
   if (message?.type === 'EIDO_LIST_TABS') {
     chrome.tabs.query({}).then((tabs) => {
       sendResponse({

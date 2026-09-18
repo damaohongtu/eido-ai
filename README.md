@@ -6,7 +6,7 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 
 ## 核心亮点
 
-- **智能体执行内核**：后端通过 Claude Agent SDK / Claude Code harness 驱动流式对话、工具调用、文件产出和多轮执行，并提供 OpenCode 兼容入口。
+- **智能体执行内核**：后端通过 Claude Agent SDK / Claude Code harness 驱动流式对话、工具调用、文件产出和多轮执行。
 - **技能系统**：以 `SKILL.md` 描述技能能力、使用边界和工具约束，支持系统技能、用户私有技能、在线创建、上传、编辑、删除和文件级管理。
 - **多技能协作**：前端支持在对话中选择或 `@` 提及技能，后端可把多个技能串成任务上下文，适合投研、文档解析、邮件、搜索、文件处理等复合场景。
 - **过程可观测**：流式返回模型思考、执行步骤、引用来源、工作流 Mermaid 图、待确认操作和最终回答，前端可逐步展示任务进展。
@@ -15,7 +15,6 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 - **持久记忆与 MCP**：Claude Code auto-memory 按用户及个人/Project 范围隔离持久化；用户可在界面配置私有 HTTP、SSE 或 Stdio MCP Server，敏感配置加密保存。
 - **统一检索**：桌面侧栏可检索 Project 元数据、会话标题和历史消息正文，并显示会话最近更新时间。
 - **网页上下文分析**：Chrome 插件在当前浏览器右侧 Side Panel 打开，可读取当前页内容，也可选择用户已打开的其他标签页加入分析。
-- **本机 Agent 模式**：Chrome 插件可直接连接本机 OpenCode；除用户认证外，会话、网页上下文、附件和执行结果均保留在浏览器与本机，不经过 Eido 后端。
 - **定时任务**：支持技能、脚本和对话类任务的创建、编辑、手动运行和周期调度，用于日报、监控、摘要生成等自动化场景。
 - **多端体验**：桌面 Web 适合完整工作台，移动端 H5 和 Chrome 插件复用核心 API 与数据模型，针对窄屏做了独立布局。
 - **认证与隔离**：支持本地开发免登录、CAS 登录、管理员用户、系统/用户技能隔离，以及 gateway + per-user Docker 容器的多用户沙盒模式。
@@ -26,12 +25,11 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 | 模块 | 主要技术 |
 | --- | --- |
 | 后端 | FastAPI, Pydantic v2, Uvicorn, SQLite, APScheduler, python-cas, Docker SDK |
-| Agent | claude-agent-sdk, Claude Code harness, OpenCode 兼容层, LiteLLM 相关依赖 |
+| Agent | Claude Agent SDK, Claude Code harness |
 | 文件处理 | PyMuPDF, pypdf, pdfplumber, ReportLab, fpdf2, python-docx, python-pptx, pandas/openpyxl |
 | 桌面前端 | React 19, Vite 6, TypeScript, Ant Design 6, Tailwind CSS, Mermaid, react-markdown |
 | 移动端 H5 | React 19, Vite 6, antd-mobile, Tailwind CSS, 共享桌面端 API/type 层 |
 | Chrome 插件 | Manifest V3, Chrome Side Panel API, React 19, antd-mobile, content/background scripts |
-| 本机 Agent | OpenCode Server API, HTTP/SSE, loopback-only connection |
 | 部署 | Nginx, Supervisor, Docker Compose profiles, app/gateway/user 多镜像 |
 
 ## 架构概览
@@ -54,17 +52,17 @@ flowchart LR
 
   Docker["Docker Engine"]
   SystemSkills["系统技能库<br/>所有用户可用<br/>.claude/skills/system"]
-  Models["Anthropic 兼容模型服务(Litellm)"]
+  Models["Anthropic 或兼容模型服务"]
 
   subgraph UserA["用户 A 沙盒容器"]
     ApiA["Eido API"]
-    AgentA["Agent Runtime<br/>Claude Code / OpenCode"]
+    AgentA["Agent Runtime<br/>Claude Code"]
     DataA["用户 A 数据<br/>会话 / 工作区 / 私有技能 / 定时任务"]
   end
 
   subgraph UserB["用户 B 沙盒容器"]
     ApiB["Eido API"]
-    AgentB["Agent Runtime<br/>Claude Code / OpenCode"]
+    AgentB["Agent Runtime<br/>Claude Code"]
     DataB["用户 B 数据<br/>会话 / 工作区 / 私有技能 / 定时任务"]
   end
 
@@ -99,7 +97,6 @@ flowchart LR
 | `frontend/` | 桌面 Web 工作台，默认入口 `/ai-eido/` |
 | `frontend-mobile/` | 移动端 H5，默认入口 `/ai-eido/m/`，并为插件提供窄屏布局基础 |
 | `frontend-extension/` | Chrome Manifest V3 插件，在浏览器右侧 Side Panel 运行 |
-| `native-launcher/` | 插件按需唤起 OpenCode 的 Go Native Host，以及 macOS/Windows 图形安装器 |
 | `docker/` | Dockerfile、Compose profiles、Nginx/Supervisor 配置和部署说明 |
 | `docs/` | 架构、API、技能密钥保护、模型与沙盒等专题文档 |
 | `skill-example/` | 技能开发示例 |
@@ -145,11 +142,7 @@ API_TIMEOUT_MS=600000
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ```
 
-如使用 Claude Code 相关能力，本机还需要安装 Claude Code CLI：
-
-```bash
-npm install -g @anthropic-ai/claude-code --registry https://registry.npmmirror.com
-```
+Agent SDK 已随包携带与其匹配的 Claude Code CLI，后端无需再单独安装一套 CLI。
 
 ### 2. 启动后端
 
@@ -201,17 +194,9 @@ VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
 
 插件会在当前浏览器右侧 Side Panel 打开；调试控制台入口在“我的设置”中，也可以从扩展详情页的 Inspect views 打开原生 DevTools。
 
-### 6. 使用本机 OpenCode
+### 6. 选择模型
 
-本机模式仅复用 Eido 用户认证，不调用 Eido 的聊天、会话、技能、文件、任务或沙盒接口。安装 OpenCode 后，可在插件“我的设置 -> 执行位置”中选择“本机”；首次使用点击“安装启动组件”，通过签名、公证的 macOS Installer 完成一次安装。随后选择项目文件夹并点击“尝试唤起 OpenCode”，插件会自动探测、启动并连接本机服务。
-
-开发环境也可以手工启动 OpenCode：
-
-```bash
-opencode /path/to/project --hostname 127.0.0.1 --port 4096
-```
-
-插件会优先复用健康且凭据匹配的现有实例。若 OpenCode 配置了 `OPENCODE_SERVER_PASSWORD`，需在插件中填写相同密码。完整的功能和技术解析见 [`docs/local-agent-overview.md`](docs/local-agent-overview.md)。
+桌面侧栏、移动端与插件的“我的”页面可选择 Claude Code 模型。可选项由后端 `CLAUDE_MODELS` 配置提供；默认项使用 `ANTHROPIC_MODEL`。配置示例见下文。
 
 ## Docker 部署
 
@@ -266,10 +251,12 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | --- | --- |
 | `ANTHROPIC_BASE_URL` | Anthropic 兼容 API 地址；使用官方 API 时留空 |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | Agent SDK 非交互式模型服务凭据；官方 API 推荐 `ANTHROPIC_API_KEY` |
-| `ANTHROPIC_MODEL` | 主模型名称 |
+| `ANTHROPIC_MODEL` | 默认模型名称 |
+| `CLAUDE_MODELS` | 可选模型 JSON 数组，如 `["sonnet","opus","haiku"]`；兼容服务填写其真实模型 ID |
+| `CLAUDE_EFFORT` | 可选推理强度，按模型支持情况设置；留空使用原生默认值 |
+| `CLAUDE_COMPACT_PERCENT` | 原生自动压缩触发百分比，默认 80 |
+| `CLAUDE_SIMPLE_SYSTEM_PROMPT` | 使用 Claude Code 原生精简系统提示，默认开启；保留 tools、hooks、MCP、Skills、memory 与 CLAUDE.md |
 | `ANTHROPIC_SMALL_FAST_MODEL` | 快速/小模型名称 |
-| `AGENT_HARNESS` | 默认 agent harness：`claude_code` 或 `opencode` |
-| `OPENCODE_MODEL` | OpenCode 使用的可选模型，格式为 `provider/model`；留空时使用 OpenCode 自身默认配置 |
 | `AUTH_DISABLED` | 本地开发免登录开关 |
 | `SESSION_SECRET_KEY` | 登录 session 加密密钥，生产环境必须修改 |
 | `FRONTEND_URL` | 后端认证回跳与 CORS 使用的前端地址 |
@@ -277,7 +264,7 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | `EIDO_ADMIN_USERS` | 管理员用户名列表，用于系统技能管理 |
 | `SKILLS_DIR` | 技能根目录，默认通常为 `.claude/skills` |
 | `EIDO_SANDBOX_MODE` | `local` 或 `docker` |
-| `EIDO_GATEWAY_SECRET` | gateway 与 user container 之间的信任密钥 |
+| `EIDO_GATEWAY_SECRET` | 网关主密钥；派生每用户独立的信任凭据与模型代理凭据 |
 | `EIDO_USER_IMAGE` | 沙盒 user container 镜像 |
 | `EIDO_PROJECT_MAX_FILES` / `EIDO_PROJECT_MAX_BYTES` | 单 Project 共享资料数量/字节上限，默认 100 / 512 MiB |
 | `EIDO_USER_PROJECT_MAX_FILES` / `EIDO_USER_PROJECT_MAX_BYTES` | 单用户项目资料数量/字节上限，默认 500 / 2 GiB |
@@ -332,11 +319,10 @@ npm run build
 ## 参考文档
 
 - `quick-start.md`：本地、Docker、模型配置和技能目录的详细快速开始。
-- `docs/local-agent-overview.md`：Local Agent 功能全景、架构、数据边界与使用路径。
-- `docs/browser-extension-local-agent-design.md`：Chrome 插件本机 OpenCode Runtime 技术方案。
-- `docs/browser-extension-opencode-launch-design.md`：插件唤起 OpenCode 与 Native Launcher 技术方案。
 - `docs/architecture.md`：单租户与沙盒模式架构。
 - `docs/api.md`：后端 API 说明。
 - `docs/project-design.md`：Project 数据、上下文、并发、文件与发布设计。
 - `docs/skill-secret-protection.md`：技能密钥保护方案。
 - `frontend-extension/README.md`：Chrome 插件构建、登录和空白页排查。
+
+本次原生能力、性能、隔离与升级说明见 [Claude Code 平台优化记录](docs/claude-native-platform-optimization.md)。

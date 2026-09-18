@@ -1,7 +1,6 @@
 # Eido Project 技术方案与发布约束
 
-> 状态：Project v1 实施基线。本文中的 Project 指 Eido 云端业务对象，不等同于
-> Chrome 本机模式的 OpenCode 项目目录。
+> 状态：Project v1 实施基线。Project 是 Eido 的项目上下文容器，统一关联服务端 Claude Code 会话。
 
 ## 1. 范围与非目标
 
@@ -24,7 +23,6 @@ Project v1 是**当前用户私有**的对话与上下文容器：
 | Chat Session | 一条 Eido 对话，API 仍使用 `/sessions` |
 | Session Workspace | `.eido/workspaces/<session_id>/`，该会话的上传与产物目录 |
 | Project Files | `.eido/projects/<project_id>/files/`，项目级共享文件副本 |
-| OpenCode Project Directory | Chrome 本机模式选择的本地目录，只保存在本机 |
 | Auth Session | CAS 登录 Cookie，与 Chat Session 无关 |
 
 代码中的 `Settings.PROJECT_NAME` 和 Claude Code 的 `setting_sources=["project"]` 也不表示
@@ -110,7 +108,7 @@ CREATE INDEX idx_project_files_project
 ```
 
 将会话加入、移出或移动到另一个 Project 时，**不得移动** `workspaces/<session_id>`。
-历史消息可能保存绝对路径，Claude Code/OpenCode 原生 Session 也可能绑定原 cwd；移动目录
+历史消息可能保存绝对路径，Claude Code 原生 Session 也可能绑定原 cwd；移动目录
 会破坏历史文件链接和续聊。
 
 将生成结果晋升为项目资料采用复制语义：来源会话必须由当前用户拥有且在请求时仍属于目标
@@ -131,7 +129,7 @@ Project 名称、说明、指令或文件发生变化时递增 `context_revision
 `applied_context_revision` 用于记录会话最后应用的版本，不应由客户端自行指定。
 
 Chat 启动前必须在服务端比较 `applied_context_revision` 与当前 Project 的
-`context_revision`。首次应用或版本不一致时，先以事务清空该会话的 Claude/OpenCode 原生
+`context_revision`。首次应用或版本不一致时，先以事务清空该会话的 Claude Code 原生
 Session ID，再驱逐现有 Claude Code 会话缓存，然后把本次快照版本写入
 `applied_context_revision`。这样下一次执行不会续接仍包含旧项目指令或旧文件清单的原生上下文。
 
@@ -156,7 +154,7 @@ SQLite 写事务中完成。
 上传入口在解析 multipart 请求体之前获取用户级上传锁和 Project 共享租约，反向代理关闭请求体
 缓冲；解析器按当前剩余容量截断输入，避免并发请求先在代理或临时目录完整落盘。
 
-`cwd` 只是 Agent 的默认目录，不是同一用户内的 OS 安全边界。Claude/OpenCode 可以使用 Bash、
+`cwd` 只是 Agent 的默认目录，不是同一用户内的 OS 安全边界。Claude Code 可以使用 Bash、
 Read、Write 等工具，因此 Project v1 是组织和上下文边界；真正的跨用户安全边界仍是 per-user
 container、`user_id` 校验和文件 API 的安全路径解析。
 
@@ -189,18 +187,7 @@ Project ID、Project File ID 和磁盘 `storage_name` 由服务端随机生成�
 
 PC、移动 H5 和 Chrome 的云端模式共享服务端 Project API，因此可以跨设备同步。
 
-Chrome 本机 OpenCode 模式保持现有隐私边界：
-
-- 本地项目目录、文件、会话和 OpenCode Session 映射不上传 Eido。
-- 本机模式不调用 Eido `projects/chat/sessions/skills/workspace/tasks/sandbox` API；除认证外只与
-  回环地址上的 OpenCode 通信。
-- 本地 Project ID 与云端 Project ID 不共用命名空间。
-- 若后续在本机模式支持项目列表，存储键必须带 schema 版本，并将
-  `{local_project_id, session_id, endpoint, canonical_directory, provider_session_id}` 一起绑定。
-- 文件列表、预览和发送请求必须使用会话绑定的目录快照，不能只读取当前全局 `/path`。
-
-因此，云端 Project 不提供“同步到本机目录”开关；目录同步需要独立的用户确认、冲突处理和
-凭据安全设计。
+所有前端统一通过服务端 Claude Code 执行，项目和会话沿用同一套归属校验。
 
 ## 7. SQLite 迁移
 
@@ -208,7 +195,6 @@ Chrome 本机 OpenCode 模式保持现有隐私边界：
 
 1. `chat_sessions` 只有基础字段；
 2. 增加 `claude_session_id`；
-3. 再增加 `opencode_session_id`；
 4. 部分实际旧库的 `chat_messages` 仍以 `id` 为单主键，而当前目标是
    `(session_id, id)` 复合主键。
 
@@ -256,5 +242,4 @@ ChatSessionStore 已连接、schema version 达标、`foreign_key_check` 通过�
 - 删除 Project 后会话、消息和 Session Workspace 均保留且变为未归类。
 - Project 文件上传、导入、读取和删除均经过归属与路径越界校验。
 - PC、移动 H5、Chrome 云端模式展示一致；旧客户端不传 `project_id` 仍可聊天。
-- Chrome 本机模式切换目录后不会串用 OpenCode Session，且不产生 Eido Project 请求。
 - 单容器和 sandbox 容器重建后，Project、会话和文件仍存在。

@@ -29,7 +29,6 @@ docker run -d -p 80:80 \
   -e ANTHROPIC_API_KEY=your_minimax_api_key \
   -v ~/.claude:/workspace/.claude \
   -v ~/eido-logs/app:/var/log/eido/app \
-  -v ~/eido-logs/litellm:/var/log/eido/litellm \
   -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 
@@ -43,6 +42,5 @@ docker run -d -p 80:80 \
   -e CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
   -v ~/.claude:/workspace/.claude \
   -v ~/eido-logs/app:/var/log/eido/app \
-  -v ~/eido-logs/litellm:/var/log/eido/litellm \
   -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest

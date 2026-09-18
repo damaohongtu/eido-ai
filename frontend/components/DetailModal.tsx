@@ -53,7 +53,7 @@ const DetailModal: React.FC<DetailModalProps> = ({ visible, onClose, item, type 
           <div className="flex items-start space-x-4">
             <div className="flex-shrink-0">
               <div className="w-16 h-16 rounded-2xl bg-gray-600 flex items-center justify-center text-3xl shadow-lg">
-                {isTool ? tool?.icon : agent?.avatar}
+                {isTool ? tool?.icon : agent?.icon}
               </div>
             </div>
             <div className="flex-1">

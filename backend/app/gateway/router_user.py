@@ -171,3 +171,11 @@ async def sandbox_status(user_id: str = Depends(resolve_user_id)):
         "container": row["container_name"],
         "last_active_at": row["last_active_at"],
     }
+
+
+@router.get("/chat/models")
+async def proxy_models(user_id: str = Depends(resolve_user_id)):
+    # Catalog is configuration, so opening the selector need not boot a container.
+    from app.api.v1.endpoints.chat import list_models
+
+    return await list_models(user_id)

@@ -2,13 +2,14 @@
 API router aggregator for v1 endpoints.
 
 布局思路：
-- gateway / 单租户模式（默认）：聚合所有路由 — auth, chat, sessions, workspace, skills, tasks, workflow
+- gateway / 单租户模式（默认）：聚合所有路由 — auth, chat, sessions, workspace, skills, tasks
 - sandbox 模式（gateway 启用 docker，EIDO_SANDBOX_MODE=docker）：
   gateway 进程把 chat/sessions/workspace/upload 替换成 router_user 反代到用户容器；
-  其余路由（auth, skills, tasks, workflow）继续走 gateway 自身。
+  其余路由（auth, skills, tasks）继续走 gateway 自身。
 
 user 沙箱容器内：路由聚合走 _user_only_router()，仅保留 chat / sessions / workspace。
 """
+
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
@@ -20,7 +21,6 @@ from app.api.v1.endpoints import (
     sessions,
     skills,
     tasks,
-    workflow,
     workspace,
 )
 from app.core.config import settings
@@ -39,6 +39,9 @@ api_router = APIRouter()
 
 
 if _is_user_sandbox_runtime():
+    from app.gateway.runtime import router as runtime_router
+
+    api_router.include_router(runtime_router, tags=["internal"])
     # eido-user 容器：仅暴露业务执行路由
     api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
     api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
@@ -48,12 +51,14 @@ if _is_user_sandbox_runtime():
     api_router.include_router(search.router, prefix="/search", tags=["search"])
 elif _is_gateway_sandbox_mode():
     # eido-gateway：业务路由用反代，其它路由直连
+    from app.gateway import provider
+
+    api_router.include_router(provider.router, tags=["provider"])
     from app.gateway import router_user  # 延迟导入，避免单镜像部署时强依赖 docker SDK
 
     api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
     api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
     api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
-    api_router.include_router(workflow.router, prefix="/workflow", tags=["workflow"])
     api_router.include_router(router_user.router, tags=["sandbox-proxy"])
 else:
     # 默认/单租户：保留原有聚合
@@ -62,7 +67,6 @@ else:
     api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
     api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
     api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
-    api_router.include_router(workflow.router, prefix="/workflow", tags=["workflow"])
     api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
     api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
     api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])

@@ -2,6 +2,7 @@
 SQLite-based storage for scheduled tasks.
 All methods accept user_id and filter by it for strict isolation.
 """
+
 import json
 import logging
 import sqlite3
@@ -78,7 +79,16 @@ class ScheduledTaskStore:
         self.conn.execute(
             "INSERT INTO scheduled_tasks (id, user_id, name, schedule, type, params_json, enabled, created_at, updated_at)"
             " VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)",
-            (task_id, user_id, name, schedule, task_type, json.dumps(params, ensure_ascii=False), now, now),
+            (
+                task_id,
+                user_id,
+                name,
+                schedule,
+                task_type,
+                json.dumps(params, ensure_ascii=False),
+                now,
+                now,
+            ),
         )
         self.conn.commit()
         return self.get(user_id, task_id)  # type: ignore
@@ -107,8 +117,8 @@ class ScheduledTaskStore:
     def list_all_enabled(self) -> list[dict]:
         """For scheduler startup: load all enabled tasks across users."""
         return [
-            _row_to_dict(r) for r in
-            self.conn.execute("SELECT * FROM scheduled_tasks WHERE enabled = 1").fetchall()
+            _row_to_dict(r)
+            for r in self.conn.execute("SELECT * FROM scheduled_tasks WHERE enabled = 1").fetchall()
         ]
 
     def update(self, user_id: str, task_id: str, **fields) -> Optional[dict]:

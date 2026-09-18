@@ -1,4 +1,5 @@
 """Process-local execution guard for chat sessions and Projects."""
+
 from __future__ import annotations
 
 import threading
@@ -38,9 +39,7 @@ class ChatExecutionGuard:
         self._project_writers: dict[str, str] = {}
         self._active_upload_users: set[str] = set()
 
-    def try_acquire(
-        self, session_id: str, *, project_id: Optional[str] = None
-    ) -> bool:
+    def try_acquire(self, session_id: str, *, project_id: Optional[str] = None) -> bool:
         """Acquire a session and its optional Project reader atomically."""
         with self._lock:
             if session_id in self._active:
@@ -127,6 +126,10 @@ class ChatExecutionGuard:
         readers.discard(lease.token)
         if not readers:
             del self._project_readers[lease.project_id]
+
+    def active_count(self) -> int:
+        with self._lock:
+            return len(self._active) + len(self._active_upload_users) + len(self._project_writers)
 
     def is_active(self, session_id: str) -> bool:
         with self._lock:

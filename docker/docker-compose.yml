@@ -35,16 +35,17 @@ services:
       - EIDO_SANDBOX_MODE=local
       # 会话、项目元数据与工作区统一落到持久卷 /data；避免重建单容器后丢失。
       - EIDO_DATA_ROOT=/data
-      - AGENT_HARNESS=${AGENT_HARNESS:-claude_code}
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+      - 'CLAUDE_MODELS=${CLAUDE_MODELS:-["sonnet","opus","haiku"]}'
+      - CLAUDE_EFFORT=${CLAUDE_EFFORT:-}
+      - CLAUDE_COMPACT_PERCENT=${CLAUDE_COMPACT_PERCENT:-80}
+      - CLAUDE_SIMPLE_SYSTEM_PROMPT=${CLAUDE_SIMPLE_SYSTEM_PROMPT:-true}
       - ANTHROPIC_SMALL_FAST_MODEL=${ANTHROPIC_SMALL_FAST_MODEL:-}
       - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
       - CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-0}
-      - OPENCODE_MODEL=${OPENCODE_MODEL:-}
-      - OPENCODE_CONFIG_CONTENT=${OPENCODE_CONFIG_CONTENT:-}
       - AUTH_DISABLED=${AUTH_DISABLED:-True}
       - CAS_SERVER_URL=${CAS_SERVER_URL:-}
       - CAS_SERVICE_URL=${CAS_SERVICE_URL:-}
@@ -59,7 +60,6 @@ services:
       - ${CLAUDE_DIR:-~/.claude}:/workspace/.claude
       - eido-data:/data
       - ${LOG_DIR:-~/eido-logs}/app:/var/log/eido/app
-      - ${LOG_DIR:-~/eido-logs}/litellm:/var/log/eido/litellm
       - ${LOG_DIR:-~/eido-logs}/nginx:/var/log/eido/nginx
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/ai-eido/health"]
@@ -83,27 +83,32 @@ services:
       - EIDO_SANDBOX_MODE=docker
       - EIDO_USER_IMAGE=${EIDO_USER_IMAGE:-damaohongtu/eido-user:latest}
       - EIDO_NET=eido-net
+      - EIDO_GATEWAY_CONTAINER=eido-gateway
+      - EIDO_GATEWAY_INTERNAL_URL=http://eido-gateway/ai-eido
       - EIDO_SANDBOX_IDLE_TTL=${EIDO_SANDBOX_IDLE_TTL:-900}
       - EIDO_USER_MEM=${EIDO_USER_MEM:-2g}
       - EIDO_USER_CPUS=${EIDO_USER_CPUS:-1.0}
       - EIDO_USER_PIDS_LIMIT=${EIDO_USER_PIDS_LIMIT:-500}
+      - EIDO_USER_TMPFS_SIZE=${EIDO_USER_TMPFS_SIZE:-512m}
+      - EIDO_SANDBOX_HEALTH_TTL=${EIDO_SANDBOX_HEALTH_TTL:-15}
       - EIDO_GATEWAY_SECRET=${EIDO_GATEWAY_SECRET:?gateway secret 必填}
       - EIDO_USER_INTERNAL_PORT=8000
       # 受信网关头开关：仅 user 容器需要，gateway 必须为 0
       # 否则 gateway 误入 user-runtime 分支，丢失 auth 等路由
       - EIDO_TRUST_GATEWAY=0
-      - AGENT_HARNESS=${AGENT_HARNESS:-claude_code}
       # 宿主机 .claude 绝对路径（run.sh 已将 ~ 展开为 $HOME），sandbox_manager 需宿主侧路径做 bind-mount
       - CLAUDE_DIR=${CLAUDE_DIR:-~/.claude}
-      # gateway 自身的 LLM 凭据用于调度/技能加载；user 容器会通过 SDK env 注入再次拷贝
+      # 主模型凭据仅保留在 gateway；user 容器使用独立凭据访问 provider relay
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-}
+      - 'CLAUDE_MODELS=${CLAUDE_MODELS:-["sonnet","opus","haiku"]}'
+      - CLAUDE_EFFORT=${CLAUDE_EFFORT:-}
+      - CLAUDE_COMPACT_PERCENT=${CLAUDE_COMPACT_PERCENT:-80}
+      - CLAUDE_SIMPLE_SYSTEM_PROMPT=${CLAUDE_SIMPLE_SYSTEM_PROMPT:-true}
       - ANTHROPIC_SMALL_FAST_MODEL=${ANTHROPIC_SMALL_FAST_MODEL:-}
       - API_TIMEOUT_MS=${API_TIMEOUT_MS:-300000}
-      - OPENCODE_MODEL=${OPENCODE_MODEL:-}
-      - OPENCODE_CONFIG_CONTENT=${OPENCODE_CONFIG_CONTENT:-}
       - AUTH_DISABLED=${AUTH_DISABLED:-False}
       - CAS_SERVER_URL=${CAS_SERVER_URL:-}
       - CAS_SERVICE_URL=${CAS_SERVICE_URL:-}

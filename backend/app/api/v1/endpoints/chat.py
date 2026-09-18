@@ -20,7 +20,6 @@ from app.core.auth import get_current_user_id
 from app.core.config import settings
 from app.core.logging_context import reset_session_id, set_session_id
 from app.schemas.chat import ChatControlRequest, ChatRequest
-from app.schemas.chat import Message as ChatMessage
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
 from app.services.project_context import load_project_context
@@ -115,6 +114,7 @@ def _accumulate_sse_event(state: dict[str, Any], payload: dict[str, Any]) -> Non
         _set_thinking(state, "✓ 执行完成")
     elif event_type == "error":
         message = payload.get("message") or "执行失败"
+        state["error"] = message
         _set_thinking(state, f"✗ 错误: {message}")
         state["content"] = f"{state.get('content', '')}\n\n**错误**: {message}".strip()
 
@@ -189,7 +189,7 @@ async def chat_completion(
     raw_request: Request,
     user_id: str = Depends(get_current_user_id),
 ):
-    """统一聊天入口：根据 AGENT_HARNESS 配置选择执行后端，流式返回。
+    """Claude Code 聊天入口，流式返回。
 
     要求请求体携带 session_id，agent cwd 会切到对应 session 工作区。
     """
@@ -208,31 +208,12 @@ async def chat_completion(
         request_session_token = set_session_id(request.session_id)
         raw_request.state.session_id = request.session_id
 
-        harness_type = (
-            request.harness or ""
-        ).strip().lower() or settings.AGENT_HARNESS.strip().lower()
+        from app.services.claude_runtime import get_claude_runtime
 
-        if harness_type == "opencode":
-            from app.services.open_code_service import get_open_code_service
-
-            svc = get_open_code_service()
-        elif harness_type == "claude_code":
-            from app.services.claude_skill_service import get_claude_skill_service
-
-            svc = get_claude_skill_service()
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"不支持的 AI 后端: {harness_type}（可选: claude_code, opencode）",
-            )
-
+        svc = get_claude_runtime()
         if svc is None:
-            raise HTTPException(status_code=503, detail=f"技能服务未初始化（{harness_type}）")
-
-        logger.info(
-            f"[{user_id}][session={request.session_id}] 收到聊天请求 - harness={harness_type} - 消息数: {len(request.messages)}"
-            + (f" [含流水线上下文 {len(request.context)} 字符]" if request.context else "")
-        )
+            raise HTTPException(status_code=503, detail="Claude Code 服务未初始化")
+        model = resolve_model(request.model)
 
         store = get_chat_session_store()
         session = store.get_session(user_id, request.session_id)
@@ -266,11 +247,11 @@ async def chat_completion(
             # Revision 变化后 provider 记忆可能仍含旧项目资料。
             # 先驱逐内存 engine，再原子清理 provider SID 并绑定本次快照。
             try:
-                from app.services.claude_skill_service import get_claude_skill_service
+                from app.services.claude_runtime import get_claude_runtime
 
-                claude_service = get_claude_skill_service()
-                if claude_service is not None:
-                    claude_service.reset_session(request.session_id)
+                claude_runtime = get_claude_runtime()
+                if claude_runtime is not None:
+                    claude_runtime.reset_session(request.session_id)
             except Exception as exc:
                 logger.error(
                     "刷新项目上下文缓存失败 session=%s: %s",
@@ -292,6 +273,7 @@ async def chat_completion(
         # 归属校验通过后再确保 session 工作区目录已创建
         get_session_workspace_manager().session_root(request.session_id)
 
+        conversation_has_history = store.has_messages(user_id, request.session_id)
         latest = request.messages[-1]
         if latest.role == "user":
             store.append_message(
@@ -302,12 +284,9 @@ async def chat_completion(
                 content=latest.content,
                 extra={},
             )
-        # 原生 provider 会话可能因 Project 移动/更新而重建。始终从服务端持久化
-        # 历史构造执行输入，避免信任客户端伪造历史，也能在重建时恢复上下文。
-        execution_messages = [
-            ChatMessage(id=item["id"], role=item["role"], content=item["content"])
-            for item in store.list_messages(request.session_id, user_id=user_id, limit=80)
-        ]
+        if latest.role != "user" or not latest.content.strip():
+            raise HTTPException(status_code=400, detail="最后一条消息必须是非空 user 输入")
+        execution_messages = [latest]
 
         async def stream_with_persistence():
             stream_session_token = set_session_id(request.session_id)
@@ -320,6 +299,8 @@ async def chat_completion(
                     user_id=user_id,
                     session_id=request.session_id,
                     project_context=project_context,
+                    model=model,
+                    conversation_has_history=conversation_has_history,
                 ):
                     payload = _parse_sse_payload(event)
                     if payload:
@@ -404,18 +385,16 @@ async def control_active_chat(
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
 
-    harness = (request.harness or settings.AGENT_HARNESS).strip().lower()
-    if harness not in {"claude_code", "opencode"}:
-        raise HTTPException(status_code=400, detail=f"不支持的 AI 后端: {harness}")
+    model = resolve_model(request.model)
     guard = get_chat_execution_guard()
     active = guard.is_active(session_id)
 
     if request.mode == "steer":
         if not active:
             raise HTTPException(status_code=409, detail="该会话当前没有可调整的执行")
-        from app.services.claude_skill_service import get_claude_skill_service
+        from app.services.claude_runtime import get_claude_runtime
 
-        service = get_claude_skill_service()
+        service = get_claude_runtime()
         if service is None:
             raise HTTPException(status_code=503, detail="Claude Code 服务未初始化")
         from app.services.chat_execution_queue import get_chat_execution_queue
@@ -456,7 +435,7 @@ async def control_active_chat(
             message_id=message_id,
             content=content,
             assistant_message_id=request.assistant_message_id,
-            harness=harness,
+            model=model,
             context=request.context,
         ),
     )
@@ -480,9 +459,9 @@ async def get_chat_queue(
     active = get_chat_execution_guard().is_active(session_id)
     steer_available = False
     if active:
-        from app.services.claude_skill_service import get_claude_skill_service
+        from app.services.claude_runtime import get_claude_runtime
 
-        service = get_claude_skill_service()
+        service = get_claude_runtime()
         steer_available = bool(
             service is not None and service.can_steer_session(user_id, session_id)
         )
@@ -519,3 +498,19 @@ async def delete_queued_chat_message(
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "chat"}
+
+
+def resolve_model(model: str | None) -> str | None:
+    selected = (model or "").strip() or settings.ANTHROPIC_MODEL.strip() or None
+    allowed = set(settings.CLAUDE_MODELS) | {settings.ANTHROPIC_MODEL.strip()}
+    if selected and selected not in allowed:
+        raise HTTPException(status_code=400, detail="模型未配置，请从模型列表选择")
+    return selected
+
+
+@router.get("/models")
+async def list_models(user_id: str = Depends(get_current_user_id)):
+    models = list(
+        dict.fromkeys(filter(None, [settings.ANTHROPIC_MODEL.strip(), *settings.CLAUDE_MODELS]))
+    )
+    return {"default": settings.ANTHROPIC_MODEL.strip() or None, "models": models}

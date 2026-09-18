@@ -1,3 +1,5 @@
+> 历史分析记录。2026-09 的实施结果与当前架构见 [Claude Code 原生平台优化](claude-native-platform-optimization.md)。
+
 # Claude Code 执行效率分析与优化报告
 
 > 分析与实施日期：2026-07-23  

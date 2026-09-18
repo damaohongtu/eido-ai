@@ -29,29 +29,34 @@ RUN apt-get -o Acquire::Retries=5 update \
     fi \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.218 opencode-ai --registry https://registry.npmmirror.com
 
 WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     -i https://mirrors.aliyun.com/pypi/simple/ \
+    --extra-index-url https://pypi.org/simple \
     --trusted-host mirrors.aliyun.com
+# Expose the SDK's bundled CLI; one pinned dependency owns both SDK and CLI.
+RUN ln -sf $(python -c 'import claude_agent_sdk,pathlib; print(pathlib.Path(claude_agent_sdk.__file__).parent / "_bundled" / "claude")') /usr/local/bin/claude
 
 COPY backend/ .
 
 # /workspace 由 gateway 挂载只读 .claude/skills，/data 由 gateway 绑定独占 volume
-RUN mkdir -p /workspace/.claude/skills /data /var/log/eido/app
+RUN mkdir -p /workspace/.claude/skills /data/home /data/cache /data/logs /var/log/eido/app
 
 ENV WORKSPACE_ROOT=/workspace
 ENV SKILLS_DIR=/workspace/.claude/skills
 ENV EIDO_DATA_ROOT=/data
 ENV EIDO_TRUST_GATEWAY=1
-ENV LOG_DIR=/var/log/eido/app
+ENV LOG_DIR=/data/logs
+ENV HOME=/data/home
+ENV XDG_CACHE_HOME=/data/cache
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV MPLCONFIGDIR=/tmp/matplotlib
 
 # 非 root 运行：volume 与 log 目录都让 eido 用户拥有
-RUN useradd -r -u 10001 -m -s /usr/sbin/nologin eido \
+RUN groupadd -g 10001 eido \
+    && useradd -r -u 10001 -g 10001 -m -s /usr/sbin/nologin eido \
     && chown -R eido:eido /app /workspace /data /var/log/eido
 
 USER eido

@@ -1,4 +1,5 @@
 """Personal Project CRUD and shared-file endpoints."""
+
 from __future__ import annotations
 
 import hashlib
@@ -83,9 +84,7 @@ class _LimitedMultipartParser(MultiPartParser):
         if self._current_part.file is not None:
             self._current_file_size += end - start
             if self._current_file_size > self._max_file_size:
-                raise MultiPartException(
-                    "文件大小超过单文件限制或当前剩余配额"
-                )
+                raise MultiPartException("文件大小超过单文件限制或当前剩余配额")
         super().on_part_data(data, start, end)
 
 
@@ -258,9 +257,7 @@ def _discard_uncommitted_file(
 
 def _copy_file(source: Path, destination: Path, *, max_size: int) -> tuple[int, str]:
     if source.stat().st_size > max_size:
-        raise HTTPException(
-            status_code=413, detail="文件大小超过单文件限制或当前剩余配额"
-        )
+        raise HTTPException(status_code=413, detail="文件大小超过单文件限制或当前剩余配额")
     temp = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.import")
     digest = hashlib.sha256()
     size = 0
@@ -357,9 +354,7 @@ async def patch_project(
             raise HTTPException(status_code=409, detail="项目正在使用或变更，暂时不能归档")
     try:
         _require_project(user_id, project_id)
-        project = get_chat_session_store().update_project(
-            user_id, project_id, **fields
-        )
+        project = get_chat_session_store().update_project(user_id, project_id, **fields)
         if project is None:
             raise HTTPException(status_code=404, detail="项目不存在")
         return project
@@ -385,9 +380,7 @@ async def delete_project(project_id: str, user_id: str = Depends(get_current_use
         affected_sessions = store.list_sessions(user_id, project_id=project_id)
         session_ids = [session["id"] for session in affected_sessions]
         if not guard.try_acquire_many(session_ids):
-            raise HTTPException(
-                status_code=409, detail="项目中有会话正在变更，暂时不能删除"
-            )
+            raise HTTPException(status_code=409, detail="项目中有会话正在变更，暂时不能删除")
         sessions_reserved = True
         deleted = store.delete_project(user_id, project_id)
         if not deleted:
@@ -403,11 +396,12 @@ async def delete_project(project_id: str, user_id: str = Depends(get_current_use
                 project_id,
             )
         try:
-            from app.services.claude_skill_service import get_claude_skill_service
-            claude_service = get_claude_skill_service()
-            if claude_service is not None:
+            from app.services.claude_runtime import get_claude_runtime
+
+            claude_runtime = get_claude_runtime()
+            if claude_runtime is not None:
                 for session in affected_sessions:
-                    claude_service.reset_session(session["id"])
+                    claude_runtime.reset_session(session["id"])
         except Exception:
             logger.exception("删除项目后驱逐 agent 会话失败 project=%s", project_id)
         return {
@@ -437,9 +431,7 @@ async def list_project_files(project_id: str, user_id: str = Depends(get_current
                     "schema": {
                         "type": "object",
                         "required": ["file"],
-                        "properties": {
-                            "file": {"type": "string", "format": "binary"}
-                        },
+                        "properties": {"file": {"type": "string", "format": "binary"}},
                     }
                 }
             },
@@ -475,9 +467,7 @@ async def upload_project_file(
         manager = get_project_workspace_manager()
         destination = manager.file_path(project_id, storage_name, create_parent=True)
         try:
-            size, sha256 = await _stream_upload(
-                file, destination, max_size=max_size
-            )
+            size, sha256 = await _stream_upload(file, destination, max_size=max_size)
             media_type = MEDIA_TYPES_BY_EXTENSION[ext]
             record = store.add_project_file(
                 user_id,
@@ -619,9 +609,7 @@ async def get_project_file(
         if record is None:
             raise HTTPException(status_code=404, detail="项目资料不存在")
         try:
-            path = get_project_workspace_manager().file_path(
-                project_id, record["storage_name"]
-            )
+            path = get_project_workspace_manager().file_path(project_id, record["storage_name"])
         except ValueError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         if not path.exists() or not path.is_file():
@@ -670,9 +658,7 @@ async def delete_project_file(
         raise HTTPException(status_code=409, detail="项目正在使用或变更，暂时不能删除资料")
     try:
         _require_project(user_id, project_id)
-        record = store.get_project_file(
-            user_id, project_id, file_id, include_storage=True
-        )
+        record = store.get_project_file(user_id, project_id, file_id, include_storage=True)
         if record is None:
             raise HTTPException(status_code=404, detail="项目资料不存在")
         deleted = store.delete_project_file(user_id, project_id, file_id)
@@ -680,9 +666,7 @@ async def delete_project_file(
             raise HTTPException(status_code=404, detail="项目资料不存在")
         cleanup_pending = False
         try:
-            get_project_workspace_manager().remove_file(
-                project_id, record["storage_name"]
-            )
+            get_project_workspace_manager().remove_file(project_id, record["storage_name"])
             store.complete_storage_cleanup(
                 resource_type="file",
                 project_id=project_id,

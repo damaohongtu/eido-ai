@@ -7,6 +7,7 @@
 
 所有写操作都要求登录；admin 通过 EIDO_ADMIN_USERS 白名单识别。
 """
+
 import io
 import logging
 import re
@@ -19,7 +20,7 @@ from pydantic import BaseModel
 
 from app.core.auth import get_current_user_id
 from app.core.config import settings
-from app.services.claude_skill_service import get_claude_skill_service
+from app.services.claude_runtime import get_claude_runtime
 from app.services.skill_management_service import get_skill_management_service
 
 router = APIRouter()
@@ -33,8 +34,10 @@ ALLOWED_EXTENSIONS = {".zip", ".md", ".skill"}
 #  Response Schemas                                                    #
 # ------------------------------------------------------------------ #
 
+
 class SkillResponse(BaseModel):
     """单个技能的响应体，兼容前端 Skill interface"""
+
     id: str
     name: str
     description: str
@@ -93,6 +96,7 @@ class FileMkdirRequest(BaseModel):
 #  Helpers                                                             #
 # ------------------------------------------------------------------ #
 
+
 def _meta_to_response(meta, *, viewer_user_id: Optional[str] = None) -> SkillResponse:
     """把 SkillMeta 转成响应；is_owner 表示 viewer 是否对该技能有写权限。"""
     if meta.owner_type == "system":
@@ -129,6 +133,7 @@ def _meta_to_response(meta, *, viewer_user_id: Optional[str] = None) -> SkillRes
 #  Endpoints                                                           #
 # ------------------------------------------------------------------ #
 
+
 @router.get("/", response_model=SkillListResponse)
 async def list_skills(
     skip: int = Query(0, ge=0),
@@ -138,7 +143,7 @@ async def list_skills(
     user_id: str = Depends(get_current_user_id),
 ):
     """获取技能列表：system 区 + 当前用户私有区。"""
-    svc = get_claude_skill_service()
+    svc = get_claude_runtime()
     if svc is None:
         raise HTTPException(status_code=503, detail="技能服务未初始化")
 
@@ -152,7 +157,7 @@ async def list_skills(
         skills = [s for s in skills if s.is_system == is_system]
 
     total = len(skills)
-    skills = skills[skip: skip + limit]
+    skills = skills[skip : skip + limit]
 
     logger.info(f"返回 {len(skills)} 个技能，共 {total} 个 user={user_id}")
     return SkillListResponse(
@@ -170,7 +175,7 @@ async def upload_skill(
 
     admin 上传 → system/<id>；普通用户上传 → users/<self>/<id>。
     """
-    svc = get_claude_skill_service()
+    svc = get_claude_runtime()
     mgmt_svc = get_skill_management_service()
     if svc is None or mgmt_svc is None:
         raise HTTPException(status_code=503, detail="技能服务未初始化")
@@ -193,13 +198,9 @@ async def upload_skill(
 
     try:
         if ext == ".zip" or ext == ".skill":
-            meta = _extract_zip_skill(
-                content, file.filename or "skill.zip", target_root, user_id
-            )
+            meta = _extract_zip_skill(content, file.filename or "skill.zip", target_root, user_id)
         else:  # .md
-            meta = _save_md_skill(
-                content, file.filename or "skill.md", target_root, user_id
-            )
+            meta = _save_md_skill(content, file.filename or "skill.md", target_root, user_id)
         svc.invalidate_skill_cache(
             user_id=user_id,
             system=(meta.owner_type == "system"),
@@ -218,7 +219,7 @@ async def get_skill(
     user_id: str = Depends(get_current_user_id),
 ):
     """获取单个技能详情（system 任意人可读，私有仅 owner 可读）。"""
-    svc = get_claude_skill_service()
+    svc = get_claude_runtime()
     if svc is None:
         raise HTTPException(status_code=503, detail="技能服务未初始化")
 
@@ -417,6 +418,7 @@ def _parse_name_from_frontmatter(content: bytes) -> Optional[str]:
             end = text.find("\n---", 3)
             if end > 0:
                 import yaml
+
                 meta = yaml.safe_load(text[4:end]) or {}
                 return meta.get("name")
     except Exception:
@@ -473,12 +475,12 @@ def _extract_zip_skill(content: bytes, filename: str, target_root: Path, user_id
             if prefix and not n.replace("\\", "/").startswith(prefix):
                 continue
             data = zf.read(n)
-            rel = n.replace("\\", "/")[len(prefix):] if prefix else n
+            rel = n.replace("\\", "/")[len(prefix) :] if prefix else n
             out = target_dir / rel
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(data)
 
-    svc = get_claude_skill_service()
+    svc = get_claude_runtime()
     return svc.get_skill(skill_id, user_id=user_id)
 
 
@@ -497,5 +499,5 @@ def _save_md_skill(content: bytes, filename: str, target_root: Path, user_id: st
     target_dir.mkdir(parents=True)
     (target_dir / "SKILL.md").write_bytes(content)
 
-    svc = get_claude_skill_service()
+    svc = get_claude_runtime()
     return svc.get_skill(skill_id, user_id=user_id)

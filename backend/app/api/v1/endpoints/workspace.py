@@ -4,6 +4,7 @@
 - 不传 session_id 时：仅兼容历史 uploads/output/outputs 目录的只读预览/下载
 - 传 session_id 时：根收窄到 `.eido/workspaces/<session_id>/`，杜绝跨会话窥探
 """
+
 import logging
 import mimetypes
 from pathlib import Path
@@ -34,9 +35,7 @@ DATA_ROOT = settings.data_root.resolve()
 LEGACY_FILE_ROOTS = tuple(
     (WORKSPACE_ROOT / name).resolve() for name in ("uploads", "output", "outputs")
 )
-FORCE_ATTACHMENT_EXT = FORCE_ATTACHMENT_FILE_EXTENSIONS | {
-    ".xhtml", ".mhtml", ".mht"
-}
+FORCE_ATTACHMENT_EXT = FORCE_ATTACHMENT_FILE_EXTENSIONS | {".xhtml", ".mhtml", ".mht"}
 
 
 def _content_disposition_type(
@@ -70,9 +69,7 @@ def _resolve_global_path(path_str: str) -> Path:
         pass
     else:
         raise HTTPException(status_code=403, detail="持久化数据必须通过受归属校验的接口访问")
-    if not any(
-        resolved == root or root in resolved.parents for root in LEGACY_FILE_ROOTS
-    ):
+    if not any(resolved == root or root in resolved.parents for root in LEGACY_FILE_ROOTS):
         raise HTTPException(status_code=403, detail="旧路径仅允许访问 uploads/output/outputs")
     return resolved
 
@@ -131,9 +128,7 @@ async def get_workspace_file(
         resolved,
         media_type=media_type,
         filename=download_name,
-        content_disposition_type=_content_disposition_type(
-            ext, download, preview, media_type
-        ),
+        content_disposition_type=_content_disposition_type(ext, download, preview, media_type),
         headers=file_response_security_headers(
             ext, download=download, preview=preview, media_type=media_type
         ),

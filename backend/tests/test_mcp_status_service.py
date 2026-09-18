@@ -61,9 +61,7 @@ async def test_status_reports_tool_counts_skips_disabled_and_caches(
 
 
 @pytest.mark.asyncio
-async def test_status_sanitizes_probe_errors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-):
+async def test_status_sanitizes_probe_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     store = McpConfigStore(tmp_path / "mcp.db")
     store.connect()
     monkeypatch.setattr(store_module, "_instance", store)

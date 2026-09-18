@@ -15,7 +15,7 @@ cachetools==6.2.4
 certifi==2026.1.4
 cffi==2.0.0
 charset-normalizer==3.4.4
-claude-agent-sdk==0.2.126
+claude-agent-sdk==0.2.156
 click==8.3.1
 cloudpickle==3.1.2
 cos_python_sdk_v5==1.9.41

@@ -1,4 +1,5 @@
 """User-managed MCP server configuration endpoints."""
+
 from __future__ import annotations
 
 import re
@@ -129,25 +130,21 @@ class McpConfigFile(BaseModel):
 
     @field_validator("mcpServers")
     @classmethod
-    def validate_servers(
-        cls, values: dict[str, McpFileServer]
-    ) -> dict[str, McpFileServer]:
+    def validate_servers(cls, values: dict[str, McpFileServer]) -> dict[str, McpFileServer]:
         if len(values) > 64:
             raise ValueError("MCP Server 不能超过 64 个")
         for name in values:
             if not _NAME_RE.fullmatch(name):
-                raise ValueError(
-                    f"MCP 名称 {name!r} 无效：仅支持字母、数字、下划线和连字符"
-                )
+                raise ValueError(f"MCP 名称 {name!r} 无效：仅支持字母、数字、下划线和连字符")
         return values
 
 
 def _invalidate_user(user_id: str) -> None:
-    from app.services.claude_skill_service import get_claude_skill_service
+    from app.services.claude_runtime import get_claude_runtime
     from app.services.mcp_status_service import clear_mcp_status_cache
 
     clear_mcp_status_cache(user_id)
-    service = get_claude_skill_service()
+    service = get_claude_runtime()
     if service is not None:
         service.reset_user(user_id)
 
@@ -168,9 +165,7 @@ async def get_config_file(user_id: str = Depends(get_current_user_id)):
 
 
 @router.put("/config")
-async def replace_config_file(
-    body: McpConfigFile, user_id: str = Depends(get_current_user_id)
-):
+async def replace_config_file(body: McpConfigFile, user_id: str = Depends(get_current_user_id)):
     normalized = {
         name: {
             "transport": server.type,
@@ -193,18 +188,14 @@ async def list_servers(user_id: str = Depends(get_current_user_id)):
 
 
 @router.get("/status")
-async def server_statuses(
-    refresh: bool = False, user_id: str = Depends(get_current_user_id)
-):
+async def server_statuses(refresh: bool = False, user_id: str = Depends(get_current_user_id)):
     from app.services.mcp_status_service import get_mcp_server_statuses
 
     return await get_mcp_server_statuses(user_id, refresh=refresh)
 
 
 @router.post("/servers")
-async def create_server(
-    body: McpServerPayload, user_id: str = Depends(get_current_user_id)
-):
+async def create_server(body: McpServerPayload, user_id: str = Depends(get_current_user_id)):
     try:
         result = get_mcp_config_store().create_server(
             user_id,

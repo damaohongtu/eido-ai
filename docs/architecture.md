@@ -27,7 +27,7 @@ graph TB
         end
 
         subgraph 服务层["services/"]
-            SVC_Skill["claude_skill_service<br/>技能扫描 · Prompt 构建<br/>cwd=session 工作区"]
+            SVC_Skill["claude_runtime<br/>技能扫描 · Prompt 构建<br/>cwd=session 工作区"]
             SVC_WS["session_workspace  ←  新增<br/>按 session_id 隔离目录"]
             SVC_Store["chat_session_store  ←  新增<br/>SQLite 持久化"]
             SVC_TaskStore["scheduled_task_store"]
@@ -239,7 +239,7 @@ sequenceDiagram
 | 后端服务 | `backend/app/services/session_workspace.py` | 会话工作区管理（路径白名单 + 安全解析） |
 | 后端服务 | `backend/app/services/project_workspace.py` | 项目共享文件管理；不移动会话目录 |
 | 后端服务 | `backend/app/services/chat_session_store.py` | SQLite 持久化 |
-| 后端服务 | `backend/app/services/claude_skill_service.py` | 切 cwd + 注入技能库绝对路径 |
+| 后端服务 | `backend/app/services/claude_runtime.py` | 切 cwd + 注入技能库绝对路径 |
 
 ---
 

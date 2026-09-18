@@ -121,7 +121,7 @@ def markdown_preview_response(path: Path, display_name: str | None = None) -> HT
     rendered = _MARKDOWN.render(source)
     title = html.escape(display_name or path.name)
     document = (
-        "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f"<title>{title}</title><style>{_MARKDOWN_PREVIEW_STYLE}</style>"
         f"</head><body><main>{rendered}</main></body></html>"

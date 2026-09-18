@@ -18,7 +18,7 @@ export interface Attachment {
 interface UseChatSendArgs {
   session: ChatSession | null;
   skills: Skill[];
-  harness: string;
+  model: string;
   addMessage: (sessionId: string, msg: Message) => void;
   updateMessage: (sessionId: string, id: string, updates: Partial<Message>) => void;
   browserContext?: string;
@@ -33,7 +33,7 @@ interface UseChatSendArgs {
 export function useChatSend({
   session,
   skills,
-  harness,
+  model,
   addMessage,
   updateMessage,
   browserContext,
@@ -77,7 +77,7 @@ export function useChatSend({
   );
 
   const runSingle = useCallback(
-    async (sessionId: string, msgs: Message[], assistantId: string, localAgentHint?: string) => {
+    async (sessionId: string, msgs: Message[], assistantId: string, skillHint?: string) => {
       abortRef.current = new AbortController();
       try {
         await agentRuntime.streamChat(
@@ -86,15 +86,15 @@ export function useChatSend({
           sessionId,
           assistantId,
           browserContext || undefined,
-          agentRuntime.isLocal ? localAgentHint : undefined,
+          skillHint,
           abortRef.current.signal,
-          harness
+          model
         );
       } finally {
         delete thinkingLogsRef.current[assistantId];
       }
     },
-    [harness, makeUpdater, browserContext, agentRuntime]
+    [model, makeUpdater, browserContext, agentRuntime]
   );
 
   const runPipeline = useCallback(
@@ -130,7 +130,7 @@ export function useChatSend({
             [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
             skill.id,
             abortRef.current?.signal,
-            harness
+            model
           );
         } catch {
           delete thinkingLogsRef.current[assistantId];
@@ -141,19 +141,14 @@ export function useChatSend({
         contextMessages = [...contextMessages, { ...placeholder, content: finalContent }];
       }
     },
-    [harness, addMessage, makeUpdater, browserContext, agentRuntime]
+    [model, addMessage, makeUpdater, browserContext, agentRuntime]
   );
 
   const buildContentWithAttachments = (text: string, attachments: Attachment[]): string => {
     if (attachments.length === 0) return text.trim();
     const parts: string[] = [text.trim()];
-    if (agentRuntime.isLocal) {
-      parts.push('\n\n---\n\n**用户随当前请求发送的本机附件:**\n');
-      for (const attachment of attachments) parts.push(`\n- ${attachment.name}\n`);
-    } else {
-      parts.push('\n\n---\n\n**用户上传的文件（已保存至服务端，可直接读取）:**\n');
-      for (const attachment of attachments) parts.push(`\n- ${attachment.name}: \`${attachment.path}\`\n`);
-    }
+    parts.push('\n\n---\n\n**用户上传的文件（已保存至服务端，可直接读取）:**\n');
+    for (const attachment of attachments) parts.push(`\n- ${attachment.name}: \`${attachment.path}\`\n`);
     return parts.join('');
   };
 

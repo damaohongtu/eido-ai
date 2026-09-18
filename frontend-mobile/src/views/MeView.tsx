@@ -1,3 +1,4 @@
+import ModelSelector from '../../../frontend/components/ModelSelector';
 import React from 'react';
 import { NavBar, Dialog } from 'antd-mobile';
 import type { EidoStore } from '../hooks/useEidoStore';
@@ -7,16 +8,9 @@ const MeView: React.FC<{
   store: EidoStore;
   onOpenMenu: () => void;
   debugControl?: React.ReactNode;
-  runtimeControl?: React.ReactNode;
-  cloudRuntimeActive?: boolean;
-}> = ({ store, onOpenMenu, debugControl, runtimeControl, cloudRuntimeActive = true }) => {
-  const { currentUser, harness, setHarness, logout } = store;
+}> = ({ store, onOpenMenu, debugControl }) => {
+  const { currentUser, model, setModel, logout } = store;
   const displayName = currentUser?.username?.trim() || currentUser?.user_id || '用户';
-  const harnessOptions = [
-    { value: 'claude_code', short: 'CC', label: 'Claude Code' },
-    { value: 'opencode', short: 'OC', label: 'OpenCode' },
-  ];
-  const harnessLabel = harnessOptions.find(option => option.value === harness)?.label || 'Claude Code';
 
   const confirmLogout = async () => {
     const ok = await Dialog.confirm({ content: '确认登出？', confirmText: '登出', cancelText: '取消' });
@@ -40,36 +34,9 @@ const MeView: React.FC<{
           </div>
         </div>
 
-        {runtimeControl ? (
-          <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">
-            {runtimeControl}
-          </div>
-        ) : null}
 
-        <div className={`mb-4 overflow-hidden rounded-2xl bg-white shadow-sm ${cloudRuntimeActive ? '' : 'opacity-50'}`}>
-          <div className="flex items-center justify-between px-5 py-4">
-            <div>
-              <div className="text-[15px] font-semibold text-gray-800">AI 后端</div>
-              <div className="text-xs text-gray-400">
-                {harnessLabel}
-              </div>
-            </div>
-            <div className="inline-flex items-center gap-1 rounded-full bg-gray-100 p-1">
-              {harnessOptions.map(option => (
-                <button
-                  key={option.value}
-                  onClick={() => setHarness(option.value)}
-                  disabled={!cloudRuntimeActive}
-                  aria-pressed={harness === option.value}
-                  className={`rounded-full px-2.5 py-1 text-xs font-bold transition-colors ${
-                    harness === option.value ? 'bg-white text-gray-800 shadow' : 'text-gray-400'
-                  }`}
-                >
-                  {option.short}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="mb-4 rounded-2xl bg-white p-5 shadow-sm">
+          <ModelSelector value={model} onChange={setModel} />
         </div>
 
         {debugControl ? (

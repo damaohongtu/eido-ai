@@ -1,4 +1,5 @@
 """Central file-extension and MIME policy for uploads and generated artifacts."""
+
 from __future__ import annotations
 
 SUPPORTED_FILE_MEDIA_TYPES = {
@@ -73,11 +74,28 @@ SUPPORTED_FILE_EXTENSIONS = frozenset(SUPPORTED_FILE_MEDIA_TYPES)
 # These formats should be downloaded unless a dedicated, sandboxed preview is used.
 FORCE_ATTACHMENT_FILE_EXTENSIONS = frozenset(
     {
-        ".html", ".htm", ".svg", ".xml",
-        ".doc", ".docx", ".odt", ".rtf",
-        ".ppt", ".pptx", ".odp",
-        ".xls", ".xlsx", ".xlsm", ".xlsb", ".ods",
-        ".epub", ".zip", ".tar", ".gz", ".tgz", ".7z",
+        ".html",
+        ".htm",
+        ".svg",
+        ".xml",
+        ".doc",
+        ".docx",
+        ".odt",
+        ".rtf",
+        ".ppt",
+        ".pptx",
+        ".odp",
+        ".xls",
+        ".xlsx",
+        ".xlsm",
+        ".xlsb",
+        ".ods",
+        ".epub",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".tgz",
+        ".7z",
     }
 )
 

@@ -162,13 +162,13 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [harness, setHarness] = useState<string>(() =>
-    readStorage<string>('eido_harness', 'claude_code')
+  const [model, setModel] = useState<string>(() =>
+    readStorage<string>('eido_model', '')
   );
 
   useEffect(() => {
-    writeStorage('eido_harness', harness);
-  }, [harness]);
+    writeStorage('eido_model', model);
+  }, [model]);
 
   // Skill page view state
   const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
@@ -801,8 +801,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         onDeleteSession={deleteSession}
         currentUser={currentUser!}
         onLogout={handleLogout}
-        harness={harness}
-        onHarnessChange={setHarness}
+        model={model}
+        onModelChange={setModel}
       />
 
       <main className="flex-1 flex flex-col relative min-w-0 bg-white shadow-lg shadow-gray-200/30">
@@ -858,7 +858,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
                 onImportProjectFile={activeSessionProject && !activeSessionProject.archived_at ? importSessionFileToProject : undefined}
                 onRefreshSession={refreshSessionMessages}
                 onRunningSessionsChange={setRunningSessionIds}
-                harness={harness}
+                model={model}
                 browserContext={browserContext}
              />
              {rightPanelOpen && (

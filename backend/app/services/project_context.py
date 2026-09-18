@@ -1,4 +1,5 @@
 """Resolve a server-trusted Project context from a validated chat session."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -72,10 +73,7 @@ def format_project_context(context: Optional[ProjectContext]) -> str:
         )
     lines.extend(["", "### 项目共享资料"])
     if context.files:
-        lines.extend(
-            f"- {_prompt_file_name(name)}: `{path}`"
-            for name, path in context.files
-        )
+        lines.extend(f"- {_prompt_file_name(name)}: `{path}`" for name, path in context.files)
         lines.extend(
             [
                 "",

@@ -4,6 +4,7 @@
 每个会话的所有上传文件、agent 生成产物都被约束在 `.eido/workspaces/<session_id>/` 内，
 agent 执行时 cwd 切到该目录，杜绝跨会话文件污染。
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,7 +26,9 @@ OUTPUTS_SUBDIR = "outputs"
 def validate_session_id(session_id: str) -> str:
     """校验 session_id 字符白名单，防路径遍历。返回原 id；非法时抛 ValueError。"""
     if not isinstance(session_id, str) or not _SESSION_ID_RE.match(session_id):
-        raise ValueError(f"非法 session_id: {session_id!r}（仅允许字母数字下划线连字符，长度 1-64）")
+        raise ValueError(
+            f"非法 session_id: {session_id!r}（仅允许字母数字下划线连字符，长度 1-64）"
+        )
     return session_id
 
 

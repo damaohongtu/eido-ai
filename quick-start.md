@@ -138,7 +138,6 @@ docker run -d --name eido -p 80:80 \
   -e ANTHROPIC_API_KEY=<your_minimax_key> \
   -v /path/to/.claude:/workspace/.claude \
   -v ~/eido-logs/app:/var/log/eido/app \
-  -v ~/eido-logs/litellm:/var/log/eido/litellm \
   -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 ```

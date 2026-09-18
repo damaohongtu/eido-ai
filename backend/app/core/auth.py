@@ -8,6 +8,7 @@ Dependency helpers to resolve current user from:
 
 匹配优先级 1 > 2 > 3。
 """
+
 import logging
 
 from fastapi import HTTPException, Request
@@ -39,12 +40,13 @@ def _resolve_trusted_gateway_user(request: Request) -> str | None:
 
     provided_secret = request.headers.get("X-Eido-Gateway-Secret", "")
     import hmac
+
     if not hmac.compare_digest(provided_secret, expected_secret):
         logger.warning("X-Eido-Gateway-Secret 不匹配，拒绝信任网关头 user=%s", user_id)
         return None
 
     bound = settings.EIDO_USER_ID.strip()
-    if bound and bound != user_id:
+    if not bound or bound != user_id:
         logger.warning(
             "X-Eido-User-Id (%s) 与容器绑定 EIDO_USER_ID (%s) 不一致，拒绝", user_id, bound
         )
@@ -59,7 +61,7 @@ def get_current_user_id(request: Request) -> str:
     if gateway_user:
         return gateway_user
 
-    user_id = request.session.get("user_id")
+    user_id = request.session.get("user_id") if not settings.EIDO_TRUST_GATEWAY else None
     if user_id:
         return user_id
 

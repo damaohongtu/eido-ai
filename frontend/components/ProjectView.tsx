@@ -262,7 +262,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-black text-gray-900">共享资料</h2>
-                <p className="mt-1 text-xs text-gray-500">这些资料由服务端按项目注入，不会自动发送到本机 OpenCode。</p>
+                <p className="mt-1 text-xs text-gray-500">这些资料由服务端按项目注入。</p>
               </div>
               <div className="flex gap-2">
                 <button onClick={onRefreshFiles} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-500 hover:bg-gray-50">刷新</button>

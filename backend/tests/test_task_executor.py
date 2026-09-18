@@ -10,7 +10,7 @@ import pytest
 
 from app.api.v1.endpoints import tasks as tasks_endpoint
 from app.services import chat_session_store as store_module
-from app.services import claude_skill_service as claude_service_module
+from app.services import claude_runtime as claude_runtime_module
 from app.services import scheduler_service, task_executor
 from app.services import session_workspace as workspace_module
 from app.services.chat_session_store import ChatSessionStore
@@ -62,7 +62,7 @@ def task_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(store_module, "_instance", store)
     monkeypatch.setattr(workspace_module, "_instance", workspaces)
-    monkeypatch.setattr(claude_service_module, "get_claude_skill_service", lambda: service)
+    monkeypatch.setattr(claude_runtime_module, "get_claude_runtime", lambda: service)
     monkeypatch.setattr(task_executor, "_is_docker_sandbox", lambda: False)
 
     yield TaskHarness(store=store, service=service, workspaces=workspaces)
@@ -169,9 +169,7 @@ def test_run_now_returns_only_after_running_placeholder_is_visible(
 
     async def exercise() -> None:
         result = await tasks_endpoint.run_task(scheduled["id"], user_id="user-a")
-        messages = task_harness.store.list_messages(
-            result["session_id"], user_id="user-a"
-        )
+        messages = task_harness.store.list_messages(result["session_id"], user_id="user-a")
         assert [(message["role"], message["content"]) for message in messages] == [
             ("user", "生成耗时简报"),
             ("assistant", ""),
@@ -189,9 +187,7 @@ def test_run_now_returns_only_after_running_placeholder_is_visible(
         running = tuple(tasks_endpoint._running_task_runs)
         if running:
             await asyncio.gather(*running)
-        completed = task_harness.store.list_messages(
-            result["session_id"], user_id="user-a"
-        )[-1]
+        completed = task_harness.store.list_messages(result["session_id"], user_id="user-a")[-1]
         assert completed["content"] == "任务完成"
         assert completed["extra"]["streaming"] is False
         assert not get_chat_execution_guard().is_active(result["session_id"])

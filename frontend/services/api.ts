@@ -170,6 +170,12 @@ export function summaryToSession(s: PersistedSession): ChatSession {
 }
 
 export class ApiService {
+  async listModels(): Promise<{ default: string | null; models: string[] }> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/chat/models`);
+    if (!response.ok) throw new Error('无法加载模型列表');
+    return response.json();
+  }
+
   private async _fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const response = await fetch(input, { ...init, credentials: 'include' });
     if (response.status === 401) {
@@ -879,13 +885,22 @@ export class ApiService {
     context?: string,
     skillHint?: string,
     signal?: AbortSignal,
-    harness?: string
+    model?: string
   ) {
     let fullText = "";
+    let hadError = false;
     let fullThinking = "正在分析请求，自动规划执行...";
     let steps: ExecutionStep[] = [];
     let currentReferences: Reference[] = [];
     let workflowMermaid: string | undefined;
+    let contentFrame: number | undefined;
+    const publishContent = () => {
+      if (contentFrame !== undefined) return;
+      contentFrame = requestAnimationFrame(() => {
+        contentFrame = undefined;
+        onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
+      });
+    };
 
     const effectiveContext = skillHint
       ? `[本步骤请聚焦使用技能: ${skillHint}]\n\n${context || ''}`.trim()
@@ -896,16 +911,19 @@ export class ApiService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: messages.map(m => ({ id: m.id, role: m.role, content: m.content })),
+          messages: messages.slice(-1).map(m => ({ id: m.id, role: m.role, content: m.content })),
           context: effectiveContext,
           session_id: sessionId,
           assistant_message_id: assistantMessageId,
-          harness: harness || undefined,
+          model: model || undefined,
         }),
         signal,
       });
 
-      if (!response.ok) throw new Error('请求失败');
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || '请求失败');
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -928,7 +946,7 @@ export class ApiService {
             if (line.startsWith('data: ')) {
               const dataStr = line.replace('data: ', '').trim();
               if (dataStr === '[DONE]') {
-                fullThinking = "✓ 执行完成";
+                if (!hadError) fullThinking = "✓ 执行完成";
                 onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
                 break;
               }
@@ -984,7 +1002,7 @@ export class ApiService {
 
                   case 'content':
                     fullText += data.content;
-                    onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
+                    publishContent();
                     break;
 
                   case 'workflow_complete':
@@ -992,11 +1010,12 @@ export class ApiService {
                     if (data.data?.references?.length > 0) {
                       currentReferences = data.data.references;
                     }
-                    fullThinking = "✓ 执行完成";
+                    if (!hadError) fullThinking = "✓ 执行完成";
                     onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
                     break;
 
                   case 'error':
+                    hadError = true;
                     fullThinking = `✗ 错误: ${data.message}`;
                     fullText += `\n\n**错误**: ${data.message}`;
                     onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
@@ -1023,6 +1042,11 @@ export class ApiService {
       }
       onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
       if (isAborted) throw error;
+    } finally {
+      if (contentFrame !== undefined) {
+        cancelAnimationFrame(contentFrame);
+        onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
+      }
     }
   }
 
@@ -1032,7 +1056,7 @@ export class ApiService {
     message: { id: string; role: 'user'; content: string };
     assistant_message_id: string;
     context?: string;
-    harness?: string;
+    model?: string;
   }): Promise<{
     ok: boolean;
     mode: 'queue' | 'steer';

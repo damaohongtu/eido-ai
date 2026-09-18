@@ -104,14 +104,14 @@ interface ChatAreaProps {
   onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
   onRefreshSession: (sessionId: string) => Promise<void>;
   onRunningSessionsChange?: (sessionIds: Set<string>) => void;
-  harness: string;
+  model: string;
   browserContext?: string;
 }
 
 type ActiveExecution = {
   assistantId: string;
   controller: AbortController;
-  harness: string;
+  model: string;
 };
 
 const activeExecutions = new Map<string, ActiveExecution>();
@@ -156,7 +156,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onImportProjectFile,
   onRefreshSession,
   onRunningSessionsChange,
-  harness,
+  model,
   browserContext,
 }) => {
   const [input, setInput] = useState('');
@@ -200,9 +200,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     session?.id && (runningSessionIds.has(session.id) || persistedSessionRunning)
   );
   const activeSessionCanStop = Boolean(session?.id && activeExecutions.has(session.id));
-  const activeExecutionHarness = session?.id ? activeExecutions.get(session.id)?.harness : undefined;
-  const steerAvailable = (activeExecutionHarness || harness) === 'claude_code'
-    && serverSteerAvailable;
+  const activeExecutionModel = session?.id ? activeExecutions.get(session.id)?.model : undefined;
+  const steerAvailable = serverSteerAvailable;
   const effectiveDeliveryMode = deliveryMode === 'steer' && steerAvailable
     ? 'steer'
     : 'queue';
@@ -222,7 +221,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   useEffect(() => {
     executionListeners.add(setRunningSessionIds);
     publishExecutions();
-    return () => executionListeners.delete(setRunningSessionIds);
+    return () => { executionListeners.delete(setRunningSessionIds); };
   }, []);
 
   useEffect(() => {
@@ -444,7 +443,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const replaceEnd = Math.min(currentValue.length, atPos + 1 + filterLength);
     const newValue = currentValue.slice(0, atPos) + `\`@${skill.name}\` ` + currentValue.slice(replaceEnd);
     setInput(newValue);
-    setMentionMenu({ visible: false, filter: '', index: 0 });
+    setMentionMenu(previous => ({ ...previous, visible: false, filter: '', index: 0 }));
 
     setTimeout(() => {
       textarea?.focus();
@@ -484,7 +483,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     skillHint?: string
   ) => {
     const controller = new AbortController();
-    markSessionRunning(sessionId, { assistantId, controller, harness });
+    markSessionRunning(sessionId, { assistantId, controller, model });
     try {
       await api.streamChat(
         msgs,
@@ -494,7 +493,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         context,
         skillHint ?? undefined,
         controller.signal,
-        harness
+        model
       );
     } finally {
       delete thinkingLogsRef.current[assistantId];
@@ -518,7 +517,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     for (let i = 0; i < orderedSkills.length; i++) {
       const skill = orderedSkills[i];
       const assistantId = createMessageId(`pipeline-${i}`);
-      markSessionRunning(sessionId, { assistantId, controller, harness });
+      markSessionRunning(sessionId, { assistantId, controller, model });
 
       const placeholder: Message = {
         id: assistantId,
@@ -544,7 +543,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
           skill.id,
           controller.signal,
-          harness
+          model
         );
       } catch {
         delete thinkingLogsRef.current[assistantId];
@@ -634,14 +633,14 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
     try {
       const assistantId = createMessageId('assistant');
-      const controlHarness = activeExecutionHarness || harness;
+      const controlModel = activeExecutionModel || model;
       const result = await api.controlChat({
         mode: requestedMode,
         session_id: targetSessionId,
         message: { id: userMsg.id, role: 'user', content },
         assistant_message_id: assistantId,
         context: browserContext || undefined,
-        harness: controlHarness,
+        model: controlModel,
       });
       onUpdateMessage(targetSessionId, userMsg.id, {
         deliveryMode: requestedMode,

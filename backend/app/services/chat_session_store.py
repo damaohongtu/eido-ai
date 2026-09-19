@@ -27,7 +27,8 @@ logger = logging.getLogger(__name__)
 # v3: cleanup jobs retain user/file/byte accounting until physical deletion
 # v4: remove the retired provider session column; preserve all conversations
 # v5: persist a model catalog id per conversation
-LATEST_SCHEMA_VERSION = 5
+# v6: persist the explicit Claude Code execution mode per conversation
+LATEST_SCHEMA_VERSION = 6
 _UNSET = object()
 
 
@@ -63,6 +64,7 @@ def _session_row_to_dict(row: sqlite3.Row) -> dict:
         "title": row["title"],
         "skill_id": row["skill_id"],
         "model": _row_value(row, "model"),
+        "runtime_mode": _row_value(row, "runtime_mode", "agent") or "agent",
         "project_id": _row_value(row, "project_id"),
         "applied_context_revision": _row_value(row, "applied_context_revision"),
         "claude_session_id": _row_value(row, "claude_session_id"),
@@ -224,6 +226,7 @@ class ChatSessionStore:
                 title TEXT NOT NULL DEFAULT '新建会话',
                 skill_id TEXT,
                 model TEXT,
+                runtime_mode TEXT NOT NULL DEFAULT 'agent',
                 project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
                 applied_context_revision INTEGER,
                 claude_session_id TEXT,
@@ -384,6 +387,7 @@ class ChatSessionStore:
                 "project_id": "TEXT REFERENCES projects(id) ON DELETE SET NULL",
                 "applied_context_revision": "INTEGER",
                 "model": "TEXT",
+                "runtime_mode": "TEXT NOT NULL DEFAULT 'agent'",
             }
             for name, sql_type in additions.items():
                 if name not in session_columns:
@@ -1039,6 +1043,7 @@ class ChatSessionStore:
         title: str = "新建会话",
         skill_id: Optional[str] = None,
         model: Optional[str] = None,
+        runtime_mode: str = "agent",
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> dict:
@@ -1050,10 +1055,21 @@ class ChatSessionStore:
             conn.execute(
                 """
                 INSERT INTO chat_sessions
-                    (id, user_id, title, skill_id, model, project_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, user_id, title, skill_id, model, runtime_mode, project_id,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (sid, user_id, title or "新建会话", skill_id, model, project_id, now, now),
+                (
+                    sid,
+                    user_id,
+                    title or "新建会话",
+                    skill_id,
+                    model,
+                    runtime_mode,
+                    project_id,
+                    now,
+                    now,
+                ),
             )
             if project_id:
                 conn.execute(
@@ -1158,7 +1174,7 @@ class ChatSessionStore:
         }
 
     def update_session(self, user_id: str, session_id: str, **fields) -> Optional[dict]:
-        allowed = {"title", "skill_id", "project_id", "model"}
+        allowed = {"title", "skill_id", "project_id", "model", "runtime_mode"}
         now = _now_iso()
         with self._transaction() as conn:
             existing = conn.execute(
@@ -1172,6 +1188,7 @@ class ChatSessionStore:
             values: list[object] = []
             project_changed = False
             model_changed = False
+            runtime_mode_changed = False
             new_project_id = existing["project_id"]
             for key, value in fields.items():
                 if key not in allowed:
@@ -1192,6 +1209,10 @@ class ChatSessionStore:
                     if value == _row_value(existing, "model"):
                         continue
                     model_changed = True
+                if key == "runtime_mode":
+                    if value == _row_value(existing, "runtime_mode", "agent"):
+                        continue
+                    runtime_mode_changed = True
                 sets.append(f"{key} = ?")
                 values.append(value)
 
@@ -1204,7 +1225,7 @@ class ChatSessionStore:
                         "claude_session_id = NULL",
                     ]
                 )
-            elif model_changed:
+            elif model_changed or runtime_mode_changed:
                 sets.append("claude_session_id = NULL")
             sets.append("updated_at = ?")
             values.append(now)

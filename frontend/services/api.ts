@@ -1,4 +1,4 @@
-import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession, Project, ProjectFile } from "../types";
+import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession, Project, ProjectFile, RuntimeMode } from "../types";
 import { BACKEND_URL, INITIAL_CHAT_STATE } from "../constants";
 
 /** 工作区文件 URL，支持预览或下载；传入 sessionId 时只允许访问该会话工作区。 */
@@ -51,6 +51,7 @@ export interface PersistedSession {
   title: string;
   skill_id: string | null;
   model?: string | null;
+  runtime_mode?: RuntimeMode;
   /** 旧服务端响应可能没有该字段。 */
   project_id?: string | null;
   created_at: string;
@@ -155,6 +156,7 @@ export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
     projectId: detail.project_id ?? null,
     skillId: detail.skill_id || undefined,
     model: detail.model || undefined,
+    runtimeMode: detail.runtime_mode || 'agent',
     messages,
     updatedAt: Date.parse(detail.updated_at) || Date.now(),
   };
@@ -167,6 +169,7 @@ export function summaryToSession(s: PersistedSession): ChatSession {
     projectId: s.project_id ?? null,
     skillId: s.skill_id || undefined,
     model: s.model || undefined,
+    runtimeMode: s.runtime_mode || 'agent',
     messages: [],
     updatedAt: Date.parse(s.updated_at) || Date.now(),
   };
@@ -793,7 +796,7 @@ export class ApiService {
     return response.json();
   }
 
-  async createSession(body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null }): Promise<PersistedSession> {
+  async createSession(body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null; runtime_mode?: RuntimeMode }): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -805,7 +808,7 @@ export class ApiService {
 
   async patchSession(
     sessionId: string,
-    body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null }
+    body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null; runtime_mode?: RuntimeMode }
   ): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}`, {
       method: 'PATCH',
@@ -888,7 +891,8 @@ export class ApiService {
     context?: string,
     skillHint?: string,
     signal?: AbortSignal,
-    model?: string
+    model?: string,
+    runtimeMode?: RuntimeMode
   ) {
     let fullText = "";
     let hadError = false;
@@ -919,6 +923,7 @@ export class ApiService {
           session_id: sessionId,
           assistant_message_id: assistantMessageId,
           model: model || undefined,
+          runtime_mode: runtimeMode,
         }),
         signal,
       });
@@ -949,7 +954,7 @@ export class ApiService {
             if (line.startsWith('data: ')) {
               const dataStr = line.replace('data: ', '').trim();
               if (dataStr === '[DONE]') {
-                if (!hadError) fullThinking = "✓ 执行完成";
+                if (!hadError) fullThinking = runtimeMode === 'qa' ? "✓ 回答完成" : "✓ 执行完成";
                 onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
                 break;
               }
@@ -1060,6 +1065,7 @@ export class ApiService {
     assistant_message_id: string;
     context?: string;
     model?: string;
+    runtime_mode?: RuntimeMode;
   }): Promise<{
     ok: boolean;
     mode: 'queue' | 'steer';

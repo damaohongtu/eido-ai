@@ -39,6 +39,7 @@ class CapturingChatService:
         self.reset_sessions: list[str] = []
         self.messages: list = []
         self.model: str | None = None
+        self.runtime_mode: str | None = None
         self.steerable_sessions: set[tuple[str, str]] = set()
         self.steered_messages: list[tuple[str, str, str]] = []
         self.interrupted_sessions: list[tuple[str, str]] = []
@@ -69,11 +70,14 @@ class CapturingChatService:
         user_id: str | None = None,
         session_id: str | None = None,
         project_context: ProjectContext | None = None,
+        project_id: str | None = None,
         model: str | None = None,
+        runtime_mode: str = "agent",
     ):
         self.project_context = project_context
         self.messages = list(messages)
         self.model = model
+        self.runtime_mode = runtime_mode
         yield 'data: {"type":"content","content":"context received"}\n\n'
         yield "data: [DONE]\n\n"
 
@@ -482,6 +486,7 @@ def _send_context_chat(
     *,
     assistant_message_id: str = "assistant-context",
     model: str = "glm",
+    runtime_mode: str | None = None,
     messages: list[dict[str, str]] | None = None,
 ):
     request_messages = messages or [
@@ -494,6 +499,7 @@ def _send_context_chat(
             "session_id": session_id,
             "assistant_message_id": assistant_message_id,
             "model": model,
+            **({"runtime_mode": runtime_mode} if runtime_mode else {}),
         },
     )
 
@@ -1313,3 +1319,40 @@ def test_session_model_switch_is_persisted_and_resets_native_session(project_api
     )
     assert chat.status_code == 200, chat.text
     assert project_api.chat_service.model == "deepseek"
+
+
+def test_session_runtime_mode_defaults_follow_session_kind(project_api):
+    generic = _create_session(project_api, title="Quick question")
+    assert generic["runtime_mode"] == "qa"
+
+    skill = project_api.client.post(
+        "/api/v1/sessions/", json={"title": "Skill", "skill_id": "research"}
+    )
+    assert skill.status_code == 200, skill.text
+    assert skill.json()["runtime_mode"] == "agent"
+
+    project = _create_project(project_api, name="Agent project")
+    assigned = _create_session(project_api, title="Project", project_id=project["id"])
+    assert assigned["runtime_mode"] == "agent"
+
+
+def test_runtime_mode_switch_persists_clears_native_session_and_reaches_runtime(project_api):
+    session = _create_session(project_api, title="Mode switch")
+    assert project_api.store.set_claude_session_id("user-a", session["id"], "native-old")
+
+    changed = project_api.client.patch(
+        f"/api/v1/sessions/{session['id']}", json={"runtime_mode": "agent"}
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["runtime_mode"] == "agent"
+    assert changed.json()["claude_session_id"] is None
+    assert project_api.chat_service.reset_sessions == [session["id"]]
+
+    response = _send_context_chat(
+        project_api,
+        session["id"],
+        assistant_message_id="assistant-agent",
+        runtime_mode="agent",
+    )
+    assert response.status_code == 200, response.text
+    assert project_api.chat_service.runtime_mode == "agent"

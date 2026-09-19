@@ -114,6 +114,7 @@ class Settings(BaseSettings):
     DEEPSEEK_AUTH_TOKEN: SecretStr = SecretStr("")
     DEEPSEEK_SMALL_FAST_MODEL: str = ""
     CLAUDE_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] | None = None
+    CLAUDE_DEFAULT_RUNTIME_MODE: Literal["qa", "agent"] = "qa"
     CLAUDE_COMPACT_PERCENT: int = Field(default=80, ge=50, le=95)
     CLAUDE_CLI_PATH: str = ""
     CLAUDE_SIMPLE_SYSTEM_PROMPT: bool = True

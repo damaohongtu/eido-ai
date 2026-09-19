@@ -447,6 +447,7 @@ class SandboxManager:
         )
         env["CLAUDE_COMPACT_PERCENT"] = str(settings.CLAUDE_COMPACT_PERCENT)
         env["CLAUDE_SIMPLE_SYSTEM_PROMPT"] = str(settings.CLAUDE_SIMPLE_SYSTEM_PROMPT).lower()
+        env["CLAUDE_DEFAULT_RUNTIME_MODE"] = settings.CLAUDE_DEFAULT_RUNTIME_MODE
         if settings.CLAUDE_EFFORT:
             env["CLAUDE_EFFORT"] = settings.CLAUDE_EFFORT
 

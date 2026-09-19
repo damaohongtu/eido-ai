@@ -8,12 +8,14 @@ import time
 from pathlib import Path
 from typing import Any, AsyncGenerator, Optional
 
+from app.services.claude_execution_profile import QA_SYSTEM_PROMPT, get_execution_profile
 from app.services.claude_prompt import (
     AUTH_FAILURE_MESSAGE,
     auth_error,
     auth_summary,
     build_agent_env,
     build_prompt,
+    build_qa_prompt,
     is_not_logged_in_message,
 )
 from app.services.claude_session_pool import ClaudeSessionEntry, ClaudeSessionPool
@@ -150,7 +152,9 @@ class ClaudeRuntime(SkillCatalog):
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         project_context: Optional[ProjectContext] = None,
+        project_id: Optional[str] = None,
         model: Optional[str] = None,
+        runtime_mode: str = "agent",
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
 
@@ -167,8 +171,11 @@ class ClaudeRuntime(SkillCatalog):
         session_id  会话 ID。指定后 agent cwd 切到该会话工作区（强隔离）；
                     未指定则回退到全局 workspace_root（兼容历史路径）。
         """
+        profile = get_execution_profile(runtime_mode)
+        project_id = project_context.id if project_context else project_id
+        project_context = project_context if profile.project_context_enabled else None
         logger.info(
-            f"▶ execute_stream 开始 | 消息数: {len(messages)}"
+            f"▶ execute_stream 开始 | mode={profile.mode} | 消息数: {len(messages)}"
             + (f" | session={session_id}" if session_id else "")
             + (f" | 含上下文 {len(context)} 字符" if context else "")
         )
@@ -179,8 +186,16 @@ class ClaudeRuntime(SkillCatalog):
             yield "data: [DONE]\n\n"
             return
 
-        yield self._sse({"type": "thinking", "content": "正在分析请求，自动规划执行..."})
-        yield self._sse({"type": "workflow_start", "skill_name": "auto"})
+        yield self._sse(
+            {
+                "type": "thinking",
+                "content": (
+                    "正在回答..." if profile.mode == "qa" else "正在分析请求，自动规划执行..."
+                ),
+            }
+        )
+        if profile.mode == "agent":
+            yield self._sse({"type": "workflow_start", "skill_name": "auto"})
 
         # 解析 cwd（按 session 隔离时使用 session 工作区）
         if session_id:
@@ -195,7 +210,7 @@ class ClaudeRuntime(SkillCatalog):
         else:
             cwd = self.workspace_root
 
-        native_skills = bool(session_id)
+        native_skills = profile.skills_enabled and bool(session_id)
         skill_revision: tuple[Any, ...] = ()
         skill_count = 0
         if native_skills:
@@ -233,21 +248,27 @@ class ClaudeRuntime(SkillCatalog):
             settings.claude_agent_env,
             relay=settings.EIDO_TRUST_GATEWAY,
         )
-        claude_sid = self._load_claude_sid(user_id, session_id, project_context=project_context)
+        claude_sid = self._load_claude_sid(
+            user_id, session_id, project_id=project_id, project_context=project_context
+        )
         agent_env = build_agent_env(
             user_id,
             session_id,
-            project_context.id if project_context else None,
+            project_id,
             provider_env=provider_env,
         )
-        from app.services.mcp_config_store import get_mcp_config_store
+        if profile.mcp_enabled:
+            from app.services.mcp_config_store import get_mcp_config_store
 
-        mcp_servers, mcp_revision = get_mcp_config_store().sdk_servers(user_id)
+            mcp_servers, mcp_revision = get_mcp_config_store().sdk_servers(user_id)
+        else:
+            mcp_servers, mcp_revision = {}, 0
         profile_dir = Path(agent_env["CLAUDE_CONFIG_DIR"])
         memory_scope = f"project-{project_context.id}" if project_context else "personal"
         memory_dir = profile_dir / "eido-memory" / memory_scope
         profile_dir.mkdir(parents=True, exist_ok=True)
-        memory_dir.mkdir(parents=True, exist_ok=True)
+        if profile.memory_enabled:
+            memory_dir.mkdir(parents=True, exist_ok=True)
         auth_problem = auth_error(agent_env)
         if auth_problem:
             logger.error("Claude Agent SDK 认证配置缺失: %s", auth_problem)
@@ -258,17 +279,18 @@ class ClaudeRuntime(SkillCatalog):
         logger.info("  [ClaudeAuth] mode=%s provider=%s", auth_mode, provider)
         project_signature = (
             (
-                project_context.id,
+                project_id,
                 project_context.context_revision,
             )
             if project_context
-            else (None, None)
+            else (project_id, None)
         )
         def _secret_digest(name: str) -> str:
             value = provider_env.get(name, "")
             return hashlib.sha256(value.encode()).hexdigest() if value else ""
 
         client_signature = (
+            profile.mode,
             model_spec.id,
             provider_model,
             provider_env.get("ANTHROPIC_BASE_URL", ""),
@@ -286,30 +308,41 @@ class ClaudeRuntime(SkillCatalog):
 
         async def _run_once(resume_sid: Optional[str]) -> AsyncGenerator[str, None]:
             """单次 SDK 调用，按 resume 模式构建不同 prompt/options。"""
-            prompt = build_prompt(
-                cwd=cwd,
-                skills_dir=self.skills_dir,
-                latest_user_text=(
-                    "额度已恢复。继续尚未完成的原任务，保留用户追加的要求；先检查已完成步骤，不要重复执行有副作用的操作。"
-                    if retrying and resume_sid
-                    else latest_user_text
-                ),
-                context=context,
-                resume=bool(resume_sid),
-                project_context=project_context,
-                conversation_history=(
-                    prepare_recovery_context(cwd, user_id, session_id, messages)
-                    if not resume_sid
-                    else ""
-                ),
-                native_skills=native_skills,
-                fallback_skills_index=(
-                    "" if native_skills else self._build_skills_index(user_id=user_id)
-                ),
+            effective_user_text = (
+                "额度已恢复。继续尚未完成的原任务，保留用户追加的要求；先检查已完成步骤，不要重复执行有副作用的操作。"
+                if retrying and resume_sid
+                else latest_user_text
             )
+            recovery_context = (
+                prepare_recovery_context(cwd, user_id, session_id, messages)
+                if not resume_sid
+                else ""
+            )
+            if profile.mode == "qa":
+                prompt = build_qa_prompt(
+                    cwd=cwd,
+                    latest_user_text=effective_user_text,
+                    context=context,
+                    resume=bool(resume_sid),
+                    conversation_history=recovery_context,
+                )
+            else:
+                prompt = build_prompt(
+                    cwd=cwd,
+                    skills_dir=self.skills_dir,
+                    latest_user_text=effective_user_text,
+                    context=context,
+                    resume=bool(resume_sid),
+                    project_context=project_context,
+                    conversation_history=recovery_context,
+                    native_skills=native_skills,
+                    fallback_skills_index=(
+                        "" if native_skills else self._build_skills_index(user_id=user_id)
+                    ),
+                )
             if latest_user_text.strip().split(maxsplit=1)[0] == "/compact" and not retrying:
                 prompt = latest_user_text.strip()
-            available_tools = list(self.AUTO_ALLOWED_TOOLS)
+            available_tools = list(self.AUTO_ALLOWED_TOOLS) if profile.tools_enabled else []
             if native_skills:
                 available_tools.append("Skill")
             allowed_tools = list(available_tools)
@@ -321,25 +354,33 @@ class ClaudeRuntime(SkillCatalog):
 
             options = ClaudeAgentOptions(
                 model=provider_model,
-                effort=settings.CLAUDE_EFFORT,
+                effort=profile.effort(settings.CLAUDE_EFFORT),
                 cli_path=settings.CLAUDE_CLI_PATH or None,
-                system_prompt={
-                    "type": "preset",
-                    "preset": "claude_code",
-                    "append": context_instructions(cwd),
-                },
-                hooks={"PreCompact": [HookMatcher(hooks=[before_compact])]},
+                system_prompt=(
+                    {
+                        "type": "preset",
+                        "preset": "claude_code",
+                        "append": context_instructions(cwd),
+                    }
+                    if profile.mode == "agent"
+                    else QA_SYSTEM_PROMPT
+                ),
+                hooks=(
+                    {"PreCompact": [HookMatcher(hooks=[before_compact])]}
+                    if profile.mode == "agent"
+                    else {}
+                ),
                 allowed_tools=allowed_tools,
                 tools=available_tools,
                 cwd=str(cwd),
                 setting_sources=["project"] if native_skills else [],
                 skills="all" if native_skills else None,
-                permission_mode="acceptEdits",
+                permission_mode=profile.permission_mode,
                 # A quota wait may outlive the short-lived task API token.
                 env=build_agent_env(
                     user_id,
                     session_id,
-                    project_context.id if project_context else None,
+                    project_id,
                     provider_env=provider_env,
                 ),
                 include_partial_messages=True,
@@ -347,11 +388,16 @@ class ClaudeRuntime(SkillCatalog):
                 resume=resume_sid,
                 mcp_servers=mcp_servers,
                 strict_mcp_config=True,
+                max_turns=profile.max_turns,
                 settings=json.dumps(
-                    {
-                        "autoMemoryEnabled": True,
-                        "autoMemoryDirectory": str(memory_dir),
-                    }
+                    (
+                        {
+                            "autoMemoryEnabled": True,
+                            "autoMemoryDirectory": str(memory_dir),
+                        }
+                        if profile.memory_enabled
+                        else {"autoMemoryEnabled": False}
+                    )
                 ),
             )
             entry: Optional[ClaudeSessionEntry] = None
@@ -386,9 +432,10 @@ class ClaudeRuntime(SkillCatalog):
                     messages_iter = query(prompt=prompt, options=options)
 
                 logger.info(
-                    "  [ClaudeRun] mode=%s warm=%s connect_ms=%.1f prompt_chars=%d "
+                    "  [ClaudeRun] profile=%s resume=%s warm=%s connect_ms=%.1f prompt_chars=%d "
                     "skills=%d tools=%d cwd=%s",
-                    "resume" if resume_sid else "fresh",
+                    profile.mode,
+                    bool(resume_sid),
                     warm_hit,
                     connect_ms,
                     len(prompt),
@@ -414,7 +461,11 @@ class ClaudeRuntime(SkillCatalog):
                         sid = message.data.get("session_id")
                         if sid:
                             self._save_claude_sid(
-                                user_id, session_id, sid, project_context=project_context
+                                user_id,
+                                session_id,
+                                sid,
+                                project_id=project_id,
+                                project_context=project_context,
                             )
                     from claude_agent_sdk.types import AssistantMessage, RateLimitEvent
 
@@ -443,6 +494,7 @@ class ClaudeRuntime(SkillCatalog):
                                     user_id,
                                     session_id,
                                     message.session_id,
+                                    project_id=project_id,
                                     project_context=project_context,
                                 )
                     except Exception as e:
@@ -499,7 +551,11 @@ class ClaudeRuntime(SkillCatalog):
                                 "限流后原生会话无法恢复，请检查已完成步骤后继续"
                             ) from None
                         self._save_claude_sid(
-                            user_id, session_id, None, project_context=project_context
+                            user_id,
+                            session_id,
+                            None,
+                            project_id=project_id,
+                            project_context=project_context,
                         )
                         resume_sid = None
                         await queue.put(
@@ -531,7 +587,10 @@ class ClaudeRuntime(SkillCatalog):
                         while time.monotonic() < deadline:
                             await asyncio.sleep(min(60, deadline - time.monotonic()))
                         resume_sid = self._load_claude_sid(
-                            user_id, session_id, project_context=project_context
+                            user_id,
+                            session_id,
+                            project_id=project_id,
+                            project_context=project_context,
                         )
                         if not resume_sid:
                             raise RuntimeError(
@@ -604,6 +663,7 @@ class ClaudeRuntime(SkillCatalog):
         user_id: Optional[str],
         session_id: Optional[str],
         *,
+        project_id: Optional[str],
         project_context: Optional[ProjectContext],
     ) -> Optional[str]:
         if not (user_id and session_id):
@@ -611,13 +671,11 @@ class ClaudeRuntime(SkillCatalog):
         try:
             from app.services.chat_session_store import get_chat_session_store
 
+            guard: dict[str, object] = {"expected_project_id": project_id}
+            if project_context:
+                guard["expected_context_revision"] = project_context.context_revision
             return get_chat_session_store().get_claude_session_id(
-                user_id,
-                session_id,
-                expected_project_id=project_context.id if project_context else None,
-                expected_context_revision=(
-                    project_context.context_revision if project_context else None
-                ),
+                user_id, session_id, **guard
             )
         except Exception as e:
             logger.warning(f"读取 claude_session_id 失败: {e}")
@@ -629,20 +687,18 @@ class ClaudeRuntime(SkillCatalog):
         session_id: Optional[str],
         claude_sid: Optional[str],
         *,
+        project_id: Optional[str],
         project_context: Optional[ProjectContext],
     ) -> None:
         if not (user_id and session_id):
             return
         from app.services.chat_session_store import get_chat_session_store
 
+        guard: dict[str, object] = {"expected_project_id": project_id}
+        if project_context:
+            guard["expected_context_revision"] = project_context.context_revision
         saved = get_chat_session_store().set_claude_session_id(
-            user_id,
-            session_id,
-            claude_sid,
-            expected_project_id=project_context.id if project_context else None,
-            expected_context_revision=(
-                project_context.context_revision if project_context else None
-            ),
+            user_id, session_id, claude_sid, **guard
         )
         if not saved:
             logger.info("忽略已过期请求返回的 Claude session ID: session=%s", session_id)

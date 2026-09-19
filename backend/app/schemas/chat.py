@@ -31,6 +31,7 @@ class ChatRequest(BaseModel):
     model: Optional[str] = Field(
         None, max_length=200, description="Claude 模型；省略使用服务端默认值"
     )
+    runtime_mode: Optional[Literal["qa", "agent"]] = None
 
 
 class ChatControlRequest(BaseModel):
@@ -42,6 +43,7 @@ class ChatControlRequest(BaseModel):
     assistant_message_id: str = Field(..., description="排队执行时使用的 assistant 消息 ID")
     context: Optional[str] = None
     model: Optional[str] = Field(None, max_length=200)
+    runtime_mode: Optional[Literal["qa", "agent"]] = None
 
 
 class ChatResponse(BaseModel):

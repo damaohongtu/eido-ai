@@ -1,4 +1,4 @@
-import type { ExecutionStep, Message, Reference, WorkspaceFileNode } from '../shared';
+import type { ExecutionStep, Message, Reference, RuntimeMode, WorkspaceFileNode } from '../shared';
 
 export type ChatChunkHandler = (
   text: string,
@@ -21,7 +21,8 @@ export interface AgentRuntime {
     context?: string,
     skillHint?: string,
     signal?: AbortSignal,
-    model?: string
+    model?: string,
+    runtimeMode?: RuntimeMode
   ): Promise<void>;
   uploadChatFile(file: File, sessionId: string): Promise<{ path: string; name: string }>;
   listWorkspaceFiles(sessionId: string): Promise<WorkspaceFileNode[]>;

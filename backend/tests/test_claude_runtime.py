@@ -17,7 +17,7 @@ from app.core.config import settings
 from app.schemas.chat import Message
 from app.services.chat_session_store import ChatSessionStore
 from app.services.claude_event_adapter import ClaudeEventAdapter
-from app.services.claude_prompt import build_prompt
+from app.services.claude_prompt import build_prompt, build_qa_prompt
 from app.services.claude_runtime import ClaudeRuntime
 from app.services.conversation_context import format_recent_conversation, prepare_recovery_context
 from app.services.session_workspace import SessionWorkspaceManager
@@ -96,6 +96,18 @@ def test_large_browser_context_keeps_the_tail_on_disk(tmp_path):
     )
     assert len(prompt) < 2000
     assert next((tmp_path / ".eido-context").glob("*.md")).read_text().endswith("TAIL-IMPORTANT")
+
+
+def test_qa_prompt_truncates_context_without_unreadable_file_reference(tmp_path):
+    prompt = build_qa_prompt(
+        cwd=tmp_path,
+        latest_user_text="概括网页",
+        context="网页正文 " * 5000,
+        resume=False,
+    )
+    assert len(prompt) < 5000
+    assert "问答模式已截断" in prompt
+    assert not (tmp_path / ".eido-context").exists()
 
 
 @pytest.fixture
@@ -185,6 +197,62 @@ def test_runtime_uses_native_options_persists_init_and_switches_model(runtime, m
         assert clients[0].options.include_partial_messages
         assert "PreCompact" in clients[0].options.hooks
         assert json.loads(clients[0].options.settings)["autoMemoryEnabled"]
+        await service.shutdown()
+
+    asyncio.run(exercise())
+
+
+def test_qa_profile_is_one_turn_text_only(runtime, monkeypatch):
+    import claude_agent_sdk
+
+    service, _ = runtime
+    clients = []
+
+    class Client:
+        def __init__(self, options):
+            self.options = options
+            clients.append(self)
+
+        async def connect(self):
+            pass
+
+        async def disconnect(self):
+            pass
+
+        async def query(self, prompt):
+            self.prompt = prompt
+
+        async def receive_response(self):
+            yield SystemMessage(subtype="init", data={"session_id": "qa-native-session"})
+            yield AssistantMessage(content=[TextBlock("你好")], model="sonnet")
+            yield result()
+
+    monkeypatch.setattr(claude_agent_sdk, "ClaudeSDKClient", Client)
+
+    async def exercise():
+        events = [
+            event
+            async for event in service.execute_stream(
+                [Message(role="user", content="hi")],
+                user_id="u1",
+                session_id="session1",
+                model="sonnet",
+                runtime_mode="qa",
+            )
+        ]
+        assert any(item.get("content") == "你好" for item in payloads(events))
+        options = clients[0].options
+        assert options.max_turns == 1
+        assert options.effort == "low"
+        assert options.tools == []
+        assert options.allowed_tools == []
+        assert options.mcp_servers == {}
+        assert options.setting_sources == []
+        assert options.skills is None
+        assert options.hooks == {}
+        assert options.permission_mode == "dontAsk"
+        assert not json.loads(options.settings)["autoMemoryEnabled"]
+        assert isinstance(options.system_prompt, str)
         await service.shutdown()
 
     asyncio.run(exercise())

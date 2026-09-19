@@ -301,19 +301,19 @@ def test_v2_migration_failure_rolls_back_columns_and_version(
 def test_rejects_unknown_future_schema_without_modifying_it(tmp_path: Path):
     db_path = tmp_path / "future.db"
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA user_version=6")
+    conn.execute("PRAGMA user_version=7")
     conn.close()
 
     value = ChatSessionStore(db_path)
     with pytest.raises(
         RuntimeError,
-        match="数据库 schema v6 高于当前程序支持的 v5",
+        match="数据库 schema v7 高于当前程序支持的 v6",
     ):
         value.connect()
 
     conn = sqlite3.connect(db_path)
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
         assert conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
     finally:
         conn.close()
@@ -370,6 +370,7 @@ def test_migrates_all_committed_session_schema_shapes(
         assert session is not None
         assert session["project_id"] is None
         assert session["applied_context_revision"] is None
+        assert session["runtime_mode"] == "agent"
         for column in provider_columns:
             if column == "opencode_session_id":
                 assert column not in session

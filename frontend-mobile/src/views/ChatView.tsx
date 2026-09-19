@@ -9,6 +9,7 @@ import MenuIcon from '../components/MenuIcon';
 import FilesPanel from '../components/FilesPanel';
 import type { AgentRuntime } from '../runtime/types';
 import ModelSelector from '../../../frontend/components/ModelSelector';
+import RuntimeModeSelector from '../../../frontend/components/RuntimeModeSelector';
 
 const FolderIcon: React.FC = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,6 +40,8 @@ const ChatView: React.FC<{
     allSkills,
     model,
     setModel,
+    runtimeMode,
+    setRuntimeMode,
     addMessage,
     updateMessage,
     createNewSession,
@@ -56,6 +59,7 @@ const ChatView: React.FC<{
     session: activeSession,
     skills: allSkills,
     model,
+    runtimeMode,
     addMessage,
     updateMessage,
     browserContext,
@@ -172,6 +176,7 @@ const ChatView: React.FC<{
         footerControl={(
           <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
             <ModelSelector value={model} onChange={setModel} disabled={isTyping} />
+            <RuntimeModeSelector value={runtimeMode} onChange={setRuntimeMode} disabled={isTyping} />
             {projectsEnabled ? <label className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-gray-500">
             <span className="shrink-0">项目归属</span>
             <select

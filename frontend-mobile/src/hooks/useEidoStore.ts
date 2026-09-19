@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, hydrateSession, summaryToSession, BACKEND_URL, INITIAL_CHAT_STATE, } from '../shared';
-import type { ChatSession, CreateSessionOptions, Message, Project, Skill } from '../shared';
+import type { ChatSession, CreateSessionOptions, Message, Project, RuntimeMode, Skill } from '../shared';
 export type MobileTab = 'chat' | 'skills' | 'me';
 const ACTIVE_SESSION_KEY = 'eido_m_active_session_id';
 function readStorage<T>(key: string, fallback: T): T {
@@ -78,6 +78,8 @@ export interface EidoStore {
     refreshSkills: () => Promise<void>;
     model: string;
     setModel: (h: string) => void;
+    runtimeMode: RuntimeMode;
+    setRuntimeMode: (mode: RuntimeMode) => void;
     refreshSessions: () => Promise<void>;
     refreshProjects: () => Promise<void>;
     selectSession: (id: string) => Promise<boolean>;
@@ -269,6 +271,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     }, [authChecked, authRequired, refreshProjects]);
     const activeSession = useMemo(() => sessions.find((s) => s.id === activeSessionId) || null, [sessions, activeSessionId]);
     const model = activeSession?.model || '';
+    const runtimeMode = activeSession?.runtimeMode || 'agent';
     const setModel = useCallback((modelId: string) => {
         const sessionId = activeSessionIdRef.current;
         if (!sessionId)
@@ -289,6 +292,25 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
                 console.warn('更新会话模型失败:', error);
             });
     }, [activeSession?.model]);
+    const setRuntimeMode = useCallback((mode: RuntimeMode) => {
+        const sessionId = activeSessionIdRef.current;
+        if (!sessionId)
+            return;
+        const previousMode = activeSession?.runtimeMode || 'agent';
+        setSessions((prev) => prev.map((session) => session.id === sessionId
+            ? { ...session, runtimeMode: mode, updatedAt: Date.now() }
+            : session));
+        api.patchSession(sessionId, { runtime_mode: mode })
+            .then((updated) => setSessions((prev) => prev.map((session) => session.id === sessionId && session.runtimeMode === mode
+                ? { ...session, runtimeMode: updated.runtime_mode || 'agent' }
+                : session)))
+            .catch((error) => {
+                setSessions((prev) => prev.map((session) => session.id === sessionId && session.runtimeMode === mode
+                    ? { ...session, runtimeMode: previousMode }
+                    : session));
+                console.warn('更新会话模式失败:', error);
+            });
+    }, [activeSession?.runtimeMode]);
     const allSkills = useMemo(() => [...systemSkills, ...userSkills], [systemSkills, userSkills]);
     const refreshSessions = useCallback(async () => {
         try {
@@ -349,6 +371,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
                 projectId: created.project_id ?? options.projectId ?? null,
                 skillId: created.skill_id || skillId,
                 model: created.model || undefined,
+                runtimeMode: created.runtime_mode || 'agent',
                 messages: initialMessages,
                 updatedAt: Date.parse(created.updated_at) || Date.now(),
             };
@@ -475,6 +498,8 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         refreshSkills,
         model,
         setModel,
+        runtimeMode,
+        setRuntimeMode,
         refreshSessions,
         refreshProjects,
         selectSession,

@@ -21,6 +21,7 @@ from app.core.logging_context import reset_session_id, set_session_id
 from app.schemas.chat import ChatControlRequest, ChatRequest
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
+from app.services.claude_execution_profile import resolve_runtime_mode
 from app.services.model_catalog import ModelSpec, load_model_catalog
 from app.services.project_context import load_project_context
 from app.services.session_workspace import (
@@ -237,16 +238,28 @@ async def chat_completion(
         # 模型必须在取得 session single-flight 后解析，避免它在首次读取与加锁之间
         # 被另一个请求切换，导致本轮仍使用旧模型。
         model_spec = resolve_model_spec(request.model or locked_session.get("model"))
+        runtime_mode = resolve_runtime_mode(
+            request.runtime_mode or locked_session.get("runtime_mode"), default="agent"
+        )
         model_changed = locked_session.get("model") != model_spec.id
-        runtime_reset = False
+        mode_changed = locked_session.get("runtime_mode", "agent") != runtime_mode
+        session_updates: dict[str, Any] = {}
         if request.model and model_changed:
-            store.update_session(user_id, request.session_id, model=model_spec.id)
+            session_updates["model"] = model_spec.id
+        if request.runtime_mode and mode_changed:
+            session_updates["runtime_mode"] = runtime_mode
+        runtime_reset = bool(session_updates)
+        if session_updates:
+            store.update_session(user_id, request.session_id, **session_updates)
             svc.reset_session(request.session_id)
-            runtime_reset = True
         model = model_spec.id
 
         # Project 只能由已验证归属的 session 推导，避免 session/project 组合越权。
-        project_context = load_project_context(user_id, request.session_id)
+        project_context = (
+            load_project_context(user_id, request.session_id)
+            if runtime_mode == "agent"
+            else None
+        )
         if (
             project_context
             and project_context.applied_context_revision != project_context.context_revision
@@ -304,7 +317,9 @@ async def chat_completion(
                     user_id=user_id,
                     session_id=request.session_id,
                     project_context=project_context,
+                    project_id=locked_project_id,
                     model=model,
+                    runtime_mode=runtime_mode,
                 ):
                     payload = _parse_sse_payload(event)
                     if payload:
@@ -393,6 +408,11 @@ async def control_active_chat(
         raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
 
     model = resolve_model(request.model or session.get("model"))
+    runtime_mode = resolve_runtime_mode(
+        request.runtime_mode or session.get("runtime_mode"), default="agent"
+    )
+    if request.runtime_mode and request.runtime_mode != session.get("runtime_mode", "agent"):
+        raise HTTPException(status_code=409, detail="会话模式已变化，请刷新后重试")
     guard = get_chat_execution_guard()
     active = guard.is_active(session_id)
 
@@ -443,6 +463,7 @@ async def control_active_chat(
             content=content,
             assistant_message_id=request.assistant_message_id,
             model=model,
+            runtime_mode=runtime_mode,
             context=request.context,
         ),
     )

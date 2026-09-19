@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ViewType, Skill, Message, ChatSession, Reference, SkillAction, Project, ProjectFile, CreateSessionOptions } from './types';
+import { ViewType, Skill, Message, ChatSession, Reference, SkillAction, Project, ProjectFile, CreateSessionOptions, RuntimeMode } from './types';
 import { INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
@@ -453,6 +453,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         projectId: created.project_id ?? options.projectId ?? null,
         skillId: created.skill_id || options.skillId,
         model: created.model || undefined,
+        runtimeMode: created.runtime_mode || 'agent',
         messages: initialMessages,
         updatedAt: Date.parse(created.updated_at) || Date.now(),
       };
@@ -589,6 +590,29 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
             : session
         ));
         console.warn('更新会话模型失败:', err);
+      });
+  };
+
+  const updateSessionRuntimeMode = (runtimeMode: RuntimeMode) => {
+    if (!activeSessionId) return;
+    const sessionId = activeSessionId;
+    const previousMode = activeSession?.runtimeMode || 'agent';
+    setSessions(prev => prev.map(session => session.id === sessionId
+      ? { ...session, runtimeMode, updatedAt: Date.now() }
+      : session));
+    api.patchSession(sessionId, { runtime_mode: runtimeMode })
+      .then(updated => setSessions(prev => prev.map(session =>
+        session.id === sessionId && session.runtimeMode === runtimeMode
+          ? { ...session, runtimeMode: updated.runtime_mode || 'agent' }
+          : session
+      )))
+      .catch(err => {
+        setSessions(prev => prev.map(session =>
+          session.id === sessionId && session.runtimeMode === runtimeMode
+            ? { ...session, runtimeMode: previousMode }
+            : session
+        ));
+        console.warn('更新会话模式失败:', err);
       });
   };
 
@@ -875,6 +899,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
                 onRunningSessionsChange={setRunningSessionIds}
                 model={activeSession?.model || ''}
                 onModelChange={updateSessionModel}
+                runtimeMode={activeSession?.runtimeMode || 'agent'}
+                onRuntimeModeChange={updateSessionRuntimeMode}
                 browserContext={browserContext}
              />
              {rightPanelOpen && (

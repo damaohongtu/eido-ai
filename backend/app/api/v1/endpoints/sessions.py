@@ -13,8 +13,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user_id
+from app.core.config import settings
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
+from app.services.claude_execution_profile import RuntimeMode, resolve_runtime_mode
 from app.services.model_catalog import load_model_catalog
 from app.services.project_workspace import validate_project_id
 from app.services.session_workspace import (
@@ -31,6 +33,9 @@ class CreateSessionRequest(BaseModel):
     skill_id: Optional[str] = Field(None, description="关联的技能 ID，可选")
     project_id: Optional[str] = Field(None, description="所属项目 ID；不传表示普通会话")
     model: Optional[str] = Field(None, description="模型配置 ID；不传使用默认模型")
+    runtime_mode: Optional[RuntimeMode] = Field(
+        None, description="Claude Code 执行模式；普通会话默认问答，Project/Skill 会话默认 Agent"
+    )
 
 
 class PatchSessionRequest(BaseModel):
@@ -38,6 +43,7 @@ class PatchSessionRequest(BaseModel):
     skill_id: Optional[str] = None
     project_id: Optional[str] = None
     model: Optional[str] = None
+    runtime_mode: Optional[RuntimeMode] = None
 
 
 def _validated_model_id(value: str | None) -> str | None:
@@ -47,6 +53,13 @@ def _validated_model_id(value: str | None) -> str | None:
     try:
         return load_model_catalog().find(model_id).id
     except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _validated_runtime_mode(value: str | None, *, default: RuntimeMode) -> RuntimeMode:
+    try:
+        return resolve_runtime_mode(value, default=default)
+    except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
@@ -122,6 +135,14 @@ async def create_session(
                 skill_id=body.skill_id,
                 project_id=body.project_id,
                 model=_validated_model_id(body.model),
+                runtime_mode=_validated_runtime_mode(
+                    body.runtime_mode,
+                    default=(
+                        "agent"
+                        if body.project_id is not None or body.skill_id is not None
+                        else settings.CLAUDE_DEFAULT_RUNTIME_MODE
+                    ),
+                ),
             )
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -161,7 +182,7 @@ async def patch_session(
     body: PatchSessionRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    """部分更新会话标题、技能、项目或模型。"""
+    """部分更新会话标题、技能、项目、模型或执行模式。"""
     try:
         validate_session_id(session_id)
     except ValueError as e:
@@ -170,6 +191,10 @@ async def patch_session(
     fields = body.model_dump(exclude_unset=True)
     if "model" in fields:
         fields["model"] = _validated_model_id(fields["model"])
+    if "runtime_mode" in fields:
+        fields["runtime_mode"] = _validated_runtime_mode(
+            fields["runtime_mode"], default=settings.CLAUDE_DEFAULT_RUNTIME_MODE
+        )
     store = get_chat_session_store()
     if store.get_session(user_id, session_id) is None:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -187,11 +212,15 @@ async def patch_session(
 
     # 只要请求显式修改 project_id，就原子持有 session single-flight 与目标
     # Project 共享租约。这样独占删除无法夹在目标校验和数据库更新之间。
-    guard = get_chat_execution_guard() if {"project_id", "model"}.intersection(fields) else None
+    guard = (
+        get_chat_execution_guard()
+        if {"project_id", "model", "runtime_mode"}.intersection(fields)
+        else None
+    )
     if guard is not None and not guard.try_acquire(session_id, project_id=target_project_id):
         raise HTTPException(
             status_code=409,
-            detail="会话正在执行或目标项目正在变更，暂时不能修改项目或模型",
+            detail="会话正在执行或目标项目正在变更，暂时不能修改项目、模型或模式",
         )
     try:
         existing = store.get_session(user_id, session_id)
@@ -205,13 +234,17 @@ async def patch_session(
                 raise HTTPException(status_code=409, detail="目标项目已归档")
         project_changed = "project_id" in fields and existing.get("project_id") != target_project_id
         model_changed = "model" in fields and existing.get("model") != fields.get("model")
+        runtime_mode_changed = (
+            "runtime_mode" in fields
+            and existing.get("runtime_mode", "agent") != fields.get("runtime_mode")
+        )
         try:
             sess = store.update_session(user_id, session_id, **fields)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if sess is None:
             raise HTTPException(status_code=404, detail="会话不存在")
-        if project_changed or model_changed:
+        if project_changed or model_changed or runtime_mode_changed:
             # 内存 engine / Claude 长连接含旧项目上下文或模型；切换后必须驱逐。
             try:
                 from app.services.claude_runtime import get_claude_runtime

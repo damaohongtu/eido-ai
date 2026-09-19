@@ -25,6 +25,7 @@ class QueuedChatRun:
     content: str
     assistant_message_id: str
     model: str | None = None
+    runtime_mode: str = "agent"
     context: str | None = None
     delivery_mode: str = "queue"
 
@@ -183,7 +184,11 @@ async def _execute_queued_run(run: QueuedChatRun) -> bool:
 
     user_extra = {"deliveryMode": run.delivery_mode, "deliveryStatus": "running"}
     try:
-        project_context = load_project_context(run.user_id, run.session_id)
+        project_context = (
+            load_project_context(run.user_id, run.session_id)
+            if run.runtime_mode == "agent"
+            else None
+        )
         if (
             project_context
             and project_context.applied_context_revision != project_context.context_revision
@@ -213,8 +218,8 @@ async def _execute_queued_run(run: QueuedChatRun) -> bool:
         )
         get_session_workspace_manager().session_root(run.session_id)
 
-        from app.services.claude_runtime import get_claude_runtime
         from app.schemas.chat import Message as ChatMessage
+        from app.services.claude_runtime import get_claude_runtime
 
         service = get_claude_runtime()
         if service is None:
@@ -227,7 +232,9 @@ async def _execute_queued_run(run: QueuedChatRun) -> bool:
             user_id=run.user_id,
             session_id=run.session_id,
             project_context=project_context,
+            project_id=project_id,
             model=run.model,
+            runtime_mode=run.runtime_mode,
         ):
             payload = _parse_sse_payload(event)
             if payload:

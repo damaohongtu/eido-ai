@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ChatSession, Message, Skill } from '../shared';
+import type { ChatSession, Message, RuntimeMode, Skill } from '../shared';
 import { eidoCloudRuntime } from '../runtime/eidoCloudRuntime';
 import type { AgentRuntime } from '../runtime/types';
 
@@ -19,6 +19,7 @@ interface UseChatSendArgs {
   session: ChatSession | null;
   skills: Skill[];
   model: string;
+  runtimeMode: RuntimeMode;
   addMessage: (sessionId: string, msg: Message) => void;
   updateMessage: (sessionId: string, id: string, updates: Partial<Message>) => void;
   browserContext?: string;
@@ -34,6 +35,7 @@ export function useChatSend({
   session,
   skills,
   model,
+  runtimeMode,
   addMessage,
   updateMessage,
   browserContext,
@@ -88,13 +90,14 @@ export function useChatSend({
           browserContext || undefined,
           skillHint,
           abortRef.current.signal,
-          model
+          model,
+          runtimeMode
         );
       } finally {
         delete thinkingLogsRef.current[assistantId];
       }
     },
-    [model, makeUpdater, browserContext, agentRuntime]
+    [model, runtimeMode, makeUpdater, browserContext, agentRuntime]
   );
 
   const runPipeline = useCallback(
@@ -130,7 +133,8 @@ export function useChatSend({
             [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
             skill.id,
             abortRef.current?.signal,
-            model
+            model,
+            runtimeMode
           );
         } catch {
           delete thinkingLogsRef.current[assistantId];
@@ -141,7 +145,7 @@ export function useChatSend({
         contextMessages = [...contextMessages, { ...placeholder, content: finalContent }];
       }
     },
-    [model, addMessage, makeUpdater, browserContext, agentRuntime]
+    [model, runtimeMode, addMessage, makeUpdater, browserContext, agentRuntime]
   );
 
   const buildContentWithAttachments = (text: string, attachments: Attachment[]): string => {

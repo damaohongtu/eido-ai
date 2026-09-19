@@ -197,9 +197,12 @@ export interface ChatSession {
   projectId: string | null;
   skillId?: string;
   model?: string;
+  runtimeMode: RuntimeMode;
   messages: Message[];
   updatedAt: number;
 }
+
+export type RuntimeMode = 'qa' | 'agent';
 
 export interface CreateSessionOptions {
   skillId?: string;

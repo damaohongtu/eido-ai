@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference, Project } from '../types';
+import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference, Project, RuntimeMode } from '../types';
 import { api, getWorkspaceFileUrl } from '../services/api';
 import {
   canPreviewInBrowser,
@@ -18,6 +18,7 @@ import {
 } from '../utils/supportedFiles';
 import Mermaid from './Mermaid';
 import ModelSelector from './ModelSelector';
+import RuntimeModeSelector from './RuntimeModeSelector';
 
 const DOWNLOADABLE_FILE_EXTENSIONS = [...SUPPORTED_FILE_EXTENSIONS]
   .sort((left, right) => right.length - left.length);
@@ -107,6 +108,8 @@ interface ChatAreaProps {
   onRunningSessionsChange?: (sessionIds: Set<string>) => void;
   model: string;
   onModelChange: (model: string) => void;
+  runtimeMode: RuntimeMode;
+  onRuntimeModeChange: (mode: RuntimeMode) => void;
   browserContext?: string;
 }
 
@@ -160,6 +163,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onRunningSessionsChange,
   model,
   onModelChange,
+  runtimeMode,
+  onRuntimeModeChange,
   browserContext,
 }) => {
   const [input, setInput] = useState('');
@@ -513,7 +518,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         context,
         skillHint ?? undefined,
         controller.signal,
-        model
+        model,
+        runtimeMode
       );
     } finally {
       delete thinkingLogsRef.current[assistantId];
@@ -563,7 +569,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
           skill.id,
           controller.signal,
-          model
+          model,
+          runtimeMode
         );
       } catch {
         delete thinkingLogsRef.current[assistantId];
@@ -661,6 +668,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         assistant_message_id: assistantId,
         context: browserContext || undefined,
         model: controlModel,
+        runtime_mode: runtimeMode,
       });
       onUpdateMessage(targetSessionId, userMsg.id, {
         deliveryMode: requestedMode,
@@ -1345,6 +1353,11 @@ const ChatArea: React.FC<ChatAreaProps> = ({
             <ModelSelector
               value={model}
               onChange={onModelChange}
+              disabled={activeSessionRunning}
+            />
+            <RuntimeModeSelector
+              value={runtimeMode}
+              onChange={onRuntimeModeChange}
               disabled={activeSessionRunning}
             />
             <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-500">

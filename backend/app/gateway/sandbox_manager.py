@@ -443,7 +443,7 @@ class SandboxManager:
         from app.services.model_catalog import load_model_catalog
 
         env["CLAUDE_MODEL_CATALOG_JSON"] = json.dumps(
-            load_model_catalog().public(), ensure_ascii=False
+            load_model_catalog().sandbox(), ensure_ascii=False
         )
         env["CLAUDE_COMPACT_PERCENT"] = str(settings.CLAUDE_COMPACT_PERCENT)
         env["CLAUDE_SIMPLE_SYSTEM_PROMPT"] = str(settings.CLAUDE_SIMPLE_SYSTEM_PROMPT).lower()

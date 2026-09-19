@@ -1,6 +1,7 @@
 """Claude Code runtime orchestration for one Eido user container."""
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
@@ -223,9 +224,21 @@ class ClaudeRuntime(SkillCatalog):
             yield "data: [DONE]\n\n"
             return
 
+        from app.core.config import settings
+        from app.services.model_catalog import load_model_catalog
+
+        model_spec = load_model_catalog().find(model)
+        provider_model = model_spec.model
+        provider_env = model_spec.agent_env(
+            settings.claude_agent_env,
+            relay=settings.EIDO_TRUST_GATEWAY,
+        )
         claude_sid = self._load_claude_sid(user_id, session_id, project_context=project_context)
         agent_env = build_agent_env(
-            user_id, session_id, project_context.id if project_context else None
+            user_id,
+            session_id,
+            project_context.id if project_context else None,
+            provider_env=provider_env,
         )
         from app.services.mcp_config_store import get_mcp_config_store
 
@@ -251,12 +264,17 @@ class ClaudeRuntime(SkillCatalog):
             if project_context
             else (None, None)
         )
-        from app.core.config import settings
-        from app.services.model_catalog import load_model_catalog
+        def _secret_digest(name: str) -> str:
+            value = provider_env.get(name, "")
+            return hashlib.sha256(value.encode()).hexdigest() if value else ""
 
-        model = model or load_model_catalog().find(None).model
         client_signature = (
-            model,
+            model_spec.id,
+            provider_model,
+            provider_env.get("ANTHROPIC_BASE_URL", ""),
+            _secret_digest("ANTHROPIC_API_KEY"),
+            _secret_digest("ANTHROPIC_AUTH_TOKEN"),
+            provider_env.get("ANTHROPIC_SMALL_FAST_MODEL", ""),
             settings.CLAUDE_EFFORT,
             str(cwd.resolve()),
             project_signature,
@@ -302,7 +320,7 @@ class ClaudeRuntime(SkillCatalog):
                 return {}
 
             options = ClaudeAgentOptions(
-                model=model,
+                model=provider_model,
                 effort=settings.CLAUDE_EFFORT,
                 cli_path=settings.CLAUDE_CLI_PATH or None,
                 system_prompt={
@@ -319,7 +337,10 @@ class ClaudeRuntime(SkillCatalog):
                 permission_mode="acceptEdits",
                 # A quota wait may outlive the short-lived task API token.
                 env=build_agent_env(
-                    user_id, session_id, project_context.id if project_context else None
+                    user_id,
+                    session_id,
+                    project_context.id if project_context else None,
+                    provider_env=provider_env,
                 ),
                 include_partial_messages=True,
                 max_buffer_size=10 * 1024 * 1024,
@@ -442,7 +463,7 @@ class ClaudeRuntime(SkillCatalog):
                                 "[ClaudeRun] first_text_ms=%.1f warm=%s model=%s",
                                 (time.perf_counter() - run_started) * 1000,
                                 warm_hit,
-                                model,
+                                provider_model,
                             )
                         yield event
                 if not received_result:

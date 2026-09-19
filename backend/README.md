@@ -68,6 +68,7 @@ python run.py
 | `ANTHROPIC_AUTH_TOKEN` | 部分兼容网关使用的 Bearer Token | 空 |
 | `ANTHROPIC_MODEL` | 兼容旧部署的默认 provider 模型 | 服务默认 |
 | `CLAUDE_MODELS_FILE` | YAML 模型目录路径 | `backend/config/models.yaml` |
+| `GLM_*` / `DEEPSEEK_*` | 每个模型独立的 provider URL、Key/Token 与快速模型 | 空，未填字段回退全局 Anthropic 配置 |
 | `CLAUDE_COMPACT_PERCENT` | Claude Code 自动压缩触发百分比 | `80` |
 | `CLAUDE_SIMPLE_SYSTEM_PROMPT` | 原生精简系统提示，完整保留工具与扩展能力 | `true` |
 | `SKILLS_DIR` | 技能目录路径 | `{workspace}/.claude/skills` |

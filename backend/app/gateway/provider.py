@@ -11,9 +11,25 @@ router = APIRouter()
 _ALLOWED = {("POST", "v1/messages"), ("POST", "v1/messages/count_tokens"), ("GET", "v1/models")}
 
 
+def _provider_target(path: str):
+    """Resolve either the legacy default route or /provider/<model-id>/v1/..."""
+    from app.services.model_catalog import load_model_catalog
+
+    if path.startswith("v1/"):
+        return load_model_catalog().find(None), path
+    model_id, separator, api_path = path.partition("/")
+    if not separator:
+        raise HTTPException(404, "Unsupported provider endpoint")
+    try:
+        return load_model_catalog().find(model_id), api_path
+    except (OSError, ValueError) as exc:
+        raise HTTPException(404, "Unknown model provider") from exc
+
+
 @router.api_route("/provider/{path:path}", methods=["GET", "POST"])
 async def relay_provider(path: str, request: Request):
-    if (request.method, path) not in _ALLOWED:
+    model_spec, api_path = _provider_target(path)
+    if (request.method, api_path) not in _ALLOWED:
         raise HTTPException(404, "Unsupported provider endpoint")
     authorization = request.headers.get("authorization", "")
     token = authorization.removeprefix("Bearer ") or request.headers.get("x-api-key", "")
@@ -27,15 +43,16 @@ async def relay_provider(path: str, request: Request):
         if key.startswith("anthropic-") or key in {"content-type", "accept"}
     }
     headers["accept-encoding"] = "identity"
-    if settings.ANTHROPIC_API_KEY.get_secret_value():
-        headers["x-api-key"] = settings.ANTHROPIC_API_KEY.get_secret_value()
-    if settings.ANTHROPIC_AUTH_TOKEN.get_secret_value():
-        headers["authorization"] = f"Bearer {settings.ANTHROPIC_AUTH_TOKEN.get_secret_value()}"
+    provider_env = model_spec.provider.apply(settings.claude_agent_env)
+    if provider_env.get("ANTHROPIC_API_KEY"):
+        headers["x-api-key"] = provider_env["ANTHROPIC_API_KEY"]
+    if provider_env.get("ANTHROPIC_AUTH_TOKEN"):
+        headers["authorization"] = f"Bearer {provider_env['ANTHROPIC_AUTH_TOKEN']}"
     if "x-api-key" not in headers and "authorization" not in headers:
         raise HTTPException(503, "Provider credentials are not configured")
-    base = settings.ANTHROPIC_BASE_URL.rstrip("/") or "https://api.anthropic.com"
+    base = provider_env.get("ANTHROPIC_BASE_URL", "").rstrip("/") or "https://api.anthropic.com"
     # The caller can select only the fixed API paths above, never an upstream host.
-    url = f"{base}/{path}"
+    url = f"{base}/{api_path}"
     if request.url.query:
         url += "?" + request.url.query
     from app.gateway.sandbox_manager import get_sandbox_manager

@@ -243,7 +243,7 @@ async def chat_completion(
             store.update_session(user_id, request.session_id, model=model_spec.id)
             svc.reset_session(request.session_id)
             runtime_reset = True
-        model = model_spec.model
+        model = model_spec.id
 
         # Project 只能由已验证归属的 session 推导，避免 session/project 组合越权。
         project_context = load_project_context(user_id, request.session_id)
@@ -508,7 +508,7 @@ async def health_check():
 
 
 def resolve_model(model: str | None) -> str | None:
-    return resolve_model_spec(model).model
+    return resolve_model_spec(model).id
 
 
 def resolve_model_spec(model: str | None) -> ModelSpec:

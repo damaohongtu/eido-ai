@@ -198,6 +198,29 @@ VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
 
 桌面、移动端与插件都在聊天输入框下方切换当前会话模型。目录由 [`backend/config/models.yaml`](backend/config/models.yaml) 维护，选择结果随会话持久化；切换模型会清理旧的原生 SID，并从已有消息恢复到新模型。
 
+每个模型可以配置独立的 Anthropic 兼容 provider。推荐在 YAML 中引用环境变量，避免把密钥提交到仓库：
+
+```yaml
+version: 1
+default: glm
+models:
+  - id: glm
+    label: GLM
+    model: glm-5.3
+    provider:
+      base_url_env: GLM_BASE_URL
+      api_key_env: GLM_API_KEY
+      small_fast_model_env: GLM_SMALL_FAST_MODEL
+  - id: deepseek
+    label: DeepSeek
+    model: deepseek-chat
+    provider:
+      base_url: https://your-deepseek-compatible-endpoint.example
+      auth_token_env: DEEPSEEK_AUTH_TOKEN
+```
+
+`provider` 支持 `base_url`、`api_key`（或 `key`）、`auth_token`、`small_fast_model`，以及对应的 `*_env` 字段。单容器模式直接把选中模型的配置交给 Claude Code；多用户沙箱模式由 gateway 保管真实地址和密钥，用户容器只访问按模型隔离的 provider relay。`GET /chat/models` 不返回 provider 配置。
+
 ## Docker 部署
 
 ### 单租户模式
@@ -253,6 +276,7 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | Agent SDK 非交互式模型服务凭据；官方 API 推荐 `ANTHROPIC_API_KEY` |
 | `ANTHROPIC_MODEL` | 兼容旧部署的默认 provider 模型；若与目录中的 `model` 匹配，会覆盖目录默认项 |
 | `CLAUDE_MODELS_FILE` | 模型目录文件；默认 `backend/config/models.yaml`，当前内置 GLM 与 DeepSeek |
+| `GLM_*` / `DEEPSEEK_*` | 内置模型目录引用的独立 `BASE_URL`、`API_KEY`、`AUTH_TOKEN`、`SMALL_FAST_MODEL` |
 | `CLAUDE_EFFORT` | 可选推理强度，按模型支持情况设置；留空使用原生默认值 |
 | `CLAUDE_COMPACT_PERCENT` | 原生自动压缩触发百分比，默认 80 |
 | `CLAUDE_SIMPLE_SYSTEM_PROMPT` | 使用 Claude Code 原生精简系统提示，默认开启；保留 tools、hooks、MCP、Skills、memory 与 CLAUDE.md |

@@ -118,6 +118,13 @@ def runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", SecretStr("test-not-a-real-key"))
     monkeypatch.setattr(settings, "EIDO_DATA_ROOT", str(tmp_path / "data"))
     monkeypatch.setattr(settings, "ANTHROPIC_MODEL", "")
+    monkeypatch.setattr(
+        settings,
+        "CLAUDE_MODEL_CATALOG_JSON",
+        '{"default":"sonnet","models":['
+        '{"id":"sonnet","model":"sonnet"},'
+        '{"id":"opus","model":"opus"}]}',
+    )
     service = ClaudeRuntime(tmp_path / "skills", tmp_path)
     yield service, store
     store.close()

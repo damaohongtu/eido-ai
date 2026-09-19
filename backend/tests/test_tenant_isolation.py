@@ -12,8 +12,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import SecretStr
 from starlette.requests import Request
 
-from app.core.config import settings
 from app.core.auth import get_current_user_id
+from app.core.config import settings
 from app.core.tenant_credentials import (
     gateway_secret,
     provider_token,
@@ -174,10 +174,59 @@ async def test_provider_relay_hides_master_and_forwards_reset(credentials, monke
 
 
 @pytest.mark.asyncio
+async def test_provider_relay_uses_selected_model_credentials(credentials, monkeypatch):
+    from app.gateway import provider, sandbox_manager
+
+    monkeypatch.setattr(settings, "ANTHROPIC_BASE_URL", "https://global.example")
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", SecretStr("global-key"))
+    monkeypatch.setattr(settings, "ANTHROPIC_AUTH_TOKEN", SecretStr(""))
+    monkeypatch.setattr(settings, "ANTHROPIC_MODEL", "")
+    monkeypatch.setattr(
+        settings,
+        "CLAUDE_MODEL_CATALOG_JSON",
+        '{"default":"glm","models":['
+        '{"id":"glm","model":"glm-5.3"},'
+        '{"id":"deepseek","model":"deepseek-chat","provider":{'
+        '"base_url":"https://deepseek.example/anthropic",'
+        '"auth_token":"deepseek-secret"}}]}',
+    )
+    manager = MagicMock()
+    monkeypatch.setattr(sandbox_manager, "get_sandbox_manager", lambda: manager)
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b'{"ok":true}'
+
+    async def handler(request):
+        assert str(request.url) == "https://deepseek.example/anthropic/v1/messages"
+        assert request.headers["authorization"] == "Bearer deepseek-secret"
+        assert "x-api-key" not in request.headers
+        return httpx.Response(200, stream=Stream())
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as upstream:
+        monkeypatch.setattr(provider, "get_proxy_client", lambda: upstream)
+        app = FastAPI()
+        app.include_router(provider.router)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://gateway"
+        ) as client:
+            response = await client.post(
+                "/provider/deepseek/v1/messages",
+                content=b"{}",
+                headers={"authorization": "Bearer " + provider_token("alice")},
+            )
+
+    assert response.status_code == 200
+    manager.retain.assert_called_once_with("alice")
+    manager.release.assert_called_once_with("alice")
+
+
+@pytest.mark.asyncio
 async def test_scheduled_script_is_forwarded_to_owner_container(monkeypatch):
-    from app.services import task_executor, script_runner
-    from app.gateway import proxy, sandbox_manager
     from unittest.mock import AsyncMock
+
+    from app.gateway import proxy, sandbox_manager
+    from app.services import script_runner, task_executor
 
     handle = object()
     manager = MagicMock()

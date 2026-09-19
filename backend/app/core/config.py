@@ -105,6 +105,14 @@ class Settings(BaseSettings):
     CLAUDE_MODELS_FILE: str = ""
     # Gateway serializes the file-backed catalog into user containers.
     CLAUDE_MODEL_CATALOG_JSON: str = ""
+    GLM_BASE_URL: str = ""
+    GLM_API_KEY: SecretStr = SecretStr("")
+    GLM_AUTH_TOKEN: SecretStr = SecretStr("")
+    GLM_SMALL_FAST_MODEL: str = ""
+    DEEPSEEK_BASE_URL: str = ""
+    DEEPSEEK_API_KEY: SecretStr = SecretStr("")
+    DEEPSEEK_AUTH_TOKEN: SecretStr = SecretStr("")
+    DEEPSEEK_SMALL_FAST_MODEL: str = ""
     CLAUDE_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] | None = None
     CLAUDE_COMPACT_PERCENT: int = Field(default=80, ge=50, le=95)
     CLAUDE_CLI_PATH: str = ""

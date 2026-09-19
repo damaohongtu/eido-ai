@@ -1312,4 +1312,4 @@ def test_session_model_switch_is_persisted_and_resets_native_session(project_api
         model="deepseek",
     )
     assert chat.status_code == 200, chat.text
-    assert project_api.chat_service.model == "deepseek-chat"
+    assert project_api.chat_service.model == "deepseek"

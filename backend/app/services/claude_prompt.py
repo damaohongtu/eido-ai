@@ -76,7 +76,8 @@ def build_prompt(
     return (
         f"{workspace_section}\n{project_section}{skills_section}"
         f"## 执行说明\n\n"
-        f"- 除原生 memory 外，产物写文件操作请落在 `{cwd / 'outputs'}` 目录下；不要写到工作区之外。\n"
+        "- 除原生 memory 外，产物写文件操作请落在 "
+        f"`{cwd / 'outputs'}` 目录下；不要写到工作区之外。\n"
         f"- 用户上传文件已在消息中提供绝对路径，可直接 Read。\n"
         f"- 技能库只读；不要修改 `.claude/skills` 或技能源目录。\n"
         f"- 所有环境变量均已配置（包括 EIDO_USER_TOKEN），无需手动 export。\n\n"
@@ -85,12 +86,16 @@ def build_prompt(
 
 
 def build_agent_env(
-    user_id: str | None, session_id: str | None, project_id: str | None = None
+    user_id: str | None,
+    session_id: str | None,
+    project_id: str | None = None,
+    *,
+    provider_env: dict[str, str] | None = None,
 ) -> dict[str, str]:
     from app.core.config import settings
 
     env = {
-        **settings.claude_agent_env,
+        **(provider_env if provider_env is not None else settings.claude_agent_env),
         "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": str(settings.CLAUDE_COMPACT_PERCENT),
         "CLAUDE_CONFIG_DIR": str(
             settings.claude_data_root

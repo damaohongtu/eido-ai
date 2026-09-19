@@ -3,7 +3,6 @@ import { api, hydrateSession, summaryToSession, BACKEND_URL, INITIAL_CHAT_STATE,
 import type { ChatSession, CreateSessionOptions, Message, Project, Skill } from '../shared';
 export type MobileTab = 'chat' | 'skills' | 'me';
 const ACTIVE_SESSION_KEY = 'eido_m_active_session_id';
-const MODEL_KEY = 'eido_m_model';
 function readStorage<T>(key: string, fallback: T): T {
     try {
         const raw = sessionStorage.getItem(key);
@@ -121,11 +120,6 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
     const [userSkills, setUserSkills] = useState<Skill[]>([]);
     const [skillsLoading, setSkillsLoading] = useState(true);
-    const [model, setModelState] = useState<string>(() => readStorage<string>(MODEL_KEY, ''));
-    const setModel = useCallback((h: string) => {
-        setModelState(h);
-        writeStorage(MODEL_KEY, h);
-    }, []);
     const checkAuthState = useCallback(async () => {
         setAuthChecking(true);
         try {
@@ -274,6 +268,27 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         refreshProjects();
     }, [authChecked, authRequired, refreshProjects]);
     const activeSession = useMemo(() => sessions.find((s) => s.id === activeSessionId) || null, [sessions, activeSessionId]);
+    const model = activeSession?.model || '';
+    const setModel = useCallback((modelId: string) => {
+        const sessionId = activeSessionIdRef.current;
+        if (!sessionId)
+            return;
+        const previousModel = activeSession?.model;
+        const selected = modelId || undefined;
+        setSessions((prev) => prev.map((session) => session.id === sessionId
+            ? { ...session, model: selected, updatedAt: Date.now() }
+            : session));
+        api.patchSession(sessionId, { model: modelId || null })
+            .then((updated) => setSessions((prev) => prev.map((session) => session.id === sessionId && session.model === selected
+                ? { ...session, model: updated.model || undefined }
+                : session)))
+            .catch((error) => {
+                setSessions((prev) => prev.map((session) => session.id === sessionId && session.model === selected
+                    ? { ...session, model: previousModel }
+                    : session));
+                console.warn('更新会话模型失败:', error);
+            });
+    }, [activeSession?.model]);
     const allSkills = useMemo(() => [...systemSkills, ...userSkills], [systemSkills, userSkills]);
     const refreshSessions = useCallback(async () => {
         try {
@@ -333,6 +348,7 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
                 title: created.title || '新建会话',
                 projectId: created.project_id ?? options.projectId ?? null,
                 skillId: created.skill_id || skillId,
+                model: created.model || undefined,
                 messages: initialMessages,
                 updatedAt: Date.parse(created.updated_at) || Date.now(),
             };

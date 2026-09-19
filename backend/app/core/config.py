@@ -102,7 +102,9 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
     ANTHROPIC_AUTH_TOKEN: SecretStr = SecretStr("")
     ANTHROPIC_MODEL: str = ""
-    CLAUDE_MODELS: list[str] = ["sonnet", "opus", "haiku"]
+    CLAUDE_MODELS_FILE: str = ""
+    # Gateway serializes the file-backed catalog into user containers.
+    CLAUDE_MODEL_CATALOG_JSON: str = ""
     CLAUDE_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] | None = None
     CLAUDE_COMPACT_PERCENT: int = Field(default=80, ge=50, le=95)
     CLAUDE_CLI_PATH: str = ""
@@ -226,11 +228,6 @@ class Settings(BaseSettings):
     @classmethod
     def empty_effort_uses_default(cls, value):
         return value or None
-
-    @field_validator("CLAUDE_MODELS")
-    @classmethod
-    def normalize_models(cls, value: list[str]) -> list[str]:
-        return list(dict.fromkeys(model.strip() for model in value if model.strip()))
 
     @field_validator("CAS_SERVER_URL", mode="before")
     @classmethod

@@ -38,10 +38,10 @@ class CapturingChatService:
         self.project_context: ProjectContext | None = None
         self.reset_sessions: list[str] = []
         self.messages: list = []
+        self.model: str | None = None
         self.steerable_sessions: set[tuple[str, str]] = set()
         self.steered_messages: list[tuple[str, str, str]] = []
         self.interrupted_sessions: list[tuple[str, str]] = []
-        self.conversation_has_history: bool | None = None
 
     def reset_session(self, session_id: str) -> None:
         self.reset_sessions.append(session_id)
@@ -70,11 +70,10 @@ class CapturingChatService:
         session_id: str | None = None,
         project_context: ProjectContext | None = None,
         model: str | None = None,
-        conversation_has_history: bool | None = None,
     ):
         self.project_context = project_context
         self.messages = list(messages)
-        self.conversation_has_history = conversation_has_history
+        self.model = model
         yield 'data: {"type":"content","content":"context received"}\n\n'
         yield "data: [DONE]\n\n"
 
@@ -482,7 +481,7 @@ def _send_context_chat(
     session_id: str,
     *,
     assistant_message_id: str = "assistant-context",
-    model: str = "sonnet",
+    model: str = "glm",
     messages: list[dict[str, str]] | None = None,
 ):
     request_messages = messages or [
@@ -510,7 +509,7 @@ def _chat_control_payload(
         "session_id": session_id,
         "message": {"id": message_id, "role": "user", "content": "follow up"},
         "assistant_message_id": f"assistant-{message_id}",
-        "model": "sonnet",
+        "model": "glm",
     }
 
 
@@ -666,28 +665,6 @@ def test_chat_derives_context_from_session_and_persists_stream_result(
     ]
 
 
-def test_chat_marks_only_the_first_turn_as_history_free(project_api: ProjectApiHarness):
-    session = _create_session(project_api, title="Greeting")
-
-    first = _send_context_chat(
-        project_api,
-        session["id"],
-        assistant_message_id="assistant-greeting-1",
-        messages=[{"id": "user-greeting-1", "role": "user", "content": "hi"}],
-    )
-    assert first.status_code == 200, first.text
-    assert project_api.chat_service.conversation_has_history is False
-
-    second = _send_context_chat(
-        project_api,
-        session["id"],
-        assistant_message_id="assistant-greeting-2",
-        messages=[{"id": "user-greeting-2", "role": "user", "content": "hello"}],
-    )
-    assert second.status_code == 200, second.text
-    assert project_api.chat_service.conversation_has_history is True
-
-
 def test_chat_records_applied_project_context_revision(
     project_api: ProjectApiHarness,
 ):
@@ -742,7 +719,7 @@ def test_context_revision_change_invalidates_native_context_before_chat(
         project_api,
         session_id,
         assistant_message_id="assistant-updated-revision",
-        model="sonnet",
+        model="glm",
         messages=[
             {
                 "id": "untrusted-history",
@@ -1100,7 +1077,7 @@ def test_promoted_output_is_in_next_project_context_and_resets_provider_memory(
         project_api,
         session_id,
         assistant_message_id="assistant-after-promotion",
-        model="sonnet",
+        model="glm",
     )
     assert chat_response.status_code == 200, chat_response.text
     captured = project_api.chat_service.project_context
@@ -1293,12 +1270,46 @@ def test_project_delete_reports_pending_cleanup_and_retry_removes_the_directory(
 def test_model_catalog_and_rejection_do_not_start_a_run(project_api, monkeypatch):
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "ANTHROPIC_MODEL", "custom-model")
-    monkeypatch.setattr(settings, "CLAUDE_MODELS", ["custom-model", "sonnet"])
+    monkeypatch.setattr(settings, "ANTHROPIC_MODEL", "")
+    monkeypatch.setattr(
+        settings,
+        "CLAUDE_MODEL_CATALOG_JSON",
+        '{"default":"custom","models":['
+        '{"id":"custom","label":"Custom","model":"custom-model"},'
+        '{"id":"sonnet","label":"Claude Sonnet","model":"sonnet"}]}'
+    )
     response = project_api.client.get("/api/v1/chat/models")
     assert response.status_code == 200
-    assert response.json() == {"default": "custom-model", "models": ["custom-model", "sonnet"]}
+    assert response.json() == {
+        "default": "custom",
+        "models": [
+            {"id": "custom", "label": "Custom", "model": "custom-model", "description": ""},
+            {"id": "sonnet", "label": "Claude Sonnet", "model": "sonnet", "description": ""},
+        ],
+    }
     session = _create_session(project_api, title="Model test")
     response = _send_context_chat(project_api, session["id"], model="unconfigured")
     assert response.status_code == 400
     assert not project_api.store.list_messages(session["id"], user_id="user-a")
+
+
+def test_session_model_switch_is_persisted_and_resets_native_session(project_api):
+    session = _create_session(project_api, title="Model switch")
+    assert project_api.store.set_claude_session_id("user-a", session["id"], "native-old")
+
+    response = project_api.client.patch(
+        f"/api/v1/sessions/{session['id']}", json={"model": "deepseek"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["model"] == "deepseek"
+    assert response.json()["claude_session_id"] is None
+    assert project_api.chat_service.reset_sessions == [session["id"]]
+
+    chat = _send_context_chat(
+        project_api,
+        session["id"],
+        assistant_message_id="assistant-deepseek",
+        model="deepseek",
+    )
+    assert chat.status_code == 200, chat.text
+    assert project_api.chat_service.model == "deepseek-chat"

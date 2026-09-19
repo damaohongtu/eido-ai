@@ -20,7 +20,6 @@ from app.services.claude_event_adapter import ClaudeEventAdapter
 from app.services.claude_prompt import build_prompt
 from app.services.claude_runtime import ClaudeRuntime
 from app.services.conversation_context import format_recent_conversation, prepare_recovery_context
-from app.services.conversation_fast_path import local_reply
 from app.services.session_workspace import SessionWorkspaceManager
 
 
@@ -97,45 +96,6 @@ def test_large_browser_context_keeps_the_tail_on_disk(tmp_path):
     )
     assert len(prompt) < 2000
     assert next((tmp_path / ".eido-context").glob("*.md")).read_text().endswith("TAIL-IMPORTANT")
-
-
-def test_plain_greeting_uses_zero_model_fast_path(tmp_path):
-    service = ClaudeRuntime(tmp_path / "skills", tmp_path)
-
-    async def exercise():
-        events = [
-            event async for event in service.execute_stream([Message(role="user", content="hi")])
-        ]
-        data = payloads(events)
-        assert [item["type"] for item in data] == ["content", "workflow_complete"]
-        assert "你好" in data[0]["content"]
-        assert not service.sessions.entries
-
-    asyncio.run(exercise())
-
-
-def test_session_greeting_uses_fast_path_only_when_explicitly_new(tmp_path):
-    service = ClaudeRuntime(tmp_path / "skills", tmp_path)
-
-    async def exercise():
-        events = [
-            event
-            async for event in service.execute_stream(
-                [Message(role="user", content="hi")],
-                session_id="session1",
-                conversation_has_history=False,
-            )
-        ]
-        assert any("你好" in event for event in events)
-        assert not service.sessions.entries
-
-    asyncio.run(exercise())
-
-
-def test_greeting_fast_path_does_not_replace_contextual_turns():
-    assert local_reply("hi", has_context=False, has_project=False, has_history=True) is None
-    assert local_reply("hi", has_context=True, has_project=False, has_history=False) is None
-    assert local_reply("hi", has_context=False, has_project=True, has_history=False) is None
 
 
 @pytest.fixture

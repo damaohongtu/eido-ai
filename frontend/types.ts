@@ -196,6 +196,7 @@ export interface ChatSession {
   title: string;
   projectId: string | null;
   skillId?: string;
+  model?: string;
   messages: Message[];
   updatedAt: number;
 }

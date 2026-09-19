@@ -333,7 +333,13 @@ agent cwd 在执行期间被切换到 `.eido/workspaces/<session_id>/`，所有 
 返回配置的模型列表，无需启动用户容器：
 
 ```json
-{"default": "sonnet", "models": ["sonnet", "opus", "haiku"]}
+{
+  "default": "glm",
+  "models": [
+    {"id": "glm", "label": "GLM", "model": "glm-5.2", "description": "智谱 GLM 通用编码模型"},
+    {"id": "deepseek", "label": "DeepSeek", "model": "deepseek-chat", "description": "DeepSeek 通用对话与编码模型"}
+  ]
+}
 ```
 
 限流时流保持心跳，通过 thinking 事件告知等待状态，并按 reset 时间自动续接原生会话。显式输入 `/compact` 调用原生压缩。失败会发 error，之后的 `[DONE]` 仅表示流结束，不表示任务成功。

@@ -196,7 +196,7 @@ VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
 
 ### 6. 选择模型
 
-桌面侧栏、移动端与插件的“我的”页面可选择 Claude Code 模型。可选项由后端 `CLAUDE_MODELS` 配置提供；默认项使用 `ANTHROPIC_MODEL`。配置示例见下文。
+桌面、移动端与插件都在聊天输入框下方切换当前会话模型。目录由 [`backend/config/models.yaml`](backend/config/models.yaml) 维护，选择结果随会话持久化；切换模型会清理旧的原生 SID，并从已有消息恢复到新模型。
 
 ## Docker 部署
 
@@ -251,8 +251,8 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 | --- | --- |
 | `ANTHROPIC_BASE_URL` | Anthropic 兼容 API 地址；使用官方 API 时留空 |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN` | Agent SDK 非交互式模型服务凭据；官方 API 推荐 `ANTHROPIC_API_KEY` |
-| `ANTHROPIC_MODEL` | 默认模型名称 |
-| `CLAUDE_MODELS` | 可选模型 JSON 数组，如 `["sonnet","opus","haiku"]`；兼容服务填写其真实模型 ID |
+| `ANTHROPIC_MODEL` | 兼容旧部署的默认 provider 模型；若与目录中的 `model` 匹配，会覆盖目录默认项 |
+| `CLAUDE_MODELS_FILE` | 模型目录文件；默认 `backend/config/models.yaml`，当前内置 GLM 与 DeepSeek |
 | `CLAUDE_EFFORT` | 可选推理强度，按模型支持情况设置；留空使用原生默认值 |
 | `CLAUDE_COMPACT_PERCENT` | 原生自动压缩触发百分比，默认 80 |
 | `CLAUDE_SIMPLE_SYSTEM_PROMPT` | 使用 Claude Code 原生精简系统提示，默认开启；保留 tools、hooks、MCP、Skills、memory 与 CLAUDE.md |

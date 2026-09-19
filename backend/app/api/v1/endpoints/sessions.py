@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from app.core.auth import get_current_user_id
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
+from app.services.model_catalog import load_model_catalog
 from app.services.project_workspace import validate_project_id
 from app.services.session_workspace import (
     get_session_workspace_manager,
@@ -29,12 +30,24 @@ class CreateSessionRequest(BaseModel):
     title: Optional[str] = Field(None, description="会话标题，可选")
     skill_id: Optional[str] = Field(None, description="关联的技能 ID，可选")
     project_id: Optional[str] = Field(None, description="所属项目 ID；不传表示普通会话")
+    model: Optional[str] = Field(None, description="模型配置 ID；不传使用默认模型")
 
 
 class PatchSessionRequest(BaseModel):
     title: Optional[str] = None
     skill_id: Optional[str] = None
     project_id: Optional[str] = None
+    model: Optional[str] = None
+
+
+def _validated_model_id(value: str | None) -> str | None:
+    model_id = (value or "").strip() or None
+    if model_id is None:
+        return None
+    try:
+        return load_model_catalog().find(model_id).id
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 class AppendMessageRequest(BaseModel):
@@ -42,7 +55,10 @@ class AppendMessageRequest(BaseModel):
     content: str = Field(..., description="消息正文")
     extra: dict[str, Any] = Field(
         default_factory=dict,
-        description="附加字段：thinking / thinkingLog / executionSteps / references / workflowMermaid 等",
+        description=(
+            "附加字段：thinking / thinkingLog / executionSteps / references / "
+            "workflowMermaid 等"
+        ),
     )
     id: Optional[str] = Field(None, description="可选客户端预生成的 message id")
 
@@ -105,6 +121,7 @@ async def create_session(
                 title=body.title or "新建会话",
                 skill_id=body.skill_id,
                 project_id=body.project_id,
+                model=_validated_model_id(body.model),
             )
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -144,13 +161,15 @@ async def patch_session(
     body: PatchSessionRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    """部分更新会话（标题、关联技能）。"""
+    """部分更新会话标题、技能、项目或模型。"""
     try:
         validate_session_id(session_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     # 保留显式传入的 null，允许把 skill_id/project_id 清空。
     fields = body.model_dump(exclude_unset=True)
+    if "model" in fields:
+        fields["model"] = _validated_model_id(fields["model"])
     store = get_chat_session_store()
     if store.get_session(user_id, session_id) is None:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -168,11 +187,11 @@ async def patch_session(
 
     # 只要请求显式修改 project_id，就原子持有 session single-flight 与目标
     # Project 共享租约。这样独占删除无法夹在目标校验和数据库更新之间。
-    guard = get_chat_execution_guard() if "project_id" in fields else None
+    guard = get_chat_execution_guard() if {"project_id", "model"}.intersection(fields) else None
     if guard is not None and not guard.try_acquire(session_id, project_id=target_project_id):
         raise HTTPException(
             status_code=409,
-            detail="会话正在执行或目标项目正在变更，暂时不能移动项目",
+            detail="会话正在执行或目标项目正在变更，暂时不能修改项目或模型",
         )
     try:
         existing = store.get_session(user_id, session_id)
@@ -185,14 +204,15 @@ async def patch_session(
             if project.get("archived_at"):
                 raise HTTPException(status_code=409, detail="目标项目已归档")
         project_changed = "project_id" in fields and existing.get("project_id") != target_project_id
+        model_changed = "model" in fields and existing.get("model") != fields.get("model")
         try:
             sess = store.update_session(user_id, session_id, **fields)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if sess is None:
             raise HTTPException(status_code=404, detail="会话不存在")
-        if project_changed:
-            # 内存 engine / Claude 长连接都含旧项目上下文；项目切换后必须驱逐。
+        if project_changed or model_changed:
+            # 内存 engine / Claude 长连接含旧项目上下文或模型；切换后必须驱逐。
             try:
                 from app.services.claude_runtime import get_claude_runtime
 
@@ -200,7 +220,7 @@ async def patch_session(
                 if claude_runtime is not None:
                     claude_runtime.reset_session(session_id)
             except Exception as e:
-                logger.warning("重置 agent 会话失败 session=%s: %s", session_id, e)
+                logger.warning("重置 Claude 会话失败 session=%s: %s", session_id, e)
         return sess
     finally:
         if guard is not None:

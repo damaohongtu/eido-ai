@@ -65,7 +65,10 @@ def test_real_tenant_isolation_and_native_resume():
                 "ANTHROPIC_API_KEY": "test-master-provider-key",
                 "ANTHROPIC_AUTH_TOKEN": "",
                 "ANTHROPIC_MODEL": "test-model",
-                "CLAUDE_MODELS": '["test-model"]',
+                "CLAUDE_MODEL_CATALOG_JSON": (
+                    '{"default":"test","models":['
+                    '{"id":"test","label":"Test","model":"test-model"}]}'
+                ),
                 "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
             },
             volumes={

@@ -150,7 +150,6 @@ class ClaudeRuntime(SkillCatalog):
         session_id: Optional[str] = None,
         project_context: Optional[ProjectContext] = None,
         model: Optional[str] = None,
-        conversation_has_history: Optional[bool] = None,
     ) -> AsyncGenerator[str, None]:
         """通过 claude_agent_sdk 自动规划执行，以 SSE 格式流式返回。
 
@@ -166,7 +165,6 @@ class ClaudeRuntime(SkillCatalog):
         user_id     当前用户 ID，用于生成 agent 子进程的身份 token。
         session_id  会话 ID。指定后 agent cwd 切到该会话工作区（强隔离）；
                     未指定则回退到全局 workspace_root（兼容历史路径）。
-        conversation_has_history  当前会话在本轮前是否已有消息；仅用于限制新会话问候快路径。
         """
         logger.info(
             f"▶ execute_stream 开始 | 消息数: {len(messages)}"
@@ -177,27 +175,6 @@ class ClaudeRuntime(SkillCatalog):
         latest_user_text = self._extract_latest_user_text(messages)
         if not latest_user_text:
             yield self._sse({"type": "error", "message": "未找到用户输入"})
-            yield "data: [DONE]\n\n"
-            return
-
-        from app.services.conversation_fast_path import local_reply
-
-        quick_reply = local_reply(
-            latest_user_text,
-            has_context=bool(context and context.strip()),
-            has_project=project_context is not None,
-            has_history=(
-                conversation_has_history
-                if conversation_has_history is not None
-                else bool(session_id) or len(messages) > 1
-            ),
-        )
-        if quick_reply:
-            logger.info(
-                "[ClaudeRun] local_fast_path=greeting input_chars=%d", len(latest_user_text)
-            )
-            yield self._sse({"type": "content", "content": quick_reply})
-            yield self._sse({"type": "workflow_complete", "data": {"references": []}})
             yield "data: [DONE]\n\n"
             return
 
@@ -275,8 +252,9 @@ class ClaudeRuntime(SkillCatalog):
             else (None, None)
         )
         from app.core.config import settings
+        from app.services.model_catalog import load_model_catalog
 
-        model = model or settings.ANTHROPIC_MODEL.strip() or None
+        model = model or load_model_catalog().find(None).model
         client_signature = (
             model,
             settings.CLAUDE_EFFORT,
@@ -522,7 +500,9 @@ class ClaudeRuntime(SkillCatalog):
                             self._sse(
                                 {
                                     "type": "thinking",
-                                    "content": f"模型额度受限，约 {int(delay)} 秒后自动继续；可随时停止。",
+                                    "content": (
+                                        f"模型额度受限，约 {int(delay)} 秒后自动继续；可随时停止。"
+                                    ),
                                 }
                             )
                         )

@@ -13,8 +13,8 @@ import pytest
 
 from app.core.config import settings
 from app.services.chat_session_store import (
-    ChatSessionStore,
     LATEST_SCHEMA_VERSION,
+    ChatSessionStore,
     ProjectQuotaExceededError,
 )
 
@@ -229,7 +229,7 @@ def test_migrates_observed_v2_cleanup_outbox_to_v3_without_data_loss(
     value = ChatSessionStore(db_path)
     value.connect()
     try:
-        assert value.conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert value.conn.execute("PRAGMA user_version").fetchone()[0] == LATEST_SCHEMA_VERSION
         assert {"user_id", "file_count", "size_bytes"} <= set(
             _table_columns(value.conn, "storage_cleanup_jobs")
         )
@@ -290,7 +290,7 @@ def test_v2_migration_failure_rolls_back_columns_and_version(
     recovered = ChatSessionStore(db_path)
     recovered.connect()
     try:
-        assert recovered.conn.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert recovered.conn.execute("PRAGMA user_version").fetchone()[0] == LATEST_SCHEMA_VERSION
         assert {"user_id", "file_count", "size_bytes"} <= set(
             _table_columns(recovered.conn, "storage_cleanup_jobs")
         )
@@ -301,19 +301,19 @@ def test_v2_migration_failure_rolls_back_columns_and_version(
 def test_rejects_unknown_future_schema_without_modifying_it(tmp_path: Path):
     db_path = tmp_path / "future.db"
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA user_version=5")
+    conn.execute("PRAGMA user_version=6")
     conn.close()
 
     value = ChatSessionStore(db_path)
     with pytest.raises(
         RuntimeError,
-        match="数据库 schema v5 高于当前程序支持的 v4",
+        match="数据库 schema v6 高于当前程序支持的 v5",
     ):
         value.connect()
 
     conn = sqlite3.connect(db_path)
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
         assert conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
     finally:
         conn.close()

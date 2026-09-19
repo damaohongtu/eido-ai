@@ -17,11 +17,11 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import StreamingResponse
 
 from app.core.auth import get_current_user_id
-from app.core.config import settings
 from app.core.logging_context import reset_session_id, set_session_id
 from app.schemas.chat import ChatControlRequest, ChatRequest
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_session_store import get_chat_session_store
+from app.services.model_catalog import ModelSpec, load_model_catalog
 from app.services.project_context import load_project_context
 from app.services.session_workspace import (
     get_session_workspace_manager,
@@ -213,13 +213,10 @@ async def chat_completion(
         svc = get_claude_runtime()
         if svc is None:
             raise HTTPException(status_code=503, detail="Claude Code 服务未初始化")
-        model = resolve_model(request.model)
-
         store = get_chat_session_store()
         session = store.get_session(user_id, request.session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
-
         guard = get_chat_execution_guard()
         locked_project_id = session.get("project_id")
         if not guard.try_acquire(request.session_id, project_id=locked_project_id):
@@ -237,6 +234,16 @@ async def chat_completion(
             raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
         if locked_session.get("project_id") != locked_project_id:
             raise HTTPException(status_code=409, detail="会话所属项目已变化，请重试")
+        # 模型必须在取得 session single-flight 后解析，避免它在首次读取与加锁之间
+        # 被另一个请求切换，导致本轮仍使用旧模型。
+        model_spec = resolve_model_spec(request.model or locked_session.get("model"))
+        model_changed = locked_session.get("model") != model_spec.id
+        runtime_reset = False
+        if request.model and model_changed:
+            store.update_session(user_id, request.session_id, model=model_spec.id)
+            svc.reset_session(request.session_id)
+            runtime_reset = True
+        model = model_spec.model
 
         # Project 只能由已验证归属的 session 推导，避免 session/project 组合越权。
         project_context = load_project_context(user_id, request.session_id)
@@ -246,20 +253,19 @@ async def chat_completion(
         ):
             # Revision 变化后 provider 记忆可能仍含旧项目资料。
             # 先驱逐内存 engine，再原子清理 provider SID 并绑定本次快照。
-            try:
-                from app.services.claude_runtime import get_claude_runtime
-
-                claude_runtime = get_claude_runtime()
-                if claude_runtime is not None:
-                    claude_runtime.reset_session(request.session_id)
-            except Exception as exc:
-                logger.error(
-                    "刷新项目上下文缓存失败 session=%s: %s",
-                    request.session_id,
-                    exc,
-                    exc_info=True,
-                )
-                raise HTTPException(status_code=503, detail="项目上下文刷新失败，请重试") from exc
+            if not runtime_reset:
+                try:
+                    svc.reset_session(request.session_id)
+                except Exception as exc:
+                    logger.error(
+                        "刷新项目上下文缓存失败 session=%s: %s",
+                        request.session_id,
+                        exc,
+                        exc_info=True,
+                    )
+                    raise HTTPException(
+                        status_code=503, detail="项目上下文刷新失败，请重试"
+                    ) from exc
 
             prepared = store.prepare_project_context(
                 user_id,
@@ -273,7 +279,6 @@ async def chat_completion(
         # 归属校验通过后再确保 session 工作区目录已创建
         get_session_workspace_manager().session_root(request.session_id)
 
-        conversation_has_history = store.has_messages(user_id, request.session_id)
         latest = request.messages[-1]
         if latest.role == "user":
             store.append_message(
@@ -300,7 +305,6 @@ async def chat_completion(
                     session_id=request.session_id,
                     project_context=project_context,
                     model=model,
-                    conversation_has_history=conversation_has_history,
                 ):
                     payload = _parse_sse_payload(event)
                     if payload:
@@ -325,7 +329,10 @@ async def chat_completion(
                             extra=_message_extra_from_stream_state(state),
                         )
                         logger.info(
-                            f"[{user_id}][session={request.session_id}] assistant 消息已由后端保存: {assistant_message_id}"
+                            "[%s][session=%s] assistant 消息已由后端保存: %s",
+                            user_id,
+                            request.session_id,
+                            assistant_message_id,
                         )
                     except Exception as e:
                         logger.error(f"保存 assistant 消息失败: {e}", exc_info=True)
@@ -385,7 +392,7 @@ async def control_active_chat(
     if session is None:
         raise HTTPException(status_code=404, detail="会话不存在或不属于当前用户")
 
-    model = resolve_model(request.model)
+    model = resolve_model(request.model or session.get("model"))
     guard = get_chat_execution_guard()
     active = guard.is_active(session_id)
 
@@ -501,16 +508,21 @@ async def health_check():
 
 
 def resolve_model(model: str | None) -> str | None:
-    selected = (model or "").strip() or settings.ANTHROPIC_MODEL.strip() or None
-    allowed = set(settings.CLAUDE_MODELS) | {settings.ANTHROPIC_MODEL.strip()}
-    if selected and selected not in allowed:
-        raise HTTPException(status_code=400, detail="模型未配置，请从模型列表选择")
-    return selected
+    return resolve_model_spec(model).model
+
+
+def resolve_model_spec(model: str | None) -> ModelSpec:
+    try:
+        return load_model_catalog().find(model)
+    except (OSError, ValueError) as exc:
+        logger.error("模型配置无效: %s", exc)
+        raise HTTPException(status_code=400, detail="模型未配置，请从模型列表选择") from exc
 
 
 @router.get("/models")
 async def list_models(user_id: str = Depends(get_current_user_id)):
-    models = list(
-        dict.fromkeys(filter(None, [settings.ANTHROPIC_MODEL.strip(), *settings.CLAUDE_MODELS]))
-    )
-    return {"default": settings.ANTHROPIC_MODEL.strip() or None, "models": models}
+    try:
+        return load_model_catalog().public()
+    except (OSError, ValueError) as exc:
+        logger.exception("读取模型配置失败")
+        raise HTTPException(status_code=500, detail=f"模型配置无效: {exc}") from exc

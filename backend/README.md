@@ -26,8 +26,7 @@ backend/
 │       ├── claude_sdk_session.py   # 单个 ClaudeSDKClient owner task
 │       ├── claude_event_adapter.py # SDK 消息到 SSE 的转换
 │       ├── claude_prompt.py        # prompt、环境变量与认证检查
-│       ├── skill_catalog.py        # 技能扫描与原生 Skills 映射
-│       └── conversation_fast_path.py # 新会话精确问候的零模型响应
+│       └── skill_catalog.py        # 技能扫描与原生 Skills 映射
 ├── alembic/                        # 数据库迁移（保留备用）
 ├── scripts/                        # 辅助脚本
 ├── requirements.txt
@@ -67,8 +66,8 @@ python run.py
 | `ANTHROPIC_API_KEY` | Claude Agent SDK API Key（推荐使用 Claude Console Key） | 必填* |
 | `ANTHROPIC_BASE_URL` | Anthropic 兼容网关地址；官方 API 留空 | 空 |
 | `ANTHROPIC_AUTH_TOKEN` | 部分兼容网关使用的 Bearer Token | 空 |
-| `ANTHROPIC_MODEL` | 自定义主模型名称 | 服务默认 |
-| `CLAUDE_MODELS` | 前端允许选择的模型 JSON 数组 | `sonnet/opus/haiku` |
+| `ANTHROPIC_MODEL` | 兼容旧部署的默认 provider 模型 | 服务默认 |
+| `CLAUDE_MODELS_FILE` | YAML 模型目录路径 | `backend/config/models.yaml` |
 | `CLAUDE_COMPACT_PERCENT` | Claude Code 自动压缩触发百分比 | `80` |
 | `CLAUDE_SIMPLE_SYSTEM_PROMPT` | 原生精简系统提示，完整保留工具与扩展能力 | `true` |
 | `SKILLS_DIR` | 技能目录路径 | `{workspace}/.claude/skills` |

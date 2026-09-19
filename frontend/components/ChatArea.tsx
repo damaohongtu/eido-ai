@@ -17,6 +17,7 @@ import {
   SUPPORTED_FILE_HINT,
 } from '../utils/supportedFiles';
 import Mermaid from './Mermaid';
+import ModelSelector from './ModelSelector';
 
 const DOWNLOADABLE_FILE_EXTENSIONS = [...SUPPORTED_FILE_EXTENSIONS]
   .sort((left, right) => right.length - left.length);
@@ -105,6 +106,7 @@ interface ChatAreaProps {
   onRefreshSession: (sessionId: string) => Promise<void>;
   onRunningSessionsChange?: (sessionIds: Set<string>) => void;
   model: string;
+  onModelChange: (model: string) => void;
   browserContext?: string;
 }
 
@@ -157,6 +159,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onRefreshSession,
   onRunningSessionsChange,
   model,
+  onModelChange,
   browserContext,
 }) => {
   const [input, setInput] = useState('');
@@ -1338,7 +1341,12 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               Enter {effectiveDeliveryMode === 'queue' ? '加入队列' : 'Steer 当前任务'} · Shift + Enter 换行
             </div>
           )}
-          <div className="mt-2 flex min-w-0 items-center px-1">
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 px-1">
+            <ModelSelector
+              value={model}
+              onChange={onModelChange}
+              disabled={activeSessionRunning}
+            />
             <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-500">
               <span className="shrink-0">项目归属</span>
               <select

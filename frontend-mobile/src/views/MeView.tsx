@@ -1,4 +1,3 @@
-import ModelSelector from '../../../frontend/components/ModelSelector';
 import React from 'react';
 import { NavBar, Dialog } from 'antd-mobile';
 import type { EidoStore } from '../hooks/useEidoStore';
@@ -9,7 +8,7 @@ const MeView: React.FC<{
   onOpenMenu: () => void;
   debugControl?: React.ReactNode;
 }> = ({ store, onOpenMenu, debugControl }) => {
-  const { currentUser, model, setModel, logout } = store;
+  const { currentUser, logout } = store;
   const displayName = currentUser?.username?.trim() || currentUser?.user_id || '用户';
 
   const confirmLogout = async () => {
@@ -34,10 +33,6 @@ const MeView: React.FC<{
           </div>
         </div>
 
-
-        <div className="mb-4 rounded-2xl bg-white p-5 shadow-sm">
-          <ModelSelector value={model} onChange={setModel} />
-        </div>
 
         {debugControl ? (
           <div className="mb-4 overflow-hidden rounded-2xl bg-white shadow-sm">

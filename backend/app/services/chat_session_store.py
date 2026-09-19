@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 # v2: durable filesystem cleanup outbox (an early Project build reached local data)
 # v3: cleanup jobs retain user/file/byte accounting until physical deletion
 # v4: remove the retired provider session column; preserve all conversations
-LATEST_SCHEMA_VERSION = 4
+# v5: persist a model catalog id per conversation
+LATEST_SCHEMA_VERSION = 5
 _UNSET = object()
 
 
@@ -61,6 +62,7 @@ def _session_row_to_dict(row: sqlite3.Row) -> dict:
         "user_id": row["user_id"],
         "title": row["title"],
         "skill_id": row["skill_id"],
+        "model": _row_value(row, "model"),
         "project_id": _row_value(row, "project_id"),
         "applied_context_revision": _row_value(row, "applied_context_revision"),
         "claude_session_id": _row_value(row, "claude_session_id"),
@@ -221,6 +223,7 @@ class ChatSessionStore:
                 user_id TEXT NOT NULL,
                 title TEXT NOT NULL DEFAULT '新建会话',
                 skill_id TEXT,
+                model TEXT,
                 project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
                 applied_context_revision INTEGER,
                 claude_session_id TEXT,
@@ -380,6 +383,7 @@ class ChatSessionStore:
                 "claude_session_id": "TEXT",
                 "project_id": "TEXT REFERENCES projects(id) ON DELETE SET NULL",
                 "applied_context_revision": "INTEGER",
+                "model": "TEXT",
             }
             for name, sql_type in additions.items():
                 if name not in session_columns:
@@ -1034,6 +1038,7 @@ class ChatSessionStore:
         *,
         title: str = "新建会话",
         skill_id: Optional[str] = None,
+        model: Optional[str] = None,
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> dict:
@@ -1045,10 +1050,10 @@ class ChatSessionStore:
             conn.execute(
                 """
                 INSERT INTO chat_sessions
-                    (id, user_id, title, skill_id, project_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (id, user_id, title, skill_id, model, project_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (sid, user_id, title or "新建会话", skill_id, project_id, now, now),
+                (sid, user_id, title or "新建会话", skill_id, model, project_id, now, now),
             )
             if project_id:
                 conn.execute(
@@ -1153,7 +1158,7 @@ class ChatSessionStore:
         }
 
     def update_session(self, user_id: str, session_id: str, **fields) -> Optional[dict]:
-        allowed = {"title", "skill_id", "project_id"}
+        allowed = {"title", "skill_id", "project_id", "model"}
         now = _now_iso()
         with self._transaction() as conn:
             existing = conn.execute(
@@ -1166,6 +1171,7 @@ class ChatSessionStore:
             sets: list[str] = []
             values: list[object] = []
             project_changed = False
+            model_changed = False
             new_project_id = existing["project_id"]
             for key, value in fields.items():
                 if key not in allowed:
@@ -1181,6 +1187,11 @@ class ChatSessionStore:
                     project_changed = True
                 if key == "title" and value is None:
                     raise ValueError("会话标题不能为空")
+                if key == "model":
+                    value = value or None
+                    if value == _row_value(existing, "model"):
+                        continue
+                    model_changed = True
                 sets.append(f"{key} = ?")
                 values.append(value)
 
@@ -1193,6 +1204,8 @@ class ChatSessionStore:
                         "claude_session_id = NULL",
                     ]
                 )
+            elif model_changed:
+                sets.append("claude_session_id = NULL")
             sets.append("updated_at = ?")
             values.append(now)
             values.extend([session_id, user_id])
@@ -1321,23 +1334,6 @@ class ChatSessionStore:
 
     # -------------------- message operations -------------------- #
 
-    def has_messages(self, user_id: str, session_id: str) -> bool:
-        """Check whether an owned session already has conversation history."""
-        with self._lock:
-            return (
-                self.conn.execute(
-                    """
-                    SELECT 1
-                    FROM chat_messages m
-                    JOIN chat_sessions s ON s.id = m.session_id
-                    WHERE m.session_id = ? AND s.user_id = ?
-                    LIMIT 1
-                    """,
-                    (session_id, user_id),
-                ).fetchone()
-                is not None
-            )
-
     def list_messages(
         self, session_id: str, *, user_id: Optional[str] = None, limit: Optional[int] = None
     ) -> list[dict]:
@@ -1354,7 +1350,8 @@ class ChatSessionStore:
         sql += " ORDER BY m.created_at ASC"
         if limit is not None:
             # Preserve chronological order while selecting the newest bounded history.
-            sql = f"SELECT * FROM ({sql.replace(' ORDER BY m.created_at ASC', ' ORDER BY m.created_at DESC')} LIMIT ?) ORDER BY created_at ASC"
+            newest = sql.replace(" ORDER BY m.created_at ASC", " ORDER BY m.created_at DESC")
+            sql = f"SELECT * FROM ({newest} LIMIT ?) ORDER BY created_at ASC"
             params.append(max(1, int(limit)))
         with self._lock:
             rows = self.conn.execute(sql, params).fetchall()

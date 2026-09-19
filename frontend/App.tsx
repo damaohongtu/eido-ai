@@ -162,14 +162,6 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [model, setModel] = useState<string>(() =>
-    readStorage<string>('eido_model', '')
-  );
-
-  useEffect(() => {
-    writeStorage('eido_model', model);
-  }, [model]);
-
   // Skill page view state
   const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
 
@@ -460,6 +452,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         title: created.title || '新建会话',
         projectId: created.project_id ?? options.projectId ?? null,
         skillId: created.skill_id || options.skillId,
+        model: created.model || undefined,
         messages: initialMessages,
         updatedAt: Date.parse(created.updated_at) || Date.now(),
       };
@@ -573,6 +566,30 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     api.patchSession(activeSessionId, { skill_id: skillId }).catch(err =>
       console.warn('更新会话 skill_id 失败:', err)
     );
+  };
+
+  const updateSessionModel = (modelId: string) => {
+    if (!activeSessionId) return;
+    const sessionId = activeSessionId;
+    const previousModel = activeSession?.model;
+    const model = modelId || undefined;
+    setSessions(prev => prev.map(session => session.id === activeSessionId
+      ? { ...session, model, updatedAt: Date.now() }
+      : session));
+    api.patchSession(sessionId, { model: modelId || null })
+      .then(updated => setSessions(prev => prev.map(session =>
+        session.id === sessionId && session.model === model
+          ? { ...session, model: updated.model || undefined }
+          : session
+      )))
+      .catch(err => {
+        setSessions(prev => prev.map(session =>
+          session.id === sessionId && session.model === model
+            ? { ...session, model: previousModel }
+            : session
+        ));
+        console.warn('更新会话模型失败:', err);
+      });
   };
 
   const loadProjectFiles = useCallback(async (projectId: string) => {
@@ -801,8 +818,6 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         onDeleteSession={deleteSession}
         currentUser={currentUser!}
         onLogout={handleLogout}
-        model={model}
-        onModelChange={setModel}
       />
 
       <main className="flex-1 flex flex-col relative min-w-0 bg-white shadow-lg shadow-gray-200/30">
@@ -858,7 +873,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
                 onImportProjectFile={activeSessionProject && !activeSessionProject.archived_at ? importSessionFileToProject : undefined}
                 onRefreshSession={refreshSessionMessages}
                 onRunningSessionsChange={setRunningSessionIds}
-                model={model}
+                model={activeSession?.model || ''}
+                onModelChange={updateSessionModel}
                 browserContext={browserContext}
              />
              {rightPanelOpen && (

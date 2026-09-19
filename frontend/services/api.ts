@@ -50,6 +50,7 @@ export interface PersistedSession {
   user_id: string;
   title: string;
   skill_id: string | null;
+  model?: string | null;
   /** 旧服务端响应可能没有该字段。 */
   project_id?: string | null;
   created_at: string;
@@ -153,6 +154,7 @@ export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
     title: detail.title,
     projectId: detail.project_id ?? null,
     skillId: detail.skill_id || undefined,
+    model: detail.model || undefined,
     messages,
     updatedAt: Date.parse(detail.updated_at) || Date.now(),
   };
@@ -164,13 +166,14 @@ export function summaryToSession(s: PersistedSession): ChatSession {
     title: s.title,
     projectId: s.project_id ?? null,
     skillId: s.skill_id || undefined,
+    model: s.model || undefined,
     messages: [],
     updatedAt: Date.parse(s.updated_at) || Date.now(),
   };
 }
 
 export class ApiService {
-  async listModels(): Promise<{ default: string | null; models: string[] }> {
+  async listModels(): Promise<{ default: string; models: Array<{ id: string; label: string; model: string; description: string }> }> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/chat/models`);
     if (!response.ok) throw new Error('无法加载模型列表');
     return response.json();
@@ -790,7 +793,7 @@ export class ApiService {
     return response.json();
   }
 
-  async createSession(body: { title?: string; skill_id?: string | null; project_id?: string | null }): Promise<PersistedSession> {
+  async createSession(body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null }): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -802,7 +805,7 @@ export class ApiService {
 
   async patchSession(
     sessionId: string,
-    body: { title?: string; skill_id?: string | null; project_id?: string | null }
+    body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null }
   ): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}`, {
       method: 'PATCH',

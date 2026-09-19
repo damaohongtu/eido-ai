@@ -1,5 +1,3 @@
-import ModelSelector from './ModelSelector';
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ViewType, ChatSession, Project } from '../types';
 import { getAssetUrl } from '../config';
@@ -107,9 +105,6 @@ interface SidebarProps {
   currentUser: { user_id: string; username: string };
   /** 登出：清本地会话并跳转后端 /auth/logout（CAS 会再跳回前端） */
   onLogout: () => void;
-  /** AI 后端切换 */
-  model: string;
-  onModelChange: (h: string) => void;
 }
 
 function avatarInitial(name: string): string {
@@ -134,8 +129,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteSession,
   currentUser,
   onLogout,
-  model,
-  onModelChange,
 }) => {
   const displayName = currentUser.username?.trim() || currentUser.user_id || '用户';
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -479,10 +472,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
         ) : null}
-      </div>
-
-      <div className="px-6 py-3 shrink-0">
-        <ModelSelector value={model} onChange={onModelChange} />
       </div>
 
       {/* ---- Bottom: user section (shrink-0) ---- */}

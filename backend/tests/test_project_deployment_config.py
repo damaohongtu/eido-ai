@@ -1,4 +1,5 @@
 """Static deployment invariants required for persistent Project data."""
+
 from pathlib import Path
 
 import yaml
@@ -38,8 +39,7 @@ def test_project_quota_configuration_is_available_in_both_compose_profiles():
 
     for service_name in ("eido", "eido-gateway"):
         configured = {
-            item.split("=", 1)[0]
-            for item in compose["services"][service_name]["environment"]
+            item.split("=", 1)[0] for item in compose["services"][service_name]["environment"]
         }
         assert keys <= configured
 
@@ -57,9 +57,7 @@ def test_container_proxy_accepts_project_file_limit_with_multipart_overhead():
 
 
 def test_runtime_images_include_pdf_tooling_and_cjk_fonts():
-    requirements = (REPOSITORY_ROOT / "backend" / "requirements.txt").read_text(
-        encoding="utf-8"
-    )
+    requirements = (REPOSITORY_ROOT / "backend" / "requirements.txt").read_text(encoding="utf-8")
     for package in (
         "PyMuPDF==",
         "pypdf==",
@@ -72,9 +70,7 @@ def test_runtime_images_include_pdf_tooling_and_cjk_fonts():
         assert package in requirements
 
     for filename in ("app.Dockerfile", "gateway.Dockerfile", "user.Dockerfile"):
-        dockerfile = (REPOSITORY_ROOT / "docker" / filename).read_text(
-            encoding="utf-8"
-        )
+        dockerfile = (REPOSITORY_ROOT / "docker" / filename).read_text(encoding="utf-8")
         assert "poppler-utils" in dockerfile
         assert "fonts-noto-cjk" in dockerfile
 
@@ -82,9 +78,9 @@ def test_runtime_images_include_pdf_tooling_and_cjk_fonts():
 def test_frontend_and_backend_share_the_same_rich_file_extensions():
     from app.services.supported_files import SUPPORTED_FILE_EXTENSIONS
 
-    source = (
-        REPOSITORY_ROOT / "frontend" / "utils" / "supportedFiles.ts"
-    ).read_text(encoding="utf-8")
+    source = (REPOSITORY_ROOT / "frontend" / "utils" / "supportedFiles.ts").read_text(
+        encoding="utf-8"
+    )
     frontend_extensions = {
         token
         for token in source.replace("'", '"').split('"')[1::2]

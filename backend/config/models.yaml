@@ -1,0 +1,23 @@
+version: 1
+default: glm
+# provider 既支持直接值（base_url/api_key/auth_token），也支持对应的 *_env 环境变量名。
+# api_key 与 auth_token 二选一；未配置的字段回退到全局 ANTHROPIC_* 设置。
+models:
+  - id: glm
+    label: GLM
+    model: glm-5.3
+    description: 智谱 GLM 通用编码模型
+    provider:
+      base_url_env: GLM_BASE_URL
+      api_key_env: GLM_API_KEY
+      auth_token_env: GLM_AUTH_TOKEN
+      small_fast_model_env: GLM_SMALL_FAST_MODEL
+  - id: deepseek
+    label: DeepSeek
+    model: deepseek-chat
+    description: DeepSeek 通用对话与编码模型
+    provider:
+      base_url_env: DEEPSEEK_BASE_URL
+      api_key_env: DEEPSEEK_API_KEY
+      auth_token_env: DEEPSEEK_AUTH_TOKEN
+      small_fast_model_env: DEEPSEEK_SMALL_FAST_MODEL

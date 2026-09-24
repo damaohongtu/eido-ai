@@ -28,7 +28,7 @@
 ## 二、Projects `/api/v1/projects`
 
 Project 是当前用户私有的会话与共享上下文容器。所有接口都从登录态解析 `user_id`；客户端
-不能指定或覆盖项目所有者。云端 Project 不与 Chrome 本机 OpenCode 项目目录同步。
+不能指定或覆盖项目所有者。Project 与 Claude Code 会话通过服务端关联。
 
 ### 数据模型
 
@@ -294,7 +294,8 @@ interface Message {
   ],
   "context": "可选，多技能流水线上一步输出",
   "session_id": "9b2c1d3a4f5e",
-  "assistant_message_id": "1745550000001"
+  "assistant_message_id": "1745550000001",
+  "model": "sonnet"
 }
 ```
 
@@ -307,23 +308,41 @@ data: {"type": "workflow_start", "skill_name": "auto"}
 
 data: {"type": "execution_step", "step": {...}}
 
-data: {"type": "content", "delta": "...", "full": "..."}
+data: {"type": "content", "content": "增量文本..."}
 
 data: {"type": "workflow_complete"}
 
 data: [DONE]
 ```
 
-agent cwd 在执行期间被切换到 `.eido/workspaces/<session_id>/`，所有 Read / Write / Bash 都基于该目录的相对路径。技能库（`.claude/skills/`）通过**绝对路径**注入 prompt，agent 仍可读取所有 SKILL.md。
+agent cwd 在执行期间被切换到 `.eido/workspaces/<session_id>/`，所有 Read / Write / Bash 都基于该目录的相对路径。技能库按当前用户注册为 Claude Code 原生 Skills，模型按需调用 Skill 加载正文。
 
 后端保存规则：
 - 若最后一条请求消息是 `role=user`，保存为本轮 user 消息
-- 使用 `assistant_message_id` 保存 assistant 输出；未提供时由后端生成
+- 必须提供 `assistant_message_id`，用于幂等保存 assistant 输出
 - `chat_messages` 使用 `(session_id, id)` 复合主键，保存逻辑采用幂等写入，重复请求不会生成重复消息
 
 错误：
 - `400` 缺 `session_id` 或非法字符
 - `503` 技能服务未初始化
+
+正常对话只需提交最新一条 user 消息，历史通过 Claude Code 原生 session 恢复。`model` 可省略，使用服务端默认；传入未配置模型会返回 400。`/chat/control` 的 queue/steer 请求也接受可选 `model`，queue 在轮到执行时应用，steer 追加到当前正在执行的模型。
+
+### `GET /chat/models`
+
+返回配置的模型列表，无需启动用户容器：
+
+```json
+{
+  "default": "glm",
+  "models": [
+    {"id": "glm", "label": "GLM", "model": "glm-5.3", "description": "智谱 GLM 通用编码模型"},
+    {"id": "deepseek", "label": "DeepSeek", "model": "deepseek-chat", "description": "DeepSeek 通用对话与编码模型"}
+  ]
+}
+```
+
+限流时流保持心跳，通过 thinking 事件告知等待状态，并按 reset 时间自动续接原生会话。显式输入 `/compact` 调用原生压缩。失败会发 error，之后的 `[DONE]` 仅表示流结束，不表示任务成功。
 
 ### `GET /chat/health`
 

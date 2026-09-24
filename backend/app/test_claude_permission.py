@@ -71,9 +71,7 @@ async def main():
                 allowed_tools=["Read", "Glob", "Grep"],
                 setting_sources=["project"],
                 can_use_tool=can_use_tool,
-                hooks={
-                    "PreToolUse": [HookMatcher(matcher=None, hooks=[dummy_hook])]
-                },
+                hooks={"PreToolUse": [HookMatcher(matcher=None, hooks=[dummy_hook])]},
             ),
         ):
             if isinstance(message, ResultMessage) and message.subtype == "success":

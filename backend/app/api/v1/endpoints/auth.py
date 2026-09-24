@@ -1,8 +1,8 @@
 """
 CAS authentication endpoints: login, callback, logout, me.
 """
+
 import logging
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -32,6 +32,7 @@ def _cas_display_username(principal: str, attributes: object) -> str:
 
 def _get_cas_client():
     from cas import CASClient  # type: ignore
+
     return CASClient(
         version=int(settings.CAS_VERSION),
         server_url=settings.CAS_SERVER_URL,

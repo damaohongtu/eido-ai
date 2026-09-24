@@ -35,17 +35,6 @@ const HomeView: React.FC<HomeViewProps> = ({ onStartSkill, skills }) => {
           className="w-full bg-white border border-gray-200 rounded-2xl p-4 text-left text-gray-500 cursor-pointer hover:border-gray-300 hover:bg-gray-50 transition-all"
           autoSize={{ minRows: 3, maxRows: 6 }}
           readOnly
-          prefix={
-            <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 group-hover:text-gray-700 transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            </div>
-          }
-          suffix={
-            <div className="flex items-center space-x-2">
-              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mr-2">快速开始</span>
-              <kbd className="bg-gray-100 px-2 py-1 rounded text-[10px] font-black text-gray-500 border border-gray-200 shadow-sm">⌘ K</kbd>
-            </div>
-          }
         />
         {/* 发送图标 - 绝对定位在右下角 */}
         <div

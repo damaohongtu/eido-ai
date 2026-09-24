@@ -1,4 +1,4 @@
-import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession, Project, ProjectFile } from "../types";
+import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession, Project, ProjectFile, RuntimeMode } from "../types";
 import { BACKEND_URL, INITIAL_CHAT_STATE } from "../constants";
 
 /** 工作区文件 URL，支持预览或下载；传入 sessionId 时只允许访问该会话工作区。 */
@@ -50,6 +50,8 @@ export interface PersistedSession {
   user_id: string;
   title: string;
   skill_id: string | null;
+  model?: string | null;
+  runtime_mode?: RuntimeMode;
   /** 旧服务端响应可能没有该字段。 */
   project_id?: string | null;
   created_at: string;
@@ -153,6 +155,8 @@ export function hydrateSession(detail: PersistedSessionDetail): ChatSession {
     title: detail.title,
     projectId: detail.project_id ?? null,
     skillId: detail.skill_id || undefined,
+    model: detail.model || undefined,
+    runtimeMode: detail.runtime_mode || 'agent',
     messages,
     updatedAt: Date.parse(detail.updated_at) || Date.now(),
   };
@@ -164,12 +168,20 @@ export function summaryToSession(s: PersistedSession): ChatSession {
     title: s.title,
     projectId: s.project_id ?? null,
     skillId: s.skill_id || undefined,
+    model: s.model || undefined,
+    runtimeMode: s.runtime_mode || 'agent',
     messages: [],
     updatedAt: Date.parse(s.updated_at) || Date.now(),
   };
 }
 
 export class ApiService {
+  async listModels(): Promise<{ default: string; models: Array<{ id: string; label: string; model: string; description: string }> }> {
+    const response = await this._fetch(`${BACKEND_URL}/api/v1/chat/models`);
+    if (!response.ok) throw new Error('无法加载模型列表');
+    return response.json();
+  }
+
   private async _fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const response = await fetch(input, { ...init, credentials: 'include' });
     if (response.status === 401) {
@@ -784,7 +796,7 @@ export class ApiService {
     return response.json();
   }
 
-  async createSession(body: { title?: string; skill_id?: string | null; project_id?: string | null }): Promise<PersistedSession> {
+  async createSession(body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null; runtime_mode?: RuntimeMode }): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -796,7 +808,7 @@ export class ApiService {
 
   async patchSession(
     sessionId: string,
-    body: { title?: string; skill_id?: string | null; project_id?: string | null }
+    body: { title?: string; skill_id?: string | null; project_id?: string | null; model?: string | null; runtime_mode?: RuntimeMode }
   ): Promise<PersistedSession> {
     const response = await this._fetch(`${BACKEND_URL}/api/v1/sessions/${sessionId}`, {
       method: 'PATCH',
@@ -879,13 +891,23 @@ export class ApiService {
     context?: string,
     skillHint?: string,
     signal?: AbortSignal,
-    harness?: string
+    model?: string,
+    runtimeMode?: RuntimeMode
   ) {
     let fullText = "";
+    let hadError = false;
     let fullThinking = "正在分析请求，自动规划执行...";
     let steps: ExecutionStep[] = [];
     let currentReferences: Reference[] = [];
     let workflowMermaid: string | undefined;
+    let contentFrame: number | undefined;
+    const publishContent = () => {
+      if (contentFrame !== undefined) return;
+      contentFrame = requestAnimationFrame(() => {
+        contentFrame = undefined;
+        onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
+      });
+    };
 
     const effectiveContext = skillHint
       ? `[本步骤请聚焦使用技能: ${skillHint}]\n\n${context || ''}`.trim()
@@ -896,16 +918,20 @@ export class ApiService {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: messages.map(m => ({ id: m.id, role: m.role, content: m.content })),
+          messages: messages.slice(-1).map(m => ({ id: m.id, role: m.role, content: m.content })),
           context: effectiveContext,
           session_id: sessionId,
           assistant_message_id: assistantMessageId,
-          harness: harness || undefined,
+          model: model || undefined,
+          runtime_mode: runtimeMode,
         }),
         signal,
       });
 
-      if (!response.ok) throw new Error('请求失败');
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || '请求失败');
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -928,7 +954,7 @@ export class ApiService {
             if (line.startsWith('data: ')) {
               const dataStr = line.replace('data: ', '').trim();
               if (dataStr === '[DONE]') {
-                fullThinking = "✓ 执行完成";
+                if (!hadError) fullThinking = runtimeMode === 'qa' ? "✓ 回答完成" : "✓ 执行完成";
                 onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
                 break;
               }
@@ -984,7 +1010,7 @@ export class ApiService {
 
                   case 'content':
                     fullText += data.content;
-                    onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
+                    publishContent();
                     break;
 
                   case 'workflow_complete':
@@ -992,11 +1018,12 @@ export class ApiService {
                     if (data.data?.references?.length > 0) {
                       currentReferences = data.data.references;
                     }
-                    fullThinking = "✓ 执行完成";
+                    if (!hadError) fullThinking = "✓ 执行完成";
                     onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
                     break;
 
                   case 'error':
+                    hadError = true;
                     fullThinking = `✗ 错误: ${data.message}`;
                     fullText += `\n\n**错误**: ${data.message}`;
                     onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
@@ -1023,6 +1050,11 @@ export class ApiService {
       }
       onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
       if (isAborted) throw error;
+    } finally {
+      if (contentFrame !== undefined) {
+        cancelAnimationFrame(contentFrame);
+        onChunk(fullText, fullThinking, steps, undefined, currentReferences, workflowMermaid);
+      }
     }
   }
 
@@ -1032,7 +1064,8 @@ export class ApiService {
     message: { id: string; role: 'user'; content: string };
     assistant_message_id: string;
     context?: string;
-    harness?: string;
+    model?: string;
+    runtime_mode?: RuntimeMode;
   }): Promise<{
     ok: boolean;
     mode: 'queue' | 'steer';

@@ -8,6 +8,8 @@ import Composer from '../components/Composer';
 import MenuIcon from '../components/MenuIcon';
 import FilesPanel from '../components/FilesPanel';
 import type { AgentRuntime } from '../runtime/types';
+import ModelSelector from '../../../frontend/components/ModelSelector';
+import RuntimeModeSelector from '../../../frontend/components/RuntimeModeSelector';
 
 const FolderIcon: React.FC = () => (
   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -36,7 +38,10 @@ const ChatView: React.FC<{
   const {
     activeSession,
     allSkills,
-    harness,
+    model,
+    setModel,
+    runtimeMode,
+    setRuntimeMode,
     addMessage,
     updateMessage,
     createNewSession,
@@ -53,7 +58,8 @@ const ChatView: React.FC<{
   const { isTyping, send, stop, respondToConfirmation } = useChatSend({
     session: activeSession,
     skills: allSkills,
-    harness,
+    model,
+    runtimeMode,
     addMessage,
     updateMessage,
     browserContext,
@@ -70,7 +76,7 @@ const ChatView: React.FC<{
   );
 
   const importSessionFileToProject = useCallback(async (path: string, displayName: string) => {
-    if (agentRuntime.isLocal || !projectsEnabled || !activeSession?.id || !activeProject?.id) {
+    if (!projectsEnabled || !activeSession?.id || !activeProject?.id) {
       throw new Error('当前会话未归属云端项目，不能加入项目资料');
     }
     await api.importProjectFile(activeProject.id, {
@@ -79,7 +85,7 @@ const ChatView: React.FC<{
       display_name: displayName,
     });
     await refreshProjects();
-  }, [activeProject?.id, activeSession?.id, agentRuntime.isLocal, projectsEnabled, refreshProjects]);
+  }, [activeProject?.id, activeSession?.id, projectsEnabled, refreshProjects]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -129,9 +135,7 @@ const ChatView: React.FC<{
         }
       >
         <span className="block max-w-[60vw] truncate text-base font-bold">{activeSession.title}</span>
-        {agentRuntime.isLocal ? (
-          <span className="block text-[11px] font-medium text-gray-400">本机 · OpenCode</span>
-        ) : activeProject ? (
+        {activeProject ? (
           <span className="block max-w-[55vw] truncate text-[11px] font-medium text-gray-400">📁 {activeProject.name}</span>
         ) : activeSkill ? (
           <span className="block text-[11px] font-medium text-gray-400">
@@ -153,7 +157,7 @@ const ChatView: React.FC<{
             projectId={activeProject?.id}
             projectName={activeProject?.name}
             projectImportDisabled={isTyping}
-            onImportProjectFile={activeProject && !activeProject.archived_at && projectsEnabled && !agentRuntime.isLocal
+            onImportProjectFile={activeProject && !activeProject.archived_at && projectsEnabled
               ? importSessionFileToProject
               : undefined}
             onConfirm={(approved) => respondToConfirmation(m.id, approved)}
@@ -169,8 +173,11 @@ const ChatView: React.FC<{
         onStop={stop}
         browserContextControl={browserContextControl}
         agentRuntime={agentRuntime}
-        footerControl={projectsEnabled ? (
-          <label className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-gray-500">
+        footerControl={(
+          <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+            <ModelSelector value={model} onChange={setModel} disabled={isTyping} />
+            <RuntimeModeSelector value={runtimeMode} onChange={setRuntimeMode} disabled={isTyping} />
+            {projectsEnabled ? <label className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-gray-500">
             <span className="shrink-0">项目归属</span>
             <select
               value={activeProject?.id || ''}
@@ -190,8 +197,9 @@ const ChatView: React.FC<{
                 </option>
               ))}
             </select>
-          </label>
-        ) : undefined}
+            </label> : null}
+          </div>
+        )}
       />
 
       <FilesPanel
@@ -202,7 +210,7 @@ const ChatView: React.FC<{
         projectId={activeProject?.id}
         projectName={activeProject?.name}
         importDisabled={isTyping}
-        onImportProjectFile={activeProject && !activeProject.archived_at && projectsEnabled && !agentRuntime.isLocal
+        onImportProjectFile={activeProject && !activeProject.archived_at && projectsEnabled
           ? importSessionFileToProject
           : undefined}
       />

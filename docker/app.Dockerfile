@@ -26,14 +26,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install claude CLI via npmmirror (Taobao)
-RUN npm install -g @anthropic-ai/claude-code@2.1.218 opencode-ai --registry https://registry.npmmirror.com
 
 # Install Python dependencies via Aliyun PyPI mirror
 WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     -i https://mirrors.aliyun.com/pypi/simple/ \
+    --extra-index-url https://pypi.org/simple \
     --trusted-host mirrors.aliyun.com
+# Expose the SDK's bundled CLI; one pinned dependency owns both SDK and CLI.
+RUN ln -sf $(python -c 'import claude_agent_sdk,pathlib; print(pathlib.Path(claude_agent_sdk.__file__).parent / "_bundled" / "claude")') /usr/local/bin/claude
 
 # Copy backend source
 COPY backend/ .
@@ -55,7 +57,7 @@ COPY docker/log-cron.sh /opt/log-cron.sh
 RUN chmod +x /opt/log-cron.sh
 
 # Create log directories
-RUN mkdir -p /var/log/eido/app /var/log/eido/litellm /var/log/eido/nginx
+RUN mkdir -p /var/log/eido/app /var/log/eido/nginx
 
 # Mount point for host .claude directory
 RUN mkdir -p /workspace/.claude/skills

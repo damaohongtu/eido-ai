@@ -1,4 +1,5 @@
 """Live MCP health checks and tool discovery for the user's tool page."""
+
 from __future__ import annotations
 
 import asyncio
@@ -123,9 +124,7 @@ async def _probe_one(public: dict, config: dict) -> dict:
             "error": None,
         }
     try:
-        tools = await asyncio.wait_for(
-            _list_tools(config), timeout=_PROBE_TIMEOUT_SECONDS
-        )
+        tools = await asyncio.wait_for(_list_tools(config), timeout=_PROBE_TIMEOUT_SECONDS)
         return {
             **base,
             "status": "connected",
@@ -146,9 +145,7 @@ async def _probe_one(public: dict, config: dict) -> dict:
 async def get_mcp_server_statuses(user_id: str, *, refresh: bool = False) -> list[dict]:
     store = get_mcp_config_store()
     public_servers = store.list_servers(user_id)
-    signature = tuple(
-        (item["id"], item["updated_at"], item["enabled"]) for item in public_servers
-    )
+    signature = tuple((item["id"], item["updated_at"], item["enabled"]) for item in public_servers)
     cached = _cache.get(user_id)
     if (
         not refresh
@@ -170,8 +167,6 @@ async def get_mcp_server_statuses(user_id: str, *, refresh: bool = False) -> lis
         async with semaphore:
             return await _probe_one(item, runtime_by_id.get(item["id"], {}))
 
-    results = await asyncio.gather(
-        *(bounded_probe(item) for item in public_servers)
-    )
+    results = await asyncio.gather(*(bounded_probe(item) for item in public_servers))
     _cache[user_id] = (signature, time.monotonic() + _CACHE_TTL_SECONDS, results)
     return results

@@ -114,7 +114,6 @@ docker run -d -p 80:80 \
   -v /path/to/.claude:/workspace/.claude \
   -v eido-data:/data \
   -v ~/eido-logs/app:/var/log/eido/app \
-  -v ~/eido-logs/litellm:/var/log/eido/litellm \
   -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 ```
@@ -133,13 +132,12 @@ docker run -d -p 80:80 \
   -v /path/to/.claude:/workspace/.claude \
   -v eido-data:/data \
   -v ~/eido-logs/app:/var/log/eido/app \
-  -v ~/eido-logs/litellm:/var/log/eido/litellm \
   -v ~/eido-logs/nginx:/var/log/eido/nginx \
   damaohongtu/eido:latest
 ```
 
 > `-v /path/to/.claude` 替换为宿主机上 `.claude` 目录的实际路径，例如 `/home/user/.claude`
-> 日志目录映射到宿主机 `~/eido-logs/` 下，按 app / litellm / nginx 分开存放，按日滚动保留 7 天
+> 日志目录映射到宿主机 `~/eido-logs/` 下，按 app / nginx 分开存放，按日滚动保留 7 天
 
 ---
 

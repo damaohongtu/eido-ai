@@ -1,4 +1,4 @@
-import type { ExecutionStep, Message, Reference, Skill, WorkspaceFileNode } from '../shared';
+import type { ExecutionStep, Message, Reference, RuntimeMode, WorkspaceFileNode } from '../shared';
 
 export type ChatChunkHandler = (
   text: string,
@@ -12,10 +12,7 @@ export type ChatChunkHandler = (
 export interface AgentRuntime {
   id: string;
   label: string;
-  isLocal: boolean;
   canDeleteWorkspaceFiles?: boolean;
-  /** Capture immutable per-session runtime state before the first operation. */
-  prepareSession?(sessionId: string): Promise<void>;
   streamChat(
     messages: Message[],
     onChunk: ChatChunkHandler,
@@ -24,7 +21,8 @@ export interface AgentRuntime {
     context?: string,
     skillHint?: string,
     signal?: AbortSignal,
-    harness?: string
+    model?: string,
+    runtimeMode?: RuntimeMode
   ): Promise<void>;
   uploadChatFile(file: File, sessionId: string): Promise<{ path: string; name: string }>;
   listWorkspaceFiles(sessionId: string): Promise<WorkspaceFileNode[]>;
@@ -42,6 +40,4 @@ export interface AgentRuntime {
     confirmationId: string,
     approved: boolean
   ): Promise<void>;
-  listSkills?(): Promise<Skill[]>;
-  deleteSession?(sessionId: string): Promise<void>;
 }

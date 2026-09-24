@@ -14,12 +14,6 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "sandbox": {
-    "pages": ["file-preview/sandbox.html"]
-  },
-  "content_security_policy": {
-    "sandbox": "sandbox allow-scripts; default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; base-uri 'none'; media-src data: blob:;"
-  },
   "permissions": [
     "activeTab",
     "contextMenus",
@@ -28,16 +22,17 @@
     "storage",
     "tabs"
   ],
-  "optional_permissions": [
-    "nativeMessaging"
-  ],
   "host_permissions": [
     "<all_urls>"
   ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

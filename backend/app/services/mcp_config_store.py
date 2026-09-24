@@ -1,4 +1,5 @@
 """Encrypted user-scoped MCP server configuration persistence."""
+
 from __future__ import annotations
 
 import hashlib
@@ -188,7 +189,16 @@ class McpConfigStore:
                     (id, user_id, name, transport, config_encrypted, enabled, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (server_id, user_id, name, transport, self._encrypt(config), int(enabled), now, now),
+                (
+                    server_id,
+                    user_id,
+                    name,
+                    transport,
+                    self._encrypt(config),
+                    int(enabled),
+                    now,
+                    now,
+                ),
             )
         return self.get_server(user_id, server_id)  # type: ignore[return-value]
 
@@ -213,7 +223,15 @@ class McpConfigStore:
                 SET name = ?, transport = ?, config_encrypted = ?, enabled = ?, updated_at = ?
                 WHERE id = ? AND user_id = ?
                 """,
-                (name, transport, self._encrypt(restored), int(enabled), _now_iso(), server_id, user_id),
+                (
+                    name,
+                    transport,
+                    self._encrypt(restored),
+                    int(enabled),
+                    _now_iso(),
+                    server_id,
+                    user_id,
+                ),
             )
         return self.get_server(user_id, server_id)
 
@@ -237,15 +255,12 @@ class McpConfigStore:
                 "SELECT * FROM mcp_servers WHERE user_id = ?", (user_id,)
             ).fetchall()
             existing_by_name = {
-                row["name"]: self._decrypt(row["config_encrypted"])
-                for row in existing_rows
+                row["name"]: self._decrypt(row["config_encrypted"]) for row in existing_rows
             }
             now = _now_iso()
             conn.execute("DELETE FROM mcp_servers WHERE user_id = ?", (user_id,))
             for name, item in servers.items():
-                config = self._restore_secrets(
-                    item["config"], existing_by_name.get(name)
-                )
+                config = self._restore_secrets(item["config"], existing_by_name.get(name))
                 conn.execute(
                     """
                     INSERT INTO mcp_servers

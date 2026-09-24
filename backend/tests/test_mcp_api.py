@@ -92,10 +92,7 @@ def test_mcp_config_file_replaces_atomically_and_maps_disabled(mcp_api):
     body = saved.json()
     assert body["mcpServers"]["comein-search"]["disabled"] is True
     assert body["mcpServers"]["mao-mcp"]["disabled"] is False
-    assert (
-        body["mcpServers"]["mao-mcp"]["headers"]["x-mesh-auth"]
-        == SECRET_SENTINEL
-    )
+    assert body["mcpServers"]["mao-mcp"]["headers"]["x-mesh-auth"] == SECRET_SENTINEL
 
     sdk_servers, _revision = store.sdk_servers("u1")
     assert set(sdk_servers) == {"mao-mcp"}

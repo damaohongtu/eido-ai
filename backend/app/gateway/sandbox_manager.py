@@ -9,9 +9,11 @@ Sandbox Manager — 每用户独立 FastAPI 容器编排。
 容器命名规则：`eido-user-<safe_user_id>`，user_id 走 _safe_user_id 白名单后再拼接，
 原始 user_id 仍记录在 registry.user_id 字段中。
 """
+
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -24,6 +26,7 @@ from pathlib import Path
 from typing import Optional
 
 from app.core.config import settings
+from app.core.tenant_credentials import derive_secret, gateway_secret, provider_token, token_secret
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +41,11 @@ def _safe_user_id(user_id: str) -> str:
     避免冲突。"""
     if not user_id:
         raise ValueError("user_id 为空")
-    if _USER_ID_RE.match(user_id):
-        return user_id[:48]
+    if _USER_ID_RE.fullmatch(user_id) and len(user_id) <= 48:
+        return user_id
     base = _SAFE_REPLACE_RE.sub("-", user_id)[:32].strip("-") or "user"
     import hashlib
+
     suffix = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:8]
     return f"{base}-{suffix}"
 
@@ -98,6 +102,9 @@ class SandboxManager:
         self._gc_task: Optional[asyncio.Task] = None
         self._gc_stop = asyncio.Event()
         self._user_locks: dict[str, asyncio.Lock] = {}
+        self._docker_locks: dict[str, threading.RLock] = {}
+        self._active_requests: dict[str, int] = {}
+        self._healthy: dict[str, tuple[float, SandboxHandle]] = {}
 
     # -------------------------------------------------------------- #
     #  Lifecycle                                                       #
@@ -122,29 +129,24 @@ class SandboxManager:
                 raise RuntimeError(
                     "EIDO_GATEWAY_SECRET 未配置或过短，gateway 拒绝以 docker 模式启动"
                 )
-            if (settings.SESSION_SECRET_KEY or "") in (
-                "", "dev-secret-change-in-production"
-            ):
+            if (settings.SESSION_SECRET_KEY or "") in ("", "dev-secret-change-in-production"):
                 raise RuntimeError(
                     "docker 沙箱模式禁止使用默认 SESSION_SECRET_KEY，请显式配置随机密钥"
                 )
             try:
                 import docker  # type: ignore
+
                 self._docker = docker.from_env()
                 self._docker.ping()
                 logger.info("✓ Docker SDK 就绪")
             except Exception as e:
-                logger.error(f"✗ Docker SDK 初始化失败，sandbox 将退化为 local 模式: {e}")
-                self._mode = "local"
-                self._docker = None
-
-        if self._mode == "docker":
-            try:
-                self._ensure_network()
-            except Exception as e:
-                logger.warning(f"创建 docker network 失败（继续运行）：{e}")
+                self.close()
+                raise RuntimeError("Docker 不可用，拒绝退回共享进程") from e
 
     def close(self) -> None:
+        if self._docker:
+            self._docker.close()
+            self._docker = None
         if self._conn:
             self._conn.close()
             self._conn = None
@@ -167,17 +169,32 @@ class SandboxManager:
             if self._mode != "docker":
                 return self._build_local_handle(user_id)
 
+            cached = self._healthy.get(user_id)
+            if cached and time.monotonic() - cached[0] < settings.EIDO_SANDBOX_HEALTH_TTL:
+                self._touch(user_id)
+                return cached[1]
             handle = await asyncio.to_thread(self._ensure_running_docker, user_id)
             await asyncio.to_thread(self._wait_health, handle)
+            self._healthy[user_id] = (time.monotonic(), handle)
             return handle
 
-    def release(self, user_id: str) -> None:
-        """更新 last_active_at（无副作用）。"""
+    def retain(self, user_id: str) -> None:
+        """Hold a lease throughout an upstream stream, including quota waits."""
         with self._lock:
-            row = self._select_row(user_id)
-            if not row:
-                return
+            self._active_requests[user_id] = self._active_requests.get(user_id, 0) + 1
             self._touch(user_id)
+
+    def release(self, user_id: str) -> None:
+        with self._lock:
+            count = self._active_requests.get(user_id, 0)
+            if count > 1:
+                self._active_requests[user_id] = count - 1
+            else:
+                self._active_requests.pop(user_id, None)
+            self._touch(user_id)
+
+    def invalidate_health(self, user_id: str) -> None:
+        self._healthy.pop(user_id, None)
 
     async def stop(self, user_id: str) -> bool:
         """显式停止 + 移除容器。volume 不删除。"""
@@ -186,9 +203,13 @@ class SandboxManager:
         return await asyncio.to_thread(self._stop_docker, user_id)
 
     def list_active(self) -> list[SandboxHandle]:
-        rows = self._conn.execute(
-            "SELECT * FROM sandbox_registry WHERE status = 'running' ORDER BY last_active_at DESC"
-        ).fetchall() if self._conn else []
+        rows = (
+            self._conn.execute(
+                "SELECT * FROM sandbox_registry WHERE status = 'running' ORDER BY last_active_at DESC"
+            ).fetchall()
+            if self._conn
+            else []
+        )
         return [self._row_to_handle(r) for r in rows]
 
     # -------------------------------------------------------------- #
@@ -242,8 +263,8 @@ class SandboxManager:
 
         for uid in stale_users:
             try:
-                self._stop_docker(uid)
-                logger.info(f"[sandbox-gc] 回收闲置容器 user={uid}")
+                if self._stop_docker(uid, idle_before=cutoff):
+                    logger.info(f"[sandbox-gc] 回收闲置容器 user={uid}")
             except Exception as e:
                 logger.warning(f"[sandbox-gc] 回收 {uid} 失败: {e}")
 
@@ -263,16 +284,34 @@ class SandboxManager:
         )
         return h
 
-    def _ensure_network(self) -> None:
-        if not self._docker:
-            return
-        net = settings.EIDO_NET
-        existing = self._docker.networks.list(names=[net])
-        if not existing:
-            self._docker.networks.create(net, driver="bridge")
-            logger.info(f"docker network 创建: {net}")
+    def _ensure_user_network(self, safe: str, user_id: str) -> str:
+        from docker.errors import NotFound
+
+        name = f"{settings.EIDO_NET}-user-{safe}"
+        try:
+            network = self._docker.networks.get(name)
+            if network.attrs.get("Labels", {}).get("io.eido.user_id") != user_id:
+                raise RuntimeError("拒绝复用归属不匹配的 Docker network")
+        except NotFound:
+            network = self._docker.networks.create(
+                name,
+                driver="bridge",
+                labels={
+                    "io.eido.role": "user-network",
+                    "io.eido.user_id": user_id,
+                },
+            )
+        network.reload()
+        gateway = self._docker.containers.get(settings.EIDO_GATEWAY_CONTAINER)
+        if gateway.id not in network.attrs.get("Containers", {}):
+            network.connect(gateway, aliases=["eido-gateway"])
+        return name
 
     def _ensure_running_docker(self, user_id: str) -> SandboxHandle:
+        with self._docker_locks.setdefault(user_id, threading.RLock()):
+            return self._ensure_running_locked(user_id)
+
+    def _ensure_running_locked(self, user_id: str) -> SandboxHandle:
         assert self._docker is not None
         safe = _safe_user_id(user_id)
         container_name = f"eido-user-{safe}"
@@ -280,6 +319,12 @@ class SandboxManager:
         existing = self._find_container(container_name)
         if existing is not None:
             existing.reload()
+            labels = existing.attrs.get("Config", {}).get("Labels", {})
+            if labels.get("io.eido.user_id") != user_id:
+                raise RuntimeError("拒绝复用不属于当前用户的容器")
+            if labels.get("io.eido.isolation_version") != "2":
+                raise RuntimeError("旧版用户容器仍在运行，请先停止旧容器再升级；数据卷会保留")
+            self._ensure_user_network(safe, user_id)
             if existing.status == "running":
                 self._upsert_row(user_id, safe, container_name, container_name)
                 return self._build_handle_from_row(user_id)
@@ -298,9 +343,11 @@ class SandboxManager:
         return self._create_container(user_id, safe, container_name)
 
     def _find_container(self, name: str):
+        from docker.errors import NotFound
+
         try:
             return self._docker.containers.get(name)  # type: ignore
-        except Exception:
+        except NotFound:
             return None
 
     def _host_claude_dir_from_gateway_mount(self) -> str | None:
@@ -319,10 +366,7 @@ class SandboxManager:
             current = self._docker.containers.get(container_id)  # type: ignore
             current.reload()
             for mount in current.attrs.get("Mounts", []):
-                if (
-                    mount.get("Destination") == "/workspace/.claude"
-                    and mount.get("Type") == "bind"
-                ):
+                if mount.get("Destination") == "/workspace/.claude" and mount.get("Type") == "bind":
                     source = mount.get("Source")
                     return str(source) if source else None
         except Exception as e:
@@ -369,41 +413,63 @@ class SandboxManager:
 
     def _create_container(self, user_id: str, safe: str, name: str) -> SandboxHandle:
         assert self._docker is not None
-        from docker.types import Mount  # type: ignore
+        from docker.types import LogConfig, Mount
 
         env = {
             "EIDO_USER_ID": user_id,
             "EIDO_DATA_ROOT": "/data",
             "EIDO_TRUST_GATEWAY": "1",
-            "AUTH_DISABLED": "True",
+            "AUTH_DISABLED": "False",
+            "EIDO_API_URL": settings.EIDO_GATEWAY_INTERNAL_URL,
             "WORKSPACE_ROOT": "/workspace",
-            "EIDO_GATEWAY_SECRET": settings.EIDO_GATEWAY_SECRET,
+            "EIDO_GATEWAY_SECRET": gateway_secret(user_id),
+            "EIDO_USER_TOKEN_SECRET": token_secret(user_id),
+            "SESSION_SECRET_KEY": derive_secret(settings.SESSION_SECRET_KEY, "session", user_id),
             "EIDO_PROJECT_MAX_FILES": str(settings.EIDO_PROJECT_MAX_FILES),
             "EIDO_PROJECT_MAX_BYTES": str(settings.EIDO_PROJECT_MAX_BYTES),
-            "EIDO_USER_PROJECT_MAX_FILES": str(
-                settings.EIDO_USER_PROJECT_MAX_FILES
-            ),
-            "EIDO_USER_PROJECT_MAX_BYTES": str(
-                settings.EIDO_USER_PROJECT_MAX_BYTES
-            ),
+            "EIDO_USER_PROJECT_MAX_FILES": str(settings.EIDO_USER_PROJECT_MAX_FILES),
+            "EIDO_USER_PROJECT_MAX_BYTES": str(settings.EIDO_USER_PROJECT_MAX_BYTES),
         }
         # 透传 Claude provider 配置。Settings 同时支持进程环境和 backend/.env，
         # 避免本地启动 gateway 时因 .env 未 export 而丢失凭据。
-        env.update(settings.claude_agent_env)
-        for k in (
-            "OPENCODE_MODEL",
-            "OPENCODE_CONFIG",
-            "OPENCODE_CONFIG_CONTENT",
-        ):
-            v = os.environ.get(k)
-            if v:
-                env[k] = v
+        provider_env = settings.claude_agent_env
+        if provider_env.get("ANTHROPIC_API_KEY") or provider_env.get("ANTHROPIC_AUTH_TOKEN"):
+            provider_env.pop("ANTHROPIC_API_KEY", None)
+            provider_env["ANTHROPIC_AUTH_TOKEN"] = provider_token(user_id)
+            provider_env["ANTHROPIC_BASE_URL"] = (
+                settings.EIDO_GATEWAY_INTERNAL_URL.rstrip("/") + "/api/v1/provider"
+            )
+        env.update(provider_env)
+        from app.services.model_catalog import load_model_catalog
+
+        env["CLAUDE_MODEL_CATALOG_JSON"] = json.dumps(
+            load_model_catalog().sandbox(), ensure_ascii=False
+        )
+        env["CLAUDE_COMPACT_PERCENT"] = str(settings.CLAUDE_COMPACT_PERCENT)
+        env["CLAUDE_SIMPLE_SYSTEM_PROMPT"] = str(settings.CLAUDE_SIMPLE_SYSTEM_PROMPT).lower()
+        env["CLAUDE_DEFAULT_RUNTIME_MODE"] = settings.CLAUDE_DEFAULT_RUNTIME_MODE
+        if settings.CLAUDE_EFFORT:
+            env["CLAUDE_EFFORT"] = settings.CLAUDE_EFFORT
 
         volume_name = f"eido-user-{safe}"
+        from docker.errors import NotFound
+
+        try:
+            volume = self._docker.volumes.get(volume_name)
+            owner = (volume.attrs.get("Labels") or {}).get("io.eido.user_id")
+            if owner and owner != user_id:
+                raise RuntimeError("拒绝挂载其他用户的数据卷")
+            if not owner:
+                legacy = self._select_row(user_id)
+                if not legacy or legacy["safe_user_id"] != safe:
+                    raise RuntimeError("无法确认旧数据卷归属，拒绝自动挂载")
+        except NotFound:
+            self._docker.volumes.create(volume_name, labels={"io.eido.user_id": user_id})
         mounts: list[Mount] = [Mount("/data", volume_name, type="volume")]
+        network = self._ensure_user_network(safe, user_id)
         # 技能库分两区挂载：
         #   - system（admin 上传 / 内置）：ro，所有用户共享只读
-        #   - users/<safe>：rw，只挂当前用户私有目录，避免泄露其他用户技能
+        #   - users/<safe>：ro，技能修改通过 gateway 管理接口完成
         # Docker bind-mount Source 必须是宿主侧路径，不能是容器内路径；
         # 优先从 gateway 自身 mount 反查宿主路径，避免误用 /workspace/.claude/skills。
         host_skills = self._resolve_host_skills_dir()
@@ -430,7 +496,7 @@ class SandboxManager:
                     f"/workspace/.claude/skills/users/{safe}",
                     host_user,
                     type="bind",
-                    read_only=False,
+                    read_only=True,
                 )
             )
 
@@ -446,7 +512,10 @@ class SandboxManager:
             image=settings.EIDO_USER_IMAGE,
             name=name,
             detach=True,
-            network=settings.EIDO_NET,
+            network=network,
+            read_only=True,
+            init=True,
+            user="10001:10001",
             environment=env,
             mounts=mounts,
             mem_limit=mem,
@@ -454,10 +523,12 @@ class SandboxManager:
             pids_limit=pids,
             security_opt=["no-new-privileges:true"],
             cap_drop=["ALL"],
-            tmpfs={"/tmp": "size=64m,mode=1777"},
+            tmpfs={"/tmp": f"size={settings.EIDO_USER_TMPFS_SIZE},mode=1777"},
+            log_config=LogConfig(type="json-file", config={"max-size": "10m", "max-file": "3"}),
             restart_policy={"Name": "unless-stopped"},
             labels={
                 "io.eido.role": "user-sandbox",
+                "io.eido.isolation_version": "2",
                 "io.eido.user_id": user_id,
             },
         )
@@ -467,46 +538,85 @@ class SandboxManager:
         self._upsert_row(user_id, safe, name, host)
         return self._build_handle_from_row(user_id)
 
-    def _stop_docker(self, user_id: str) -> bool:
-        assert self._docker is not None
-        row = self._select_row(user_id)
-        if not row:
-            return False
-        name = row["container_name"]
-        c = self._find_container(name)
-        if c is not None:
-            try:
-                c.stop(timeout=5)
-            except Exception:
-                pass
-            try:
-                c.remove(force=True)
-            except Exception:
-                pass
-        self._mark_status(user_id, "stopped")
-        return True
+    def _runtime_busy(self, user_id: str) -> bool:
+        import httpx
+
+        try:
+            handle = self._build_handle_from_row(user_id)
+            response = httpx.get(f"{handle.base_url}/health", timeout=2, trust_env=False)
+            response.raise_for_status()
+            return bool(response.json().get("active_runs", 0))
+        except Exception:
+            # Do not destroy a running task just because the health request failed.
+            return True
+
+    def _stop_docker(self, user_id: str, *, idle_before: float | None = None) -> bool:
+        with self._docker_locks.setdefault(user_id, threading.RLock()):
+            with self._lock:
+                row = self._select_row(user_id)
+                if not row or self._active_requests.get(user_id, 0):
+                    return False
+                if idle_before is not None and row["last_active_at"] >= idle_before:
+                    return False
+            if idle_before is not None and self._runtime_busy(user_id):
+                self._touch(user_id)
+                return False
+            # Health polling may have overlapped a new request; recheck the lease.
+            with self._lock:
+                current = self._select_row(user_id)
+                if self._active_requests.get(user_id, 0):
+                    return False
+                if idle_before is not None and current["last_active_at"] >= idle_before:
+                    return False
+                self.invalidate_health(user_id)
+            container = self._find_container(row["container_name"])
+            if container is not None:
+                labels = container.attrs.get("Config", {}).get("Labels", {})
+                if labels.get("io.eido.user_id") != user_id:
+                    raise RuntimeError("拒绝停止归属不匹配的容器")
+                container.stop(timeout=30)
+                container.remove()
+            self._mark_status(user_id, "stopped")
+            self._remove_user_network(row["safe_user_id"], user_id)
+            return True
+
+    def _remove_user_network(self, safe: str, user_id: str) -> None:
+        from docker.errors import NotFound
+
+        try:
+            network = self._docker.networks.get(f"{settings.EIDO_NET}-user-{safe}")
+            if (network.attrs.get("Labels") or {}).get("io.eido.user_id") != user_id:
+                raise RuntimeError("拒绝删除归属不匹配的 Docker network")
+            gateway = self._docker.containers.get(settings.EIDO_GATEWAY_CONTAINER)
+            network.reload()
+            if gateway.id in network.attrs.get("Containers", {}):
+                network.disconnect(gateway)
+            network.remove()
+        except NotFound:
+            pass
+        except Exception:
+            logger.exception("回收用户网络失败 user=%s", user_id)
 
     def _wait_health(self, handle: SandboxHandle, *, timeout: float = 30.0) -> None:
         """轮询 user 容器的 /health；超时抛 RuntimeError。"""
         if self._mode != "docker":
             return
         import httpx
-        deadline = time.time() + timeout
+
+        deadline = time.monotonic() + timeout
         url = f"{handle.base_url}/health"
         last_err: Exception | None = None
-        while time.time() < deadline:
-            try:
-                with httpx.Client(timeout=2.0) as client:
+        with httpx.Client(timeout=2.0, trust_env=False) as client:
+            while time.monotonic() < deadline:
+                try:
                     r = client.get(url)
                     if r.status_code == 200:
                         self._mark_status(handle.user_id, "running")
                         return
-            except Exception as e:
-                last_err = e
-            time.sleep(0.4)
-        raise RuntimeError(
-            f"user 容器健康检查超时: {handle.container_name} ({last_err})"
-        )
+                except Exception as e:
+                    last_err = e
+                time.sleep(0.1)
+        raise RuntimeError(f"user 容器健康检查超时: {handle.container_name} ({last_err})")
 
     # -------------------------------------------------------------- #
     #  SQLite helpers                                                  #
@@ -531,9 +641,14 @@ class SandboxManager:
                 " last_active_at=excluded.last_active_at,"
                 " updated_at=excluded.updated_at",
                 (
-                    user_id, safe, name, host,
+                    user_id,
+                    safe,
+                    name,
+                    host,
                     settings.EIDO_USER_INTERNAL_PORT,
-                    now_ts, now_iso, now_iso,
+                    now_ts,
+                    now_iso,
+                    now_iso,
                 ),
             )
             self._conn.commit()

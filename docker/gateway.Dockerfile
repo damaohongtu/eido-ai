@@ -28,6 +28,7 @@ WORKDIR /app
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     -i https://mirrors.aliyun.com/pypi/simple/ \
+    --extra-index-url https://pypi.org/simple \
     --trusted-host mirrors.aliyun.com
 
 COPY backend/ .
@@ -44,7 +45,7 @@ COPY docker/logrotate-eido.conf /etc/logrotate.d/eido
 COPY docker/log-cron.sh /opt/log-cron.sh
 RUN chmod +x /opt/log-cron.sh
 
-RUN mkdir -p /var/log/eido/app /var/log/eido/litellm /var/log/eido/nginx
+RUN mkdir -p /var/log/eido/app /var/log/eido/nginx
 
 # /workspace 仅作为只读技能库 / sandbox registry / scheduled tasks 的承载点
 RUN mkdir -p /workspace/.claude/skills

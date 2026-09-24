@@ -28,9 +28,10 @@ class ChatRequest(BaseModel):
     assistant_message_id: str = Field(
         ..., description="前端 assistant 占位消息 ID；后端保存模型输出时使用"
     )
-    harness: Optional[str] = Field(
-        None, description="AI 后端选择: claude_code | opencode（不传则使用 AGENT_HARNESS 配置）"
+    model: Optional[str] = Field(
+        None, max_length=200, description="Claude 模型；省略使用服务端默认值"
     )
+    runtime_mode: Optional[Literal["qa", "agent"]] = None
 
 
 class ChatControlRequest(BaseModel):
@@ -41,7 +42,8 @@ class ChatControlRequest(BaseModel):
     message: Message
     assistant_message_id: str = Field(..., description="排队执行时使用的 assistant 消息 ID")
     context: Optional[str] = None
-    harness: Optional[str] = Field(None, description="AI 后端选择")
+    model: Optional[str] = Field(None, max_length=200)
+    runtime_mode: Optional[Literal["qa", "agent"]] = None
 
 
 class ChatResponse(BaseModel):

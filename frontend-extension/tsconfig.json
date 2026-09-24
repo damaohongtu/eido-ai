@@ -3,9 +3,17 @@
     "target": "ES2022",
     "useDefineForClassFields": false,
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "skipLibCheck": true,
-    "types": ["chrome", "node"],
+    "types": [
+      "chrome",
+      "node",
+      "vite/client"
+    ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
@@ -14,8 +22,16 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "paths": {
-      "@/*": ["../frontend/*"]
+      "@/*": [
+        "../frontend/*"
+      ],
+      "@shared/*": [
+        "../frontend/*"
+      ]
     }
   },
-  "include": ["src", "../frontend"]
+  "include": [
+    "src",
+    "../frontend"
+  ]
 }

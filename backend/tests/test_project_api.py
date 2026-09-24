@@ -18,7 +18,7 @@ from app.api.v1.endpoints import chat, projects, sessions, workspace
 from app.core.auth import get_current_user_id
 from app.core.config import settings
 from app.services import chat_session_store as store_module
-from app.services import claude_skill_service as claude_service_module
+from app.services import claude_runtime as claude_runtime_module
 from app.services import project_context as project_context_module
 from app.services import project_workspace as project_workspace_module
 from app.services.chat_execution_guard import get_chat_execution_guard
@@ -38,6 +38,8 @@ class CapturingChatService:
         self.project_context: ProjectContext | None = None
         self.reset_sessions: list[str] = []
         self.messages: list = []
+        self.model: str | None = None
+        self.runtime_mode: str | None = None
         self.steerable_sessions: set[tuple[str, str]] = set()
         self.steered_messages: list[tuple[str, str, str]] = []
         self.interrupted_sessions: list[tuple[str, str]] = []
@@ -68,9 +70,14 @@ class CapturingChatService:
         user_id: str | None = None,
         session_id: str | None = None,
         project_context: ProjectContext | None = None,
+        project_id: str | None = None,
+        model: str | None = None,
+        runtime_mode: str = "agent",
     ):
         self.project_context = project_context
         self.messages = list(messages)
+        self.model = model
+        self.runtime_mode = runtime_mode
         yield 'data: {"type":"content","content":"context received"}\n\n'
         yield "data: [DONE]\n\n"
 
@@ -109,7 +116,7 @@ def project_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "get_project_workspace_manager",
         lambda: project_workspaces,
     )
-    monkeypatch.setattr(claude_service_module, "get_claude_skill_service", lambda: chat_service)
+    monkeypatch.setattr(claude_runtime_module, "get_claude_runtime", lambda: chat_service)
 
     identity = {"user_id": "user-a"}
     app = FastAPI()
@@ -453,7 +460,6 @@ def test_delete_project_unbinds_but_preserves_session_messages_and_workspace(
     )
     assert message.status_code == 200, message.text
     assert project_api.store.set_claude_session_id("user-a", session_id, "claude-1")
-    assert project_api.store.set_opencode_session_id("user-a", session_id, "opencode-1")
 
     response = project_api.client.delete(f"/api/v1/projects/{project['id']}")
     assert response.status_code == 200, response.text
@@ -469,7 +475,6 @@ def test_delete_project_unbinds_but_preserves_session_messages_and_workspace(
     assert retained["project_id"] is None
     assert retained["applied_context_revision"] is None
     assert retained["claude_session_id"] is None
-    assert retained["opencode_session_id"] is None
     assert [item["content"] for item in retained["messages"]] == ["hello"]
     assert sentinel.read_text(encoding="utf-8") == "session artifact"
     assert project_api.chat_service.reset_sessions == [session_id]
@@ -480,7 +485,8 @@ def _send_context_chat(
     session_id: str,
     *,
     assistant_message_id: str = "assistant-context",
-    harness: str = "claude_code",
+    model: str = "glm",
+    runtime_mode: str | None = None,
     messages: list[dict[str, str]] | None = None,
 ):
     request_messages = messages or [
@@ -492,7 +498,8 @@ def _send_context_chat(
             "messages": request_messages,
             "session_id": session_id,
             "assistant_message_id": assistant_message_id,
-            "harness": harness,
+            "model": model,
+            **({"runtime_mode": runtime_mode} if runtime_mode else {}),
         },
     )
 
@@ -508,7 +515,7 @@ def _chat_control_payload(
         "session_id": session_id,
         "message": {"id": message_id, "role": "user", "content": "follow up"},
         "assistant_message_id": f"assistant-{message_id}",
-        "harness": "claude_code",
+        "model": "glm",
     }
 
 
@@ -580,9 +587,7 @@ def test_chat_control_steer_injects_without_interrupting_and_persists_instructio
         )
         assert response.status_code == 200, response.text
         assert response.json()["status"] == "applied"
-        assert project_api.chat_service.steered_messages == [
-            ("user-a", session_id, "follow up")
-        ]
+        assert project_api.chat_service.steered_messages == [("user-a", session_id, "follow up")]
         assert project_api.chat_service.interrupted_sessions == []
 
         status = project_api.client.get(f"/api/v1/chat/queue/{session_id}").json()
@@ -610,9 +615,7 @@ def test_chat_queue_message_can_be_deleted(project_api: ProjectApiHarness):
             json=_chat_control_payload(session["id"]),
         )
         assert queued.status_code == 200, queued.text
-        deleted = project_api.client.delete(
-            f"/api/v1/chat/queue/{session['id']}/queued-user"
-        )
+        deleted = project_api.client.delete(f"/api/v1/chat/queue/{session['id']}/queued-user")
         assert deleted.status_code == 200, deleted.text
         status = project_api.client.get(f"/api/v1/chat/queue/{session['id']}").json()
         assert status["count"] == 0
@@ -709,7 +712,6 @@ def test_context_revision_change_invalidates_native_context_before_chat(
         "user-a", session_id, project["context_revision"]
     )
     assert project_api.store.set_claude_session_id("user-a", session_id, "claude-old")
-    assert project_api.store.set_opencode_session_id("user-a", session_id, "opencode-old")
 
     changed = project_api.client.patch(
         f"/api/v1/projects/{project['id']}",
@@ -723,7 +725,7 @@ def test_context_revision_change_invalidates_native_context_before_chat(
         project_api,
         session_id,
         assistant_message_id="assistant-updated-revision",
-        harness="claude_code",
+        model="glm",
         messages=[
             {
                 "id": "untrusted-history",
@@ -738,12 +740,9 @@ def test_context_revision_change_invalidates_native_context_before_chat(
     stored_session = project_api.store.get_session("user-a", session_id)
     assert stored_session is not None
     assert stored_session["claude_session_id"] is None
-    assert stored_session["opencode_session_id"] is None
     assert stored_session["applied_context_revision"] == changed_project["context_revision"]
     assert project_api.chat_service.reset_sessions == [session_id]
     assert [(message.role, message.content) for message in project_api.chat_service.messages] == [
-        ("user", "Earlier question"),
-        ("assistant", "Earlier answer"),
         ("user", "Use the facts"),
     ]
     assert project_api.chat_service.project_context is not None
@@ -1065,7 +1064,6 @@ def test_promoted_output_is_in_next_project_context_and_resets_provider_memory(
         "user-a", session_id, project["context_revision"]
     )
     assert project_api.store.set_claude_session_id("user-a", session_id, "claude-old")
-    assert project_api.store.set_opencode_session_id("user-a", session_id, "opencode-old")
 
     result = project_api.session_workspaces.outputs_dir(session_id) / "result.json"
     result.write_text('{"answer": 42}', encoding="utf-8")
@@ -1085,7 +1083,7 @@ def test_promoted_output_is_in_next_project_context_and_resets_provider_memory(
         project_api,
         session_id,
         assistant_message_id="assistant-after-promotion",
-        harness="claude_code",
+        model="glm",
     )
     assert chat_response.status_code == 200, chat_response.text
     captured = project_api.chat_service.project_context
@@ -1099,7 +1097,6 @@ def test_promoted_output_is_in_next_project_context_and_resets_provider_memory(
     assert after_chat is not None
     assert after_chat["applied_context_revision"] == promoted["context_revision"]
     assert after_chat["claude_session_id"] is None
-    assert after_chat["opencode_session_id"] is None
 
 
 def test_cumulative_project_quota_returns_413_without_orphaning_file(
@@ -1274,3 +1271,88 @@ def test_project_delete_reports_pending_cleanup_and_retry_removes_the_directory(
     }
     assert not project_root.exists()
     assert project_api.store.list_storage_cleanup_jobs() == []
+
+
+def test_model_catalog_and_rejection_do_not_start_a_run(project_api, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ANTHROPIC_MODEL", "")
+    monkeypatch.setattr(
+        settings,
+        "CLAUDE_MODEL_CATALOG_JSON",
+        '{"default":"custom","models":['
+        '{"id":"custom","label":"Custom","model":"custom-model"},'
+        '{"id":"sonnet","label":"Claude Sonnet","model":"sonnet"}]}'
+    )
+    response = project_api.client.get("/api/v1/chat/models")
+    assert response.status_code == 200
+    assert response.json() == {
+        "default": "custom",
+        "models": [
+            {"id": "custom", "label": "Custom", "model": "custom-model", "description": ""},
+            {"id": "sonnet", "label": "Claude Sonnet", "model": "sonnet", "description": ""},
+        ],
+    }
+    session = _create_session(project_api, title="Model test")
+    response = _send_context_chat(project_api, session["id"], model="unconfigured")
+    assert response.status_code == 400
+    assert not project_api.store.list_messages(session["id"], user_id="user-a")
+
+
+def test_session_model_switch_is_persisted_and_resets_native_session(project_api):
+    session = _create_session(project_api, title="Model switch")
+    assert project_api.store.set_claude_session_id("user-a", session["id"], "native-old")
+
+    response = project_api.client.patch(
+        f"/api/v1/sessions/{session['id']}", json={"model": "deepseek"}
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["model"] == "deepseek"
+    assert response.json()["claude_session_id"] is None
+    assert project_api.chat_service.reset_sessions == [session["id"]]
+
+    chat = _send_context_chat(
+        project_api,
+        session["id"],
+        assistant_message_id="assistant-deepseek",
+        model="deepseek",
+    )
+    assert chat.status_code == 200, chat.text
+    assert project_api.chat_service.model == "deepseek"
+
+
+def test_session_runtime_mode_defaults_follow_session_kind(project_api):
+    generic = _create_session(project_api, title="Quick question")
+    assert generic["runtime_mode"] == "qa"
+
+    skill = project_api.client.post(
+        "/api/v1/sessions/", json={"title": "Skill", "skill_id": "research"}
+    )
+    assert skill.status_code == 200, skill.text
+    assert skill.json()["runtime_mode"] == "agent"
+
+    project = _create_project(project_api, name="Agent project")
+    assigned = _create_session(project_api, title="Project", project_id=project["id"])
+    assert assigned["runtime_mode"] == "agent"
+
+
+def test_runtime_mode_switch_persists_clears_native_session_and_reaches_runtime(project_api):
+    session = _create_session(project_api, title="Mode switch")
+    assert project_api.store.set_claude_session_id("user-a", session["id"], "native-old")
+
+    changed = project_api.client.patch(
+        f"/api/v1/sessions/{session['id']}", json={"runtime_mode": "agent"}
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["runtime_mode"] == "agent"
+    assert changed.json()["claude_session_id"] is None
+    assert project_api.chat_service.reset_sessions == [session["id"]]
+
+    response = _send_context_chat(
+        project_api,
+        session["id"],
+        assistant_message_id="assistant-agent",
+        runtime_mode="agent",
+    )
+    assert response.status_code == 200, response.text
+    assert project_api.chat_service.runtime_mode == "agent"

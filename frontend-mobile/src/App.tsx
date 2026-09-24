@@ -13,7 +13,6 @@ interface AppProps {
   browserContext?: string;
   browserContextControl?: React.ReactNode;
   debugControl?: React.ReactNode;
-  runtimeControl?: React.ReactNode;
   agentRuntime?: AgentRuntime;
   extensionMode?: boolean;
   onAuthRequired?: (loginUrl: string) => void;
@@ -23,7 +22,6 @@ const App: React.FC<AppProps> = ({
   browserContext,
   browserContextControl,
   debugControl,
-  runtimeControl,
   agentRuntime = eidoCloudRuntime,
   extensionMode = false,
   onAuthRequired,
@@ -31,8 +29,6 @@ const App: React.FC<AppProps> = ({
   const store = useEidoStore({
     extensionMode,
     onAuthRequired,
-    localMode: agentRuntime.isLocal,
-    agentRuntime,
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const openMenu = () => setDrawerOpen(true);
@@ -91,8 +87,6 @@ const App: React.FC<AppProps> = ({
             store={store}
             onOpenMenu={openMenu}
             debugControl={debugControl}
-            runtimeControl={runtimeControl}
-            cloudRuntimeActive={!agentRuntime.isLocal}
           />
         );
       case 'chat':

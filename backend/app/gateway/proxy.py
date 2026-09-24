@@ -7,6 +7,7 @@ Reverse proxy helpers — gateway → per-user sandbox container.
 - 注入 X-Eido-User-Id + X-Eido-Gateway-Secret，供 user 容器走"信任网关头"分支
 - 复用 httpx.AsyncClient 单例（连接池长期复用，避免 SSE 期间连接频繁重建）
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,7 +17,7 @@ import httpx
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse, Response
 
-from app.core.config import settings
+from app.core.tenant_credentials import gateway_secret
 from app.core.logging_context import TRACE_ID_HEADER, get_trace_id
 from app.gateway.sandbox_manager import SandboxHandle
 
@@ -45,7 +46,9 @@ def get_proxy_client() -> httpx.AsyncClient:
     if _client is None:
         timeout = httpx.Timeout(connect=5.0, read=None, write=60.0, pool=5.0)
         limits = httpx.Limits(max_connections=200, max_keepalive_connections=64)
-        _client = httpx.AsyncClient(timeout=timeout, limits=limits, follow_redirects=False)
+        _client = httpx.AsyncClient(
+            timeout=timeout, limits=limits, follow_redirects=False, trust_env=False
+        )
     return _client
 
 
@@ -83,23 +86,18 @@ def _filter_response_headers(resp: httpx.Response) -> dict[str, str]:
     for k, v in resp.headers.items():
         if k.lower() in _HOP_BY_HOP:
             continue
-        # Content-Encoding 已被 httpx 解码，去除以防客户端二次解码
-        if k.lower() == "content-encoding":
-            continue
+        # Raw streams retain encoding; buffered responses remove it after decoding.
         headers[k] = v
     return headers
 
 
 def inject_trust_headers(headers: dict[str, str], user_id: str) -> dict[str, str]:
     """给透传到 user 容器的请求注入受信网关头。"""
-    headers = dict(headers)
+    headers = {k: v for k, v in headers.items() if k.lower() not in _STRIP_INCOMING}
     headers["X-Eido-User-Id"] = user_id
-    headers["X-Eido-Gateway-Secret"] = settings.EIDO_GATEWAY_SECRET
+    headers["X-Eido-Gateway-Secret"] = gateway_secret(user_id)
     headers.setdefault("X-Forwarded-User", user_id)
     return headers
-
-
-_inject_trust_headers = inject_trust_headers  # 兼容旧引用
 
 
 async def _aiter_request_body(request: Request) -> AsyncIterator[bytes]:
@@ -123,6 +121,7 @@ async def proxy_request(
     # The gateway may have generated the ID when the client did not supply one.
     # Forward the resolved value so gateway and user-runtime logs correlate.
     headers[TRACE_ID_HEADER] = get_trace_id()
+    headers["Accept-Encoding"] = "identity"
     method = request.method.upper()
 
     accept = request.headers.get("accept", "")
@@ -134,6 +133,10 @@ async def proxy_request(
     if method not in ("GET", "HEAD", "DELETE"):
         body_iter = _aiter_request_body(request)
 
+    from app.gateway.sandbox_manager import get_sandbox_manager
+
+    manager = get_sandbox_manager()
+    manager.retain(handle.user_id)
     try:
         req = client.build_request(
             method=method,
@@ -143,11 +146,18 @@ async def proxy_request(
         )
         upstream_resp = await client.send(req, stream=True)
     except httpx.ConnectError as e:
+        manager.invalidate_health(handle.user_id)
+        manager.release(handle.user_id)
         logger.warning(f"sandbox 不可达 {upstream_url}: {e}")
         raise HTTPException(status_code=502, detail=f"sandbox 不可达: {e}")
     except httpx.HTTPError as e:
+        manager.release(handle.user_id)
         logger.warning(f"代理失败 {upstream_url}: {e}")
         raise HTTPException(status_code=502, detail=f"代理失败: {e}")
+
+    except BaseException:
+        manager.release(handle.user_id)
+        raise
 
     response_headers = _filter_response_headers(upstream_resp)
 
@@ -174,12 +184,7 @@ async def proxy_request(
                         yield chunk
             finally:
                 await upstream_resp.aclose()
-                # 流结束后再刷一次 last_active_at，避免长响应中途被 GC 回收
-                try:
-                    from app.gateway.sandbox_manager import get_sandbox_manager
-                    get_sandbox_manager().release(handle.user_id)
-                except Exception:
-                    pass
+                manager.release(handle.user_id)
 
         return StreamingResponse(
             streaming_iter(),
@@ -188,15 +193,15 @@ async def proxy_request(
             media_type=upstream_resp.headers.get("content-type", "text/event-stream"),
         )
 
-    # 非流式：读取完整 body 后释放上游
-    body = await upstream_resp.aread()
-    await upstream_resp.aclose()
-    return Response(
-        content=body,
-        status_code=upstream_resp.status_code,
-        headers=response_headers,
-        media_type=upstream_resp.headers.get("content-type"),
-    )
+    try:
+        body = await upstream_resp.aread()
+        response_headers.pop("content-encoding", None)
+        return Response(
+            content=body, status_code=upstream_resp.status_code, headers=response_headers
+        )
+    finally:
+        await upstream_resp.aclose()
+        manager.release(handle.user_id)
 
 
 async def proxy_internal_post(
@@ -211,4 +216,11 @@ async def proxy_internal_post(
     headers["Content-Type"] = "application/json"
     upstream_url = f"{handle.base_url}{upstream_path}"
     client = get_proxy_client()
-    return await client.post(upstream_url, json=json_body or {}, headers=headers)
+    from app.gateway.sandbox_manager import get_sandbox_manager
+
+    manager = get_sandbox_manager()
+    manager.retain(handle.user_id)
+    try:
+        return await client.post(upstream_url, json=json_body or {}, headers=headers)
+    finally:
+        manager.release(handle.user_id)

@@ -1,6 +1,7 @@
 """
 Main FastAPI application entrypoint.
 """
+
 import asyncio
 import shutil
 from fastapi import FastAPI, Request
@@ -51,30 +52,25 @@ def _migrate_legacy_skills(skills_dir: Path) -> None:
             continue
         target = system_dir / entry.name
         if target.exists():
-            logging.getLogger(__name__).info(
-                "跳过迁移（system 区已存在同名）: %s", entry.name
-            )
+            logging.getLogger(__name__).info("跳过迁移（system 区已存在同名）: %s", entry.name)
             continue
         try:
             shutil.move(str(entry), str(target))
             moved += 1
         except Exception as e:
-            logging.getLogger(__name__).warning(
-                "迁移技能失败 %s: %s", entry.name, e
-            )
+            logging.getLogger(__name__).warning("迁移技能失败 %s: %s", entry.name, e)
     if moved:
-        logging.getLogger(__name__).info(
-            "已迁移 %d 个旧技能目录到 %s", moved, system_dir
-        )
+        logging.getLogger(__name__).info("已迁移 %d 个旧技能目录到 %s", moved, system_dir)
+
 
 log_dir = Path(settings.LOG_DIR)
 log_dir.mkdir(parents=True, exist_ok=True)
 
 detailed_formatter = logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - [traceId=%(trace_id)s] - '
-    '[sessionId=%(session_id)s] - '
-    '[%(filename)s:%(lineno)d] - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    "%(asctime)s - %(name)s - %(levelname)s - [traceId=%(trace_id)s] - "
+    "[sessionId=%(session_id)s] - "
+    "[%(filename)s:%(lineno)d] - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 trace_id_filter = TraceIdFilter()
@@ -88,20 +84,20 @@ console_handler.setFormatter(detailed_formatter)
 console_handler.addFilter(trace_id_filter)
 
 file_handler = TimedRotatingFileHandler(
-    log_dir / 'app.log', when='midnight', backupCount=7, encoding='utf-8'
+    log_dir / "app.log", when="midnight", backupCount=7, encoding="utf-8"
 )
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(detailed_formatter)
 file_handler.addFilter(trace_id_filter)
-file_handler.suffix = '%Y-%m-%d'
+file_handler.suffix = "%Y-%m-%d"
 
 error_handler = TimedRotatingFileHandler(
-    log_dir / 'error.log', when='midnight', backupCount=7, encoding='utf-8'
+    log_dir / "error.log", when="midnight", backupCount=7, encoding="utf-8"
 )
 error_handler.setLevel(logging.ERROR)
 error_handler.setFormatter(detailed_formatter)
 error_handler.addFilter(trace_id_filter)
-error_handler.suffix = '%Y-%m-%d'
+error_handler.suffix = "%Y-%m-%d"
 
 root_logger.addHandler(console_handler)
 root_logger.addHandler(file_handler)
@@ -112,15 +108,15 @@ logger = logging.getLogger(__name__)
 
 def create_application() -> FastAPI:
     """Create and configure FastAPI application."""
-    
+
     app = FastAPI(
         title=settings.PROJECT_NAME,
         version=settings.VERSION,
         openapi_url=f"{settings.API_V1_STR}/openapi.json",
         docs_url=f"{settings.API_V1_STR}/docs",
-        redoc_url=f"{settings.API_V1_STR}/redoc"
+        redoc_url=f"{settings.API_V1_STR}/redoc",
     )
-    
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -137,7 +133,7 @@ def create_application() -> FastAPI:
         same_site="lax",
         https_only=False,
     )
-    
+
     # 添加请求日志中间件
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
@@ -151,9 +147,7 @@ def create_application() -> FastAPI:
             response = await call_next(request)
             process_time = time.time() - start_time
             response.headers[TRACE_ID_HEADER] = trace_id
-            response_session_token = set_session_id(
-                getattr(request.state, "session_id", "-")
-            )
+            response_session_token = set_session_id(getattr(request.state, "session_id", "-"))
             try:
                 logger.info(
                     "← %s %s Status: %s Duration: %.3fs",
@@ -167,9 +161,7 @@ def create_application() -> FastAPI:
             return response
         except Exception:
             process_time = time.time() - start_time
-            error_session_token = set_session_id(
-                getattr(request.state, "session_id", "-")
-            )
+            error_session_token = set_session_id(getattr(request.state, "session_id", "-"))
             try:
                 logger.exception(
                     "← %s %s Status: 500 Duration: %.3fs",
@@ -182,10 +174,10 @@ def create_application() -> FastAPI:
             raise
         finally:
             reset_trace_id(trace_token)
-    
+
     # Include API router
     app.include_router(api_router, prefix=settings.API_V1_STR)
-    
+
     # Legacy route for backward compatibility
     @app.post("/api/chat")
     async def legacy_chat_endpoint(raw_request: Request):
@@ -194,25 +186,35 @@ def create_application() -> FastAPI:
         from app.schemas.chat import ChatRequest
         from app.core.auth import get_current_user_id
 
+        if settings.EIDO_SANDBOX_MODE == "docker" and not settings.EIDO_TRUST_GATEWAY:
+            from app.gateway.router_user import proxy_chat_chat
+
+            return await proxy_chat_chat(raw_request, user_id=get_current_user_id(raw_request))
         body = await raw_request.json()
         chat_request = ChatRequest(**body)
         user_id = get_current_user_id(raw_request)
         return await chat_completion(chat_request, raw_request, user_id=user_id)
-    
+
     @app.get("/")
     async def root():
         """Root endpoint."""
         return {
             "message": f"Welcome to {settings.PROJECT_NAME}",
             "version": settings.VERSION,
-            "docs": f"{settings.API_V1_STR}/docs"
+            "docs": f"{settings.API_V1_STR}/docs",
         }
-    
+
     @app.get("/health")
     async def health():
         """Health check endpoint."""
-        return {"status": "healthy", "version": settings.VERSION}
-    
+        from app.services.chat_execution_guard import get_chat_execution_guard
+
+        return {
+            "status": "healthy",
+            "version": settings.VERSION,
+            "active_runs": get_chat_execution_guard().active_count(),
+        }
+
     @app.on_event("startup")
     async def startup_event():
         """应用启动事件：根据运行模式初始化对应组件。
@@ -224,7 +226,7 @@ def create_application() -> FastAPI:
         - 单租户/local：保留原有完整初始化
         """
         from pathlib import Path
-        from app.services.claude_skill_service import init_claude_skill_service
+        from app.services.claude_runtime import init_claude_runtime
         from app.services.skill_management_service import init_skill_management_service
         from app.services.scheduled_task_store import ScheduledTaskStore
         from app.services.chat_session_store import init_chat_session_store
@@ -255,22 +257,13 @@ def create_application() -> FastAPI:
             # gateway / local 角色负责数据迁移；user 容器内技能目录是只读的
             if not is_user_runtime:
                 _migrate_legacy_skills(skills_dir)
-            svc = init_claude_skill_service(skills_dir, workspace_root)
+            svc = init_claude_runtime(skills_dir, workspace_root)
             init_skill_management_service(skills_dir, workspace_root, svc)
             skill_count = len(svc.scan_skills())
             logger.info(f"✓ 技能服务初始化完成: 发现 {skill_count} 个 system 技能")
         except Exception as e:
             logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
-
-        # ---------- OpenCode CLI 服务（始终初始化，前端可按请求切换）---------- #
-        try:
-            from app.services.open_code_service import init_open_code_service
-            init_open_code_service(
-                Path(settings.SKILLS_DIR), Path(settings.WORKSPACE_ROOT)
-            )
-            logger.info("✓ OpenCodeService 初始化完成")
-        except Exception as e:
-            logger.error(f"✗ OpenCodeService 初始化失败: {e}", exc_info=True)
+            raise
 
         # ---------- 会话工作区 / 会话存储（user 与 local 需要；gateway 不需要）---------- #
         if not is_gateway:
@@ -320,9 +313,7 @@ def create_application() -> FastAPI:
                         except Exception:
                             logger.exception("项目存储周期清理异常")
 
-                app.state.project_storage_cleanup_task = asyncio.create_task(
-                    project_cleanup_loop()
-                )
+                app.state.project_storage_cleanup_task = asyncio.create_task(project_cleanup_loop())
             except Exception as e:
                 logger.error(f"✗ 会话存储初始化失败: {e}", exc_info=True)
                 raise
@@ -342,11 +333,13 @@ def create_application() -> FastAPI:
         if is_gateway:
             try:
                 from app.gateway.sandbox_manager import init_sandbox_manager
+
                 mgr = init_sandbox_manager(mode=settings.EIDO_SANDBOX_MODE)
                 await mgr.start_idle_gc()
                 logger.info(f"✓ SandboxManager 初始化完成 mode={mgr.mode}")
             except Exception as e:
                 logger.error(f"✗ SandboxManager 初始化失败: {e}", exc_info=True)
+                raise
 
     @app.on_event("shutdown")
     async def shutdown_event():
@@ -359,15 +352,16 @@ def create_application() -> FastAPI:
                 pass
 
         from app.services import scheduler_service
+
         scheduler_service.shutdown_scheduler()
         logger.info("Scheduler stopped")
 
         try:
-            from app.services.claude_skill_service import get_claude_skill_service
+            from app.services.claude_runtime import get_claude_runtime
 
-            claude_service = get_claude_skill_service()
-            if claude_service is not None:
-                await claude_service.shutdown()
+            claude_runtime = get_claude_runtime()
+            if claude_runtime is not None:
+                await claude_runtime.shutdown()
         except Exception:
             logger.exception("关闭 Claude SDK session pool 失败")
 
@@ -379,9 +373,12 @@ def create_application() -> FastAPI:
             logger.exception("关闭 MCP 配置存储失败")
 
         # gateway 关停 sandbox idle gc + httpx client
-        if (settings.EIDO_SANDBOX_MODE or "").lower() == "docker" and not settings.EIDO_TRUST_GATEWAY:
+        if (
+            settings.EIDO_SANDBOX_MODE or ""
+        ).lower() == "docker" and not settings.EIDO_TRUST_GATEWAY:
             try:
                 from app.gateway.sandbox_manager import get_sandbox_manager
+
                 mgr = get_sandbox_manager()
                 await mgr.stop_idle_gc()
                 mgr.close()
@@ -389,12 +386,13 @@ def create_application() -> FastAPI:
                 pass
             try:
                 from app.gateway.proxy import close_proxy_client
+
                 await close_proxy_client()
             except Exception:
                 pass
 
     logger.info(f"Application {settings.PROJECT_NAME} v{settings.VERSION} initialized")
-    
+
     return app
 
 
@@ -403,10 +401,7 @@ app = create_application()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level=settings.LOG_LEVEL.lower()
+        "app.main:app", host="0.0.0.0", port=8000, reload=True, log_level=settings.LOG_LEVEL.lower()
     )

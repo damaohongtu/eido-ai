@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { ViewType, Skill, Message, ChatSession, Reference, SkillAction, Project, ProjectFile, CreateSessionOptions } from './types';
+import { ViewType, Skill, Message, ChatSession, Reference, SkillAction, Project, ProjectFile, CreateSessionOptions, RuntimeMode } from './types';
 import { INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
@@ -162,14 +162,6 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
-  const [harness, setHarness] = useState<string>(() =>
-    readStorage<string>('eido_harness', 'claude_code')
-  );
-
-  useEffect(() => {
-    writeStorage('eido_harness', harness);
-  }, [harness]);
-
   // Skill page view state
   const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
 
@@ -460,6 +452,8 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         title: created.title || '新建会话',
         projectId: created.project_id ?? options.projectId ?? null,
         skillId: created.skill_id || options.skillId,
+        model: created.model || undefined,
+        runtimeMode: created.runtime_mode || 'agent',
         messages: initialMessages,
         updatedAt: Date.parse(created.updated_at) || Date.now(),
       };
@@ -573,6 +567,53 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     api.patchSession(activeSessionId, { skill_id: skillId }).catch(err =>
       console.warn('更新会话 skill_id 失败:', err)
     );
+  };
+
+  const updateSessionModel = (modelId: string) => {
+    if (!activeSessionId) return;
+    const sessionId = activeSessionId;
+    const previousModel = activeSession?.model;
+    const model = modelId || undefined;
+    setSessions(prev => prev.map(session => session.id === activeSessionId
+      ? { ...session, model, updatedAt: Date.now() }
+      : session));
+    api.patchSession(sessionId, { model: modelId || null })
+      .then(updated => setSessions(prev => prev.map(session =>
+        session.id === sessionId && session.model === model
+          ? { ...session, model: updated.model || undefined }
+          : session
+      )))
+      .catch(err => {
+        setSessions(prev => prev.map(session =>
+          session.id === sessionId && session.model === model
+            ? { ...session, model: previousModel }
+            : session
+        ));
+        console.warn('更新会话模型失败:', err);
+      });
+  };
+
+  const updateSessionRuntimeMode = (runtimeMode: RuntimeMode) => {
+    if (!activeSessionId) return;
+    const sessionId = activeSessionId;
+    const previousMode = activeSession?.runtimeMode || 'agent';
+    setSessions(prev => prev.map(session => session.id === sessionId
+      ? { ...session, runtimeMode, updatedAt: Date.now() }
+      : session));
+    api.patchSession(sessionId, { runtime_mode: runtimeMode })
+      .then(updated => setSessions(prev => prev.map(session =>
+        session.id === sessionId && session.runtimeMode === runtimeMode
+          ? { ...session, runtimeMode: updated.runtime_mode || 'agent' }
+          : session
+      )))
+      .catch(err => {
+        setSessions(prev => prev.map(session =>
+          session.id === sessionId && session.runtimeMode === runtimeMode
+            ? { ...session, runtimeMode: previousMode }
+            : session
+        ));
+        console.warn('更新会话模式失败:', err);
+      });
   };
 
   const loadProjectFiles = useCallback(async (projectId: string) => {
@@ -801,8 +842,6 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
         onDeleteSession={deleteSession}
         currentUser={currentUser!}
         onLogout={handleLogout}
-        harness={harness}
-        onHarnessChange={setHarness}
       />
 
       <main className="flex-1 flex flex-col relative min-w-0 bg-white shadow-lg shadow-gray-200/30">
@@ -858,7 +897,10 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
                 onImportProjectFile={activeSessionProject && !activeSessionProject.archived_at ? importSessionFileToProject : undefined}
                 onRefreshSession={refreshSessionMessages}
                 onRunningSessionsChange={setRunningSessionIds}
-                harness={harness}
+                model={activeSession?.model || ''}
+                onModelChange={updateSessionModel}
+                runtimeMode={activeSession?.runtimeMode || 'agent'}
+                onRuntimeModeChange={updateSessionRuntimeMode}
                 browserContext={browserContext}
              />
              {rightPanelOpen && (

@@ -15,16 +15,18 @@ backend/
 │   │   └── endpoints/
 │   │       ├── chat.py             # POST /chat/chat — 对话与技能执行
 │   │       ├── skills.py           # GET  /skills/   — 技能列表与详情
-│   │       ├── mcp.py              # MCP 工具注册相关
-│   │       └── workflow.py         # 健康检查
+│   │       └── mcp.py              # MCP Server 配置与状态
 │   ├── core/
 │   │   └── config.py               # Pydantic Settings（读取 .env）
 │   ├── schemas/
 │   │   └── chat.py                 # 请求/响应 Pydantic 模型
 │   └── services/
-│       ├── claude_skill_service.py # 技能加载 + claude_agent_sdk 执行
-│       ├── llm_service.py          # DeepSeek 普通对话
-│       └── mcp_registry.py         # MCP 工具注册表
+│       ├── claude_runtime.py       # Claude Code 单轮执行编排
+│       ├── claude_session_pool.py  # 常驻 SDK 会话生命周期
+│       ├── claude_sdk_session.py   # 单个 ClaudeSDKClient owner task
+│       ├── claude_event_adapter.py # SDK 消息到 SSE 的转换
+│       ├── claude_prompt.py        # prompt、环境变量与认证检查
+│       └── skill_catalog.py        # 技能扫描与原生 Skills 映射
 ├── alembic/                        # 数据库迁移（保留备用）
 ├── scripts/                        # 辅助脚本
 ├── requirements.txt
@@ -53,7 +55,7 @@ python run.py
 
 服务启动后：
 - API 文档（Swagger）：http://localhost:8000/api/v1/docs
-- 健康检查：http://localhost:8000/api/v1/workflow/health
+- 健康检查：http://localhost:8000/health
 
 ---
 
@@ -64,7 +66,11 @@ python run.py
 | `ANTHROPIC_API_KEY` | Claude Agent SDK API Key（推荐使用 Claude Console Key） | 必填* |
 | `ANTHROPIC_BASE_URL` | Anthropic 兼容网关地址；官方 API 留空 | 空 |
 | `ANTHROPIC_AUTH_TOKEN` | 部分兼容网关使用的 Bearer Token | 空 |
-| `ANTHROPIC_MODEL` | 自定义主模型名称 | 服务默认 |
+| `ANTHROPIC_MODEL` | 兼容旧部署的默认 provider 模型 | 服务默认 |
+| `CLAUDE_MODELS_FILE` | YAML 模型目录路径 | `backend/config/models.yaml` |
+| `GLM_*` / `DEEPSEEK_*` | 每个模型独立的 provider URL、Key/Token 与快速模型 | 空，未填字段回退全局 Anthropic 配置 |
+| `CLAUDE_COMPACT_PERCENT` | Claude Code 自动压缩触发百分比 | `80` |
+| `CLAUDE_SIMPLE_SYSTEM_PROMPT` | 原生精简系统提示，完整保留工具与扩展能力 | `true` |
 | `SKILLS_DIR` | 技能目录路径 | `{workspace}/.claude/skills` |
 | `WORKSPACE_ROOT` | 工作区根路径（传给 claude_agent_sdk） | 自动推断 |
 | `LOG_LEVEL` | 日志级别 | `INFO` |
@@ -136,9 +142,9 @@ python run.py
 
 ---
 
-## 技能服务（ClaudeSkillService）
+## 技能服务（ClaudeRuntime）
 
-核心服务位于 `app/services/claude_skill_service.py`：
+核心服务位于 `app/services/claude_runtime.py`：
 
 - **`scan_skills()`** — 扫描 `SKILLS_DIR`，解析每个子目录的 `SKILL.md` frontmatter
 - **`get_skill(skill_id)`** — 按目录名加载单个技能

@@ -150,7 +150,7 @@ const MessageItem: React.FC<MessageItemProps> = ({
       download,
       filename,
       sessionId: sessionId || undefined,
-    }).catch((error) => console.error('读取本机 OpenCode 文件失败', error));
+    }).catch((error) => console.error('读取Claude Code 文件失败', error));
   };
 
   const markdownComponents = {

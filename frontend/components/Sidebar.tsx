@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ViewType, ChatSession, Project } from '../types';
 import { getAssetUrl } from '../config';
@@ -106,9 +105,6 @@ interface SidebarProps {
   currentUser: { user_id: string; username: string };
   /** 登出：清本地会话并跳转后端 /auth/logout（CAS 会再跳回前端） */
   onLogout: () => void;
-  /** AI 后端切换 */
-  harness: string;
-  onHarnessChange: (h: string) => void;
 }
 
 function avatarInitial(name: string): string {
@@ -133,8 +129,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteSession,
   currentUser,
   onLogout,
-  harness,
-  onHarnessChange,
 }) => {
   const displayName = currentUser.username?.trim() || currentUser.user_id || '用户';
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -222,10 +216,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     </button>
   );
 
-  const harnessOptions = [
-    { value: 'claude_code', short: 'CC', label: 'Claude Code' },
-    { value: 'opencode', short: 'OC', label: 'OpenCode' },
-  ];
 
   const unassignedSessions = sessions.filter(session => !session.projectId);
   const knownProjectIds = new Set(projects.map(project => project.id));
@@ -482,27 +472,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
         ) : null}
-      </div>
-
-      {/* ---- Harness toggle (shrink-0) ---- */}
-      <div className="px-6 py-2 shrink-0">
-        <div className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-gray-500">
-          <span>AI 后端</span>
-          <span className="inline-flex items-center gap-1 rounded-md bg-gray-50 p-0.5">
-            {harnessOptions.map(option => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => onHarnessChange(option.value)}
-                title={option.label}
-                aria-pressed={harness === option.value}
-                className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${harness === option.value ? 'bg-blue-50 text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
-              >
-                {option.short}
-              </button>
-            ))}
-          </span>
-        </div>
       </div>
 
       {/* ---- Bottom: user section (shrink-0) ---- */}

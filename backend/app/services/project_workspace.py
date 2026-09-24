@@ -3,6 +3,7 @@
 Project files are intentionally separate from session workspaces.  A project is
 shared context, while a session remains the writable execution/cwd boundary.
 """
+
 from __future__ import annotations
 
 import logging
@@ -20,17 +21,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PROJECT_FILE_EXTENSIONS = SUPPORTED_FILE_EXTENSIONS
-_PROJECT_FILE_EXTENSION_PATTERN = "(?:" + "|".join(
-    re.escape(extension) for extension in sorted(PROJECT_FILE_EXTENSIONS)
-) + ")"
+_PROJECT_FILE_EXTENSION_PATTERN = (
+    "(?:" + "|".join(re.escape(extension) for extension in sorted(PROJECT_FILE_EXTENSIONS)) + ")"
+)
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _GENERATED_PROJECT_ID_RE = re.compile(r"^[0-9a-f]{32}$")
-_GENERATED_STORAGE_RE = re.compile(
-    rf"^[0-9a-f]{{32}}{_PROJECT_FILE_EXTENSION_PATTERN}$"
-)
+_GENERATED_STORAGE_RE = re.compile(rf"^[0-9a-f]{{32}}{_PROJECT_FILE_EXTENSION_PATTERN}$")
 _TEMP_STORAGE_RE = re.compile(
-    rf"^\.[0-9a-f]{{32}}{_PROJECT_FILE_EXTENSION_PATTERN}"
-    rf"\.[0-9a-f]{{32}}\.(?:upload|import)$"
+    rf"^\.[0-9a-f]{{32}}{_PROJECT_FILE_EXTENSION_PATTERN}" rf"\.[0-9a-f]{{32}}\.(?:upload|import)$"
 )
 FILES_SUBDIR = "files"
 
@@ -161,9 +159,7 @@ def _enqueue_project_orphans(
         return 0
     if project_id not in project_owners:
         if _GENERATED_PROJECT_ID_RE.fullmatch(project_id):
-            store.enqueue_storage_cleanup(
-                resource_type="project", project_id=project_id
-            )
+            store.enqueue_storage_cleanup(resource_type="project", project_id=project_id)
         return 0
     if project_path.is_symlink() or not project_path.is_dir():
         logger.error("项目目录损坏或为符号链接: %s", project_path)
@@ -178,9 +174,9 @@ def _enqueue_project_orphans(
         storage_name = path.name
         if (project_id, storage_name) in file_keys:
             continue
-        if _GENERATED_STORAGE_RE.fullmatch(
+        if _GENERATED_STORAGE_RE.fullmatch(storage_name) or _TEMP_STORAGE_RE.fullmatch(
             storage_name
-        ) or _TEMP_STORAGE_RE.fullmatch(storage_name):
+        ):
             size_bytes = 0
             if not path.is_symlink() and path.is_file():
                 size_bytes = path.stat().st_size
@@ -219,9 +215,7 @@ def retry_pending_storage_cleanup(
     project_paths = manager.root.iterdir() if reconcile_orphans else ()
     for project_path in project_paths:
         try:
-            missing += _enqueue_project_orphans(
-                store, project_path, project_owners, file_keys
-            )
+            missing += _enqueue_project_orphans(store, project_path, project_owners, file_keys)
         except OSError:
             failed += 1
             logger.exception("跳过无法读取的项目目录: %s", project_path)
@@ -255,9 +249,7 @@ def retry_pending_storage_cleanup(
                 else:
                     # A stale whole-Project job must not erase valid per-file
                     # cleanup jobs belonging to a currently active Project.
-                    store.complete_storage_cleanup(
-                        resource_type="project", project_id=project_id
-                    )
+                    store.complete_storage_cleanup(resource_type="project", project_id=project_id)
                 completed += 1
                 continue
             elif resource_type == "file":

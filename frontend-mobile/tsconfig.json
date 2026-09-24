@@ -3,9 +3,16 @@
     "target": "ES2022",
     "useDefineForClassFields": false,
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": [
+      "node",
+      "vite/client"
+    ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
@@ -14,11 +21,18 @@
     "strict": true,
     "noUnusedLocals": false,
     "paths": {
-      "@/*": ["./src/*"],
-      "@shared/*": ["../frontend/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@shared/*": [
+        "../frontend/*"
+      ]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": [
+    "src",
+    "vite.config.ts"
+  ]
 }

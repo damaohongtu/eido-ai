@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import subprocess
 import time
 import uuid
 from typing import Any
@@ -181,7 +180,7 @@ async def _execute_agent_local(
         _message_extra_from_stream_state,
         _parse_sse_payload,
     )
-    from app.services.claude_skill_service import get_claude_skill_service
+    from app.services.claude_runtime import get_claude_runtime
     from app.services.chat_execution_guard import get_chat_execution_guard
 
     user_id = task["user_id"]
@@ -214,7 +213,7 @@ async def _execute_agent_local(
         if started_event is not None:
             started_event.set()
 
-        service = get_claude_skill_service()
+        service = get_claude_runtime()
         if service is None:
             raise RuntimeError("技能服务未初始化")
 
@@ -357,19 +356,30 @@ async def _execute_script(
         if not script_path:
             raise ValueError("缺少 script_path")
 
-        result = await asyncio.to_thread(
-            subprocess.run,
-            [script_path, *args],
-            capture_output=True,
-            text=True,
-            cwd=settings.WORKSPACE_ROOT,
-            timeout=300,
-        )
-        sections = [f"脚本执行完成，退出码：{result.returncode}"]
-        if result.stdout.strip():
-            sections.append(f"标准输出：\n```text\n{result.stdout.strip()[:100_000]}\n```")
-        if result.stderr.strip():
-            sections.append(f"标准错误：\n```text\n{result.stderr.strip()[:100_000]}\n```")
+        if _is_docker_sandbox():
+            from app.gateway.sandbox_manager import get_sandbox_manager
+            from app.gateway.proxy import proxy_internal_post
+
+            handle = await get_sandbox_manager().ensure_running(user_id)
+            response = await proxy_internal_post(
+                handle,
+                upstream_path="/api/v1/internal/script",
+                json_body={"session_id": session_id, "command": [script_path, *args]},
+            )
+            response.raise_for_status()
+            result = response.json()
+        else:
+            from app.services.script_runner import run_script
+            from app.services.session_workspace import get_session_workspace_manager
+
+            result = await run_script(
+                [script_path, *args], get_session_workspace_manager().session_root(session_id)
+            )
+        sections = [f"脚本执行完成，退出码：{result['returncode']}"]
+        if result["stdout"].strip():
+            sections.append(f"标准输出：\n```text\n{result['stdout'].strip()}\n```")
+        if result["stderr"].strip():
+            sections.append(f"标准错误：\n```text\n{result['stderr'].strip()}\n```")
         await _append_task_message(
             user_id,
             session_id,

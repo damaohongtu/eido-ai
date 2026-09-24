@@ -9,6 +9,7 @@
 - admin 白名单（EIDO_ADMIN_USERS）：可在 system/ 创建/修改/删除技能
 - 普通用户：只能在 users/<self>/ 下创建/修改/删除，且不可触碰 system/
 """
+
 import logging
 import shutil
 from pathlib import Path
@@ -16,7 +17,7 @@ from typing import List, Optional, Tuple
 
 from app.core.config import settings
 from app.gateway.sandbox_manager import _safe_user_id
-from app.services.claude_skill_service import (
+from app.services.skill_catalog import (
     SYSTEM_SUBDIR,
     USER_UPLOAD_MARKER,
     USERS_SUBDIR,
@@ -56,9 +57,7 @@ class SkillManagementService:
         target.mkdir(parents=True, exist_ok=True)
         return target
 
-    def _locate_skill(
-        self, skill_id: str, user_id: Optional[str]
-    ) -> Tuple[Path, str]:
+    def _locate_skill(self, skill_id: str, user_id: Optional[str]) -> Tuple[Path, str]:
         """定位技能目录。优先用户私有 → system，返回 (skill_dir, owner_type)。"""
         if not skill_id or any(sep in skill_id for sep in ("/", "\\", "..")):
             raise ValueError("无效的技能 ID")
@@ -109,6 +108,7 @@ class SkillManagementService:
     def _slug(name: str) -> str:
         """将名称转为目录名 slug"""
         import re
+
         s = re.sub(r"[^\w\s-]", "", name)
         s = re.sub(r"[-\s]+", "-", s).strip().lower()
         return s or "skill"
@@ -135,6 +135,7 @@ class SkillManagementService:
         target_dir.mkdir(parents=True)
         try:
             import yaml
+
             frontmatter = {"name": name, "description": description}
             if icon:
                 frontmatter["icon"] = icon
@@ -159,7 +160,7 @@ class SkillManagementService:
         icon: Optional[str] = None,
     ) -> SkillMeta:
         """更新技能元数据或正文。系统技能仅 admin 可改，私有技能仅 owner 可改。"""
-        from app.services.claude_skill_service import _parse_frontmatter
+        from app.services.skill_catalog import _parse_frontmatter
 
         skill_dir, owner_type = self._locate_skill(skill_id, user_id)
         self._check_write_perm(owner_type, user_id)
@@ -182,6 +183,7 @@ class SkillManagementService:
             body = content
 
         import yaml
+
         fm_text = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False)
         new_text = f"---\n{fm_text}---\n\n{body}"
         skill_md = skill_dir / "SKILL.md"
@@ -196,9 +198,7 @@ class SkillManagementService:
         self._check_write_perm(owner_type, user_id)
         shutil.rmtree(skill_dir)
         self._invalidate_execution_cache(owner_type, user_id)
-        logger.info(
-            "已删除技能 user=%s owner_type=%s id=%s", user_id, owner_type, skill_id
-        )
+        logger.info("已删除技能 user=%s owner_type=%s id=%s", user_id, owner_type, skill_id)
 
     # 兼容旧别名：endpoints 中曾用 delete_user_upload
     delete_user_upload = delete_skill
@@ -226,13 +226,26 @@ class SkillManagementService:
             items: List[dict] = []
             for entry in sorted(dir_path.iterdir()):
                 rel = f"{rel_prefix}/{entry.name}" if rel_prefix else entry.name
-                if entry.name == USER_UPLOAD_MARKER or entry.name == "__pycache__" or entry.suffix == ".pyc":
+                if (
+                    entry.name == USER_UPLOAD_MARKER
+                    or entry.name == "__pycache__"
+                    or entry.suffix == ".pyc"
+                ):
                     continue
                 if entry.is_dir():
                     children = walk(entry, rel)
-                    items.append({"name": entry.name, "path": rel, "type": "dir", "children": children})
+                    items.append(
+                        {"name": entry.name, "path": rel, "type": "dir", "children": children}
+                    )
                 else:
-                    items.append({"name": entry.name, "path": rel, "type": "file", "size": entry.stat().st_size})
+                    items.append(
+                        {
+                            "name": entry.name,
+                            "path": rel,
+                            "type": "file",
+                            "size": entry.stat().st_size,
+                        }
+                    )
             return items
 
         return walk(skill_dir)
@@ -296,7 +309,9 @@ def get_skill_management_service() -> Optional[SkillManagementService]:
     return _instance
 
 
-def init_skill_management_service(skills_dir: Path, workspace_root: Path, execution_service) -> SkillManagementService:
+def init_skill_management_service(
+    skills_dir: Path, workspace_root: Path, execution_service
+) -> SkillManagementService:
     global _instance
     _instance = SkillManagementService(skills_dir, workspace_root, execution_service)
     return _instance

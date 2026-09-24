@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.services import chat_session_store as store_module
-from app.services import claude_skill_service as claude_service_module
+from app.services import claude_runtime as claude_runtime_module
 from app.services import session_workspace as workspace_module
 from app.services.chat_execution_guard import get_chat_execution_guard
 from app.services.chat_execution_queue import (
@@ -16,7 +16,8 @@ from app.services.chat_execution_queue import (
     QueuedChatRun,
 )
 from app.services.chat_session_store import ChatSessionStore
-from app.services.claude_skill_service import ClaudeSkillService, _ClaudeClientEntry
+from app.services.claude_runtime import ClaudeRuntime
+from app.services.claude_session_pool import ClaudeSessionEntry
 from app.services.session_workspace import SessionWorkspaceManager
 
 
@@ -43,7 +44,7 @@ def queue_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     service = QueueService()
     monkeypatch.setattr(store_module, "_instance", store)
     monkeypatch.setattr(workspace_module, "_instance", workspaces)
-    monkeypatch.setattr(claude_service_module, "get_claude_skill_service", lambda: service)
+    monkeypatch.setattr(claude_runtime_module, "get_claude_runtime", lambda: service)
     yield store, service
     store.close()
 
@@ -55,7 +56,7 @@ def _run(user: str, session: str, message: str, content: str) -> QueuedChatRun:
         message_id=message,
         content=content,
         assistant_message_id=f"a-{message}",
-        harness="claude_code",
+        model="sonnet",
     )
 
 
@@ -128,14 +129,14 @@ def test_steer_writes_to_only_the_target_active_client_without_interrupt(tmp_pat
         async def interrupt(self):
             self.interrupted += 1
 
-    service = ClaudeSkillService(tmp_path / "skills", tmp_path)
+    service = ClaudeRuntime(tmp_path / "skills", tmp_path)
     active = Client()
     other = Client()
     now = __import__("time").monotonic()
-    service._clients[("u1", "s1")] = _ClaudeClientEntry(
+    service.sessions.entries[("u1", "s1")] = ClaudeSessionEntry(
         active, ("u1", "s1"), "u1", (), now, now, busy=True
     )
-    service._clients[("u1", "s2")] = _ClaudeClientEntry(
+    service.sessions.entries[("u1", "s2")] = ClaudeSessionEntry(
         other, ("u1", "s2"), "u1", (), now, now, busy=True
     )
 

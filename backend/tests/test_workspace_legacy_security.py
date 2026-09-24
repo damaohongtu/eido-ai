@@ -77,13 +77,8 @@ def test_workspace_safe_content_respects_explicit_download():
     ["text/html; charset=utf-8", "application/xhtml+xml", "application/atom+xml"],
 )
 def test_workspace_active_media_type_cannot_bypass_suffix_policy(media_type: str):
+    assert _content_disposition_type(".data", download=False, media_type=media_type) == "attachment"
     assert (
-        _content_disposition_type(".data", download=False, media_type=media_type)
-        == "attachment"
-    )
-    assert (
-        _content_disposition_type(
-            ".data", download=False, preview=True, media_type=media_type
-        )
+        _content_disposition_type(".data", download=False, preview=True, media_type=media_type)
         == "inline"
     )

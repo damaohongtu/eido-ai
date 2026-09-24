@@ -138,7 +138,7 @@ def skill_secret_values(self) -> set[str]:
 
 #### 3.1.3 运行时注入
 
-`claude_skill_service.py` 的 `execute_stream` 在构建 `agent_env` 时注入：
+`claude_runtime.py` 的 `execute_stream` 在构建 `agent_env` 时注入：
 
 ```python
 agent_env: dict[str, str] = {}
@@ -420,7 +420,7 @@ def load_config(config_path: str = None) -> Dict:
 |------|------|
 | `backend/app/core/config.py` | 增加 `skill_secrets` / `skill_secret_values` 属性 |
 | `backend/app/core/secret_filter.py` | **新增** — 密钥脱敏过滤器 |
-| `backend/app/services/claude_skill_service.py` | 注入密钥到 `agent_env`、prompt 安全规则、SSE/日志脱敏 |
+| `backend/app/services/claude_runtime.py` | 注入密钥到 `agent_env`、prompt 安全规则、SSE/日志脱敏 |
 | `backend/.env` | 增加 `SKILL_SECRET__*` 条目 |
 
 ### 技能脚本（2 个文件）

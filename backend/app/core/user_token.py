@@ -2,20 +2,20 @@
 Signed short-lived tokens for passing user identity to task_cli.
 Format: base64(user_id:expiry:hmac_hex)
 """
+
 import base64
 import hmac
 import hashlib
 import time
 
 from app.core.config import settings
+from app.core.tenant_credentials import token_secret
 
 
 def create_user_token(user_id: str) -> str:
     expiry = int(time.time()) + settings.EIDO_USER_TOKEN_TTL
     payload = f"{user_id}:{expiry}"
-    sig = hmac.new(
-        settings.token_secret.encode(), payload.encode(), hashlib.sha256
-    ).hexdigest()
+    sig = hmac.new(token_secret(user_id).encode(), payload.encode(), hashlib.sha256).hexdigest()
     return base64.urlsafe_b64encode(f"{payload}:{sig}".encode()).decode()
 
 
@@ -32,7 +32,7 @@ def verify_user_token(token: str) -> str:
 
     user_id, expiry_str, sig = parts
     expected = hmac.new(
-        settings.token_secret.encode(),
+        token_secret(user_id).encode(),
         f"{user_id}:{expiry_str}".encode(),
         hashlib.sha256,
     ).hexdigest()

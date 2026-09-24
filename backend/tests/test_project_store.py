@@ -3,6 +3,7 @@
 Every test uses a temporary database. Never point these tests at the repository's
 ``.eido/chat_sessions.db`` or a deployed ``/data`` volume.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -12,18 +13,15 @@ import pytest
 
 from app.core.config import settings
 from app.services.chat_session_store import (
-    ChatSessionStore,
     LATEST_SCHEMA_VERSION,
+    ChatSessionStore,
     ProjectQuotaExceededError,
 )
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> dict[str, sqlite3.Row]:
     conn.row_factory = sqlite3.Row
-    return {
-        row["name"]: row
-        for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
-    }
+    return {row["name"]: row for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
 
 def _message_primary_key(conn: sqlite3.Connection) -> dict[str, int]:
@@ -204,9 +202,7 @@ def test_fresh_database_has_versioned_project_schema(store: ChatSessionStore):
         "updated_at",
         "last_activity_at",
     } <= set(_table_columns(conn, "projects"))
-    assert {"project_id", "applied_context_revision"} <= set(
-        _table_columns(conn, "chat_sessions")
-    )
+    assert {"project_id", "applied_context_revision"} <= set(_table_columns(conn, "chat_sessions"))
     assert _message_primary_key(conn) == {"session_id": 1, "id": 2}
     assert {
         "id",
@@ -233,7 +229,7 @@ def test_migrates_observed_v2_cleanup_outbox_to_v3_without_data_loss(
     value = ChatSessionStore(db_path)
     value.connect()
     try:
-        assert value.conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert value.conn.execute("PRAGMA user_version").fetchone()[0] == LATEST_SCHEMA_VERSION
         assert {"user_id", "file_count", "size_bytes"} <= set(
             _table_columns(value.conn, "storage_cleanup_jobs")
         )
@@ -294,7 +290,7 @@ def test_v2_migration_failure_rolls_back_columns_and_version(
     recovered = ChatSessionStore(db_path)
     recovered.connect()
     try:
-        assert recovered.conn.execute("PRAGMA user_version").fetchone()[0] == 3
+        assert recovered.conn.execute("PRAGMA user_version").fetchone()[0] == LATEST_SCHEMA_VERSION
         assert {"user_id", "file_count", "size_bytes"} <= set(
             _table_columns(recovered.conn, "storage_cleanup_jobs")
         )
@@ -305,22 +301,20 @@ def test_v2_migration_failure_rolls_back_columns_and_version(
 def test_rejects_unknown_future_schema_without_modifying_it(tmp_path: Path):
     db_path = tmp_path / "future.db"
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA user_version=4")
+    conn.execute("PRAGMA user_version=7")
     conn.close()
 
     value = ChatSessionStore(db_path)
     with pytest.raises(
         RuntimeError,
-        match="数据库 schema v4 高于当前程序支持的 v3",
+        match="数据库 schema v7 高于当前程序支持的 v6",
     ):
         value.connect()
 
     conn = sqlite3.connect(db_path)
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
-        assert conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall() == []
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
     finally:
         conn.close()
 
@@ -376,11 +370,14 @@ def test_migrates_all_committed_session_schema_shapes(
         assert session is not None
         assert session["project_id"] is None
         assert session["applied_context_revision"] is None
+        assert session["runtime_mode"] == "agent"
         for column in provider_columns:
-            assert session[column] == f"{column}-value"
-        assert [message["content"] for message in value.list_messages("history-s1")] == [
-            "preserve"
-        ]
+            if column == "opencode_session_id":
+                assert column not in session
+                assert column not in _table_columns(value.conn, "chat_sessions")
+            else:
+                assert session[column] == f"{column}-value"
+        assert [message["content"] for message in value.list_messages("history-s1")] == ["preserve"]
         assert _message_primary_key(value.conn) == {"session_id": 1, "id": 2}
         assert value.conn.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
@@ -403,9 +400,7 @@ def test_migration_is_idempotent_and_preserves_project_data(tmp_path: Path):
         assert second.conn.execute("PRAGMA user_version").fetchone()[0] == version
         assert second.get_project("u1", project["id"])["name"] == "alpha"
         assert second.get_session("u1", session["id"])["project_id"] == project["id"]
-        assert [message["content"] for message in second.list_messages(session["id"])] == [
-            "hello"
-        ]
+        assert [message["content"] for message in second.list_messages(session["id"])] == ["hello"]
         assert _message_primary_key(second.conn) == {"session_id": 1, "id": 2}
         assert second.conn.execute("PRAGMA foreign_key_check").fetchall() == []
     finally:
@@ -445,7 +440,6 @@ def test_deleting_project_unlinks_but_does_not_delete_session_or_messages(
     project = store.create_project("u1", name="temporary")
     session = store.create_session("u1", title="keep me", project_id=project["id"])
     store.set_claude_session_id("u1", session["id"], "claude-old")
-    store.set_opencode_session_id("u1", session["id"], "opencode-old")
     store.append_message("u1", session["id"], role="user", content="keep", message_id="m1")
 
     assert store.delete_project("u1", project["id"]) is True
@@ -456,11 +450,14 @@ def test_deleting_project_unlinks_but_does_not_delete_session_or_messages(
     assert remaining["project_id"] is None
     assert remaining["applied_context_revision"] is None
     assert remaining["claude_session_id"] is None
-    assert remaining["opencode_session_id"] is None
+    assert "opencode_session_id" not in remaining
     assert [message["content"] for message in store.list_messages(session["id"])] == ["keep"]
-    assert store.conn.execute(
-        "SELECT COUNT(*) FROM chat_sessions WHERE id = ?", (session["id"],)
-    ).fetchone()[0] == 1
+    assert (
+        store.conn.execute(
+            "SELECT COUNT(*) FROM chat_sessions WHERE id = ?", (session["id"],)
+        ).fetchone()[0]
+        == 1
+    )
 
 
 def test_stale_provider_session_ids_cannot_write_back_after_project_move(
@@ -471,43 +468,56 @@ def test_stale_provider_session_ids_cannot_write_back_after_project_move(
     session = store.create_session("u1", title="moving", project_id=original["id"])
     session_id = session["id"]
     original_revision = original["context_revision"]
-    assert store.prepare_project_context(
-        "u1", session_id, original["id"], original_revision
-    ) is True
+    assert (
+        store.prepare_project_context("u1", session_id, original["id"], original_revision) is True
+    )
 
     moved = store.update_session("u1", session_id, project_id=target["id"])
     assert moved and moved["project_id"] == target["id"]
-    assert store.set_claude_session_id(
-        "u1",
-        session_id,
-        "stale-claude",
-        expected_project_id=original["id"],
-        expected_context_revision=original_revision,
-    ) is False
+    assert (
+        store.set_claude_session_id(
+            "u1",
+            session_id,
+            "stale-claude",
+            expected_project_id=original["id"],
+            expected_context_revision=original_revision,
+        )
+        is False
+    )
     assert store.get_claude_session_id("u1", session_id) is None
 
-    assert store.prepare_project_context(
-        "u1", session_id, target["id"], target["context_revision"]
-    ) is True
-    assert store.set_claude_session_id(
-        "u1",
-        session_id,
-        "current-claude",
-        expected_project_id=target["id"],
-        expected_context_revision=target["context_revision"],
-    ) is True
-    assert store.get_claude_session_id(
-        "u1",
-        session_id,
-        expected_project_id=original["id"],
-        expected_context_revision=original_revision,
-    ) is None
-    assert store.get_claude_session_id(
-        "u1",
-        session_id,
-        expected_project_id=target["id"],
-        expected_context_revision=target["context_revision"],
-    ) == "current-claude"
+    assert (
+        store.prepare_project_context("u1", session_id, target["id"], target["context_revision"])
+        is True
+    )
+    assert (
+        store.set_claude_session_id(
+            "u1",
+            session_id,
+            "current-claude",
+            expected_project_id=target["id"],
+            expected_context_revision=target["context_revision"],
+        )
+        is True
+    )
+    assert (
+        store.get_claude_session_id(
+            "u1",
+            session_id,
+            expected_project_id=original["id"],
+            expected_context_revision=original_revision,
+        )
+        is None
+    )
+    assert (
+        store.get_claude_session_id(
+            "u1",
+            session_id,
+            expected_project_id=target["id"],
+            expected_context_revision=target["context_revision"],
+        )
+        == "current-claude"
+    )
 
 
 def test_stale_provider_session_ids_cannot_write_back_after_context_prepare(
@@ -517,9 +527,7 @@ def test_stale_provider_session_ids_cannot_write_back_after_context_prepare(
     session = store.create_session("u1", title="revision", project_id=project["id"])
     session_id = session["id"]
     old_revision = project["context_revision"]
-    assert store.prepare_project_context(
-        "u1", session_id, project["id"], old_revision
-    ) is True
+    assert store.prepare_project_context("u1", session_id, project["id"], old_revision) is True
 
     changed = store.update_project("u1", project["id"], instructions="v2")
     assert changed and changed["context_revision"] > old_revision
@@ -528,52 +536,18 @@ def test_stale_provider_session_ids_cannot_write_back_after_context_prepare(
     # A running old-revision request must not write a native provider SID after
     # the authoritative Project revision advances, even before the next chat has
     # prepared (and cleared) the new context revision.
-    assert store.set_claude_session_id(
-        "u1",
-        session_id,
-        "stale-before-prepare",
-        expected_project_id=project["id"],
-        expected_context_revision=old_revision,
-    ) is False
-    assert store.set_opencode_session_id(
-        "u1",
-        session_id,
-        "stale-before-prepare",
-        expected_project_id=project["id"],
-        expected_context_revision=old_revision,
-    ) is False
+    assert (
+        store.set_claude_session_id(
+            "u1",
+            session_id,
+            "stale-before-prepare",
+            expected_project_id=project["id"],
+            expected_context_revision=old_revision,
+        )
+        is False
+    )
 
-    assert store.prepare_project_context(
-        "u1", session_id, project["id"], new_revision
-    ) is True
-
-    assert store.set_opencode_session_id(
-        "u1",
-        session_id,
-        "stale-opencode",
-        expected_project_id=project["id"],
-        expected_context_revision=old_revision,
-    ) is False
-    assert store.get_opencode_session_id("u1", session_id) is None
-    assert store.set_opencode_session_id(
-        "u1",
-        session_id,
-        "current-opencode",
-        expected_project_id=project["id"],
-        expected_context_revision=new_revision,
-    ) is True
-    assert store.get_opencode_session_id(
-        "u1",
-        session_id,
-        expected_project_id=project["id"],
-        expected_context_revision=old_revision,
-    ) is None
-    assert store.get_opencode_session_id(
-        "u1",
-        session_id,
-        expected_project_id=project["id"],
-        expected_context_revision=new_revision,
-    ) == "current-opencode"
+    assert store.prepare_project_context("u1", session_id, project["id"], new_revision) is True
 
 
 def _add_project_file(
@@ -600,12 +574,8 @@ def test_project_file_provenance_requires_source_session_in_target_project(
 ):
     target = store.create_project("u1", name="target")
     other = store.create_project("u1", name="other")
-    target_session = store.create_session(
-        "u1", title="target session", project_id=target["id"]
-    )
-    other_session = store.create_session(
-        "u1", title="other session", project_id=other["id"]
-    )
+    target_session = store.create_session("u1", title="target session", project_id=target["id"])
+    other_session = store.create_session("u1", title="other session", project_id=other["id"])
 
     accepted = store.add_project_file(
         "u1",
@@ -655,11 +625,14 @@ def test_file_and_project_deletes_create_durable_cleanup_jobs(
     assert jobs[0]["size_bytes"] == 1
     assert jobs[0]["attempts"] == 0
     assert jobs[0]["last_error"] == ""
-    assert store.complete_storage_cleanup(
-        resource_type="file",
-        project_id=project["id"],
-        storage_name="file-1-stored.md",
-    ) is True
+    assert (
+        store.complete_storage_cleanup(
+            resource_type="file",
+            project_id=project["id"],
+            storage_name="file-1-stored.md",
+        )
+        is True
+    )
 
     assert store.delete_project("u1", project["id"]) is True
     jobs = store.list_storage_cleanup_jobs()
@@ -742,24 +715,21 @@ def test_pending_file_cleanup_continues_to_consume_project_quota(
 ):
     monkeypatch.setattr(settings, "EIDO_PROJECT_MAX_BYTES", 1)
     project = store.create_project("u1", name="pending")
-    record = _add_project_file(
-        store, project_id=project["id"], file_id="file-1", size_bytes=1
-    )
+    record = _add_project_file(store, project_id=project["id"], file_id="file-1", size_bytes=1)
 
     assert store.delete_project_file("u1", project["id"], record["id"]) is True
     with pytest.raises(ProjectQuotaExceededError, match="项目共享资料总容量已达上限"):
-        _add_project_file(
-            store, project_id=project["id"], file_id="file-2", size_bytes=1
-        )
+        _add_project_file(store, project_id=project["id"], file_id="file-2", size_bytes=1)
 
-    assert store.complete_storage_cleanup(
-        resource_type="file",
-        project_id=project["id"],
-        storage_name="file-1-stored.md",
-    ) is True
-    assert _add_project_file(
-        store, project_id=project["id"], file_id="file-2", size_bytes=1
+    assert (
+        store.complete_storage_cleanup(
+            resource_type="file",
+            project_id=project["id"],
+            storage_name="file-1-stored.md",
+        )
+        is True
     )
+    assert _add_project_file(store, project_id=project["id"], file_id="file-2", size_bytes=1)
 
 
 def test_pending_project_cleanup_continues_to_consume_user_quota(
@@ -768,23 +738,15 @@ def test_pending_project_cleanup_continues_to_consume_user_quota(
 ):
     monkeypatch.setattr(settings, "EIDO_USER_PROJECT_MAX_BYTES", 1)
     original = store.create_project("u1", name="original")
-    _add_project_file(
-        store, project_id=original["id"], file_id="file-1", size_bytes=1
-    )
+    _add_project_file(store, project_id=original["id"], file_id="file-1", size_bytes=1)
     assert store.delete_project("u1", original["id"]) is True
 
     target = store.create_project("u1", name="target")
-    with pytest.raises(
-        ProjectQuotaExceededError, match="当前用户的项目资料总容量已达上限"
-    ):
-        _add_project_file(
-            store, project_id=target["id"], file_id="file-2", size_bytes=1
-        )
+    with pytest.raises(ProjectQuotaExceededError, match="当前用户的项目资料总容量已达上限"):
+        _add_project_file(store, project_id=target["id"], file_id="file-2", size_bytes=1)
 
     assert store.complete_project_storage_cleanup(original["id"]) == 1
-    assert _add_project_file(
-        store, project_id=target["id"], file_id="file-2", size_bytes=1
-    )
+    assert _add_project_file(store, project_id=target["id"], file_id="file-2", size_bytes=1)
 
 
 def test_cleanup_retry_order_rotates_failed_jobs_behind_unattempted_jobs(
@@ -810,14 +772,17 @@ def test_reenqueued_cleanup_job_backfills_missing_quota_accounting(
         project_id="project-1",
         storage_name="pending.md",
     )
-    assert store.enqueue_storage_cleanup(
-        resource_type="file",
-        project_id="project-1",
-        storage_name="pending.md",
-        user_id="u1",
-        file_count=1,
-        size_bytes=42,
-    ) == job_id
+    assert (
+        store.enqueue_storage_cleanup(
+            resource_type="file",
+            project_id="project-1",
+            storage_name="pending.md",
+            user_id="u1",
+            file_count=1,
+            size_bytes=42,
+        )
+        == job_id
+    )
 
     jobs = store.list_storage_cleanup_jobs()
     assert len(jobs) == 1

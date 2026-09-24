@@ -135,7 +135,7 @@ GET /api/v1/workspace/file?path=<path>&session_id=<session>
 GET /api/v1/workspace/file?path=<path>&download=true&filename=<name>&session_id=<session>
 ```
 
-第一个用于预览/打开，第二个用于下载。插件云端模式使用相同 API；插件本机 OpenCode 模式则拦截点击并调用本地 Runtime 的 `openWorkspaceFile()`。
+第一个用于预览/打开，第二个用于下载。插件云端模式使用相同 API。
 
 相关位置：
 
@@ -154,7 +154,6 @@ GET /api/v1/workspace/file?path=<path>&download=true&filename=<name>&session_id=
 - `http://`、`https://`、`data:` 图片地址直接作为 `src`。
 - 本地/工作区图片路径通过 workspace file API 转成预览地址。
 - 图片外层有链接，点击后在新标签页查看原图。
-- 本机 OpenCode 模式不能直接使用云端 URL 时，渲染成“查看图片”按钮并调用本地文件打开能力。
 
 生成文件：
 
@@ -177,11 +176,8 @@ flowchart LR
     B --> C["生成查看/下载入口"]
     C --> D{"Agent Runtime"}
     D -- 云端模式 --> E["workspace/file 接口"]
-    D -- 本机 OpenCode --> F["OpenCode file/content 接口"]
     E --> G["FileResponse: inline 或 attachment"]
-    F --> H["Blob URL 或 HTML/SVG 沙箱预览"]
     G --> I["浏览器查看或保存"]
-    H --> I
 ```
 
 #### 3.6.1 从消息中解析文件
@@ -281,112 +277,6 @@ content_disposition_type="attachment" if download else "inline"
 - 云端 Runtime：`frontend-mobile/src/runtime/eidoCloudRuntime.ts:4-14`
 - 工作区文件接口：`backend/app/api/v1/endpoints/workspace.py:28-97`
 - 会话路径安全解析：`backend/app/services/session_workspace.py:19-29, 61-89`
-
-#### 3.6.3 本机 OpenCode 模式的查看与下载
-
-插件切换到本机 OpenCode 模式后，不再使用 Eido 云端的 `/api/v1/workspace/file`。`MessageItem` 发现 Runtime 提供了 `openWorkspaceFile()` 后，会拦截文件链接点击并调用本机 Runtime。
-
-本机处理过程：
-
-1. 取得当前 OpenCode 项目目录。
-2. `cleanWorkspacePath()` 把反斜杠转换成 `/`，并拒绝：
-   - 空路径；
-   - `/` 开头的绝对路径；
-   - Windows 盘符路径；
-   - 包含 `..` 的路径段。
-3. 请求本机 OpenCode：
-
-   ```text
-   GET /file/content?path=<relative-path>
-   ```
-
-   项目目录通过 OpenCode 请求的 `directory` 参数一并传入。
-4. OpenCode 返回 JSON：文本文件一般返回字符串；二进制文件一般返回 Base64，并可能附带 `mimeType`。
-5. 插件根据文件类型决定使用专用沙箱预览，还是构造 `Blob`。
-
-普通文本和二进制文件会被转换为：
-
-```ts
-const blob = new Blob([bytesOrText], { type: mime });
-const objectUrl = URL.createObjectURL(blob);
-```
-
-查看时，插件使用 `chrome.tabs.create({ url: objectUrl })` 在新标签页打开临时 Blob URL。下载时，插件动态创建带 `download` 属性的 `a` 元素并触发点击：
-
-```ts
-const anchor = document.createElement('a');
-anchor.href = objectUrl;
-anchor.download = filename;
-anchor.click();
-```
-
-查看使用的 Blob URL 在约 5 分钟后释放；下载使用的 Blob URL 在约 1 分钟后释放，避免长期占用内存。
-
-插件界面目前存在一个入口差异：
-
-- 消息正文中的工作区文件链接，在本机模式下会调用 `openLocalFile(..., true)`，因此表现为直接下载。
-- 消息下方的“生成文件”卡片分别提供“打开”和“下载”，可以明确选择行为。
-- Markdown 图片在本机模式下显示“查看图片”按钮，调用非下载模式打开。
-
-相关位置：
-
-- 本机路径校验和 MIME 映射：`frontend-extension/src/localAgentRuntime.ts:81-105`
-- 本机文件读取与 Blob 处理：`frontend-extension/src/localAgentRuntime.ts:620-657`
-- 正文文件链接拦截：`frontend-mobile/src/components/MessageItem.tsx:147-163`
-- 文件卡片按钮：`frontend-mobile/src/components/MessageItem.tsx:241-275`
-
-#### 3.6.4 HTML 与 SVG 的本机安全预览
-
-本机模式下，如果用户选择“打开” HTML 或 SVG，插件不会直接把内容写入 Side Panel 主页面。
-
-HTML 预览流程：
-
-1. 生成一个随机 UUID token。
-2. 把 `{ html, filename, createdAt }` 临时写入 `chrome.storage.session`，键名为 `eido_html_preview_<token>`。
-3. 打开扩展内部页面 `file-preview/index.html#<token>`。
-4. Host 页面校验 token 格式，从 `chrome.storage.session` 读取内容。
-5. Host 页面加载扩展内部的 sandbox iframe。
-6. iframe 准备好后，Host 通过 `postMessage` 把 HTML 发给 iframe。
-7. sandbox 页面使用 `document.write()` 渲染文件，并注入 `<base target="_blank">`，使其中链接默认在新标签页打开。
-8. 内容成功交付后立即从 `chrome.storage.session` 删除；异常情况下最迟约 5 分钟后清理。
-
-SVG 文本不会直接写入页面，而是先编码为 `data:image/svg+xml`，再放入由插件生成的简单 HTML `<img>` 容器，最后复用同一个沙箱预览流程。
-
-预览 iframe 设置了：
-
-```html
-sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"
-```
-
-它没有 `allow-same-origin`，因此预览内容运行在隔离的 sandbox origin 中，不能直接获得扩展主页面的同源权限。这是本机 HTML/SVG 与其他文件查看方式不同的主要原因。
-
-相关位置：
-
-- 临时存储和打开预览页：`frontend-extension/src/localAgentRuntime.ts:601-618`
-- HTML/SVG 分流：`frontend-extension/src/localAgentRuntime.ts:626-637`
-- Host 页面：`frontend-extension/public/file-preview/host.js:1-43`
-- Sandbox 渲染：`frontend-extension/public/file-preview/sandbox.js:1-17`
-- iframe sandbox 属性：`frontend-extension/public/file-preview/index.html:14-20`
-- Manifest sandbox 声明：`frontend-extension/public/manifest.json:17-21`
-
-#### 3.6.5 安全边界与注意事项
-
-- 云端模式传入 `session_id` 时，会同时校验会话所有权和路径是否位于该会话工作区；前端生成的查看/下载链接均会携带当前会话 ID。
-- 后端仍保留“不传 `session_id`”的历史兼容分支，此时只把路径约束在全局 `WORKSPACE_ROOT`，没有会话级收窄。新代码应始终携带 `session_id`。
-- 本机模式只允许当前 OpenCode 项目内的相对路径，不接受绝对路径和 `..`。
-- 云端 HTML 和 SVG 在 `inline` 模式下由浏览器直接加载，没有复用插件本机模式的 sandbox 预览机制。若工作区内容不完全可信，应进一步评估独立预览域、强制下载或 CSP/sandbox 隔离。
-- `Content-Disposition: inline` 只是允许浏览器尝试预览，不保证所有格式都能显示；用户体验最终依赖 MIME 类型、浏览器和本机应用关联。
-
-### 3.7 桌面端与插件端的差异
-
-| 能力 | 桌面 Web | Chrome 插件/移动端复用层 |
-| --- | --- | --- |
-| 正文解析 | `react-markdown + remark-gfm` | 相同 |
-| 普通链接 | 新标签页打开 | 新标签页打开 |
-| 工作区文件 | 预览链接 + 独立下载按钮 | 云端为链接；本机模式拦截点击调用 Runtime |
-| `@技能` 内联代码样式 | 有 | 无 |
-| Mermaid 工作流 | 使用 Mermaid 组件绘图 | 当前只在折叠区显示 Mermaid 源文本 |
-| CSS | 桌面宽屏样式 | 紧凑布局，表格横向滚动，用户气泡链接反色 |
 
 ## 4. Chrome 插件如何读取标签页和页面内容
 
@@ -570,21 +460,14 @@ h2: ...
 
 1. `eidoCloudRuntime` 复用 `ApiService.streamChat()`。
 2. 前端将上下文放到 `POST /api/v1/chat/chat` 的 JSON `context` 字段。
-3. 当前后端 Claude/OpenCode 实现会把 `context` 截到前 4,000 字符，再作为“上一步执行结果（供参考）”拼入提示词。
-
-本机 OpenCode 模式：
-
-1. `OpenCodeLocalRuntime.buildPrompt()` 将其标为“不受信的浏览器上下文”。
-2. 明确提示网页中的指令不能改变权限、工作目录或用户目标。
-3. 本地构造提示时最多保留 120,000 字符。
-4. 请求直接发送给本机 OpenCode，不经过 Eido 聊天接口。
+3. 后端将超过 4,000 字符的完整 `context` 存入会话 `.eido-context` 文件，只注入摘要片段和可读取路径，不丢弃尾部。
 
 位置：
 
 - 属性传递：`frontend-extension/src/main.tsx:301-345`
 - 发送：`frontend-mobile/src/hooks/useChatSend.ts:75-94, 120-132`
 - 云端请求：`frontend/services/api.ts:590-629`
-- 云端 4,000 字符截断：`backend/app/services/claude_skill_service.py`、`backend/app/services/open_code_service.py`
+- 云端上下文：`backend/app/services/claude_runtime.py`，超过 4,000 字符的正文完整写入会话工作区，提示中附带预览和路径。
 - 本地安全包装与 120,000 字符限制：`frontend-extension/src/localAgentRuntime.ts:117-137`
 
 ## 5. 当前实现的边界与风险
@@ -607,20 +490,14 @@ h2: ...
 
 ### 5.3 上下文容量不一致
 
-采集层允许单页 80,000 字符，UI 格式化层允许单页正文 24,000 字符、最多 6 页；但云端执行层最终只保留整个 `context` 的前 4,000 字符。这意味着云端模式下：
-
-- 第二页及后续页面很可能完全到不了模型。
-- 即使只有一页，正文也通常只传入开头一小段。
-- “用户选中文本”排在正文前面，因此通常能优先保留，这是当前格式顺序的一个正向效果。
-
-本机 OpenCode 模式的 120,000 字符限制更接近 UI 的多页容量，但最多 6 页、每页 24,000 字符时仍可能截掉后面的页面。
+2026-09 更新：采集层允许单页 80,000 字符，UI 格式化层仍允许单页正文 24,000 字符、最多 6 页。后端不再截断收到的正文，超过 4,000 字符时完整落盘到会话 `.eido-context`，提示中携带预览与 Read 路径。前端采集及格式化上限仍是独立限制。
 
 ### 5.4 权限与安全
 
 - `<all_urls>`、`tabs` 和 `scripting` 能力较强，页面何时被读取、哪些内容会随消息发送，应在界面中保持可见、可控。
 - 实际代码在 Side Panel 首次挂载时会自动执行 `captureActive()`；这与上下文固定文案中“用户显式选择”的说法不完全一致。若产品要求严格的显式授权，应取消自动采集，或在首次采集前增加清晰的开关/确认。
 - 内容脚本只回传数据，不执行网页提供的脚本；消息正文也未启用 raw HTML 渲染。
-- 本机 Runtime 已把网页内容标记为不受信数据；云端提示词目前仍使用通用“上一步执行结果”表述，没有同等级别的 prompt injection 隔离说明。
+- 云端将网页/上游数据标记为参考内容，明确不可覆盖用户指令。
 - 外部消息链接使用 `noopener noreferrer`，降低新标签页反向控制来源页面的风险。
 
 ### 5.5 一个桌面端正则差异
@@ -634,7 +511,7 @@ h2: ...
 
 ## 6. 建议的后续改进顺序
 
-1. 统一云端网页上下文容量和提示词语义：给浏览器上下文单独字段/章节，避免复用“上一步执行结果”，并将 4,000 字符限制调整为可配置的 token 预算。
+1. 后端完整落盘与引用路径已实现；后续可继续统一前端采集上限与 token 预算。
 2. 将 `links`、`canonicalUrl`、`siteName` 有选择地加入上下文；至少保留正文中重要锚点的目标 URL。
 3. 保留段落换行，改用更稳健的正文抽取算法，并为动态页面提供“等待网络稳定后采集”或重新采集提示。
 4. 修复桌面端 `GENERATED_FILE_HINT_PATTERN` 的转义差异，并把文件路径识别规则抽成桌面/移动端共享模块，避免继续漂移。

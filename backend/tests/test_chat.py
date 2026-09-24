@@ -1,6 +1,7 @@
 """
 Tests for chat endpoints.
 """
+
 import pytest
 from fastapi.testclient import TestClient as FastAPITestClient
 from app.main import app

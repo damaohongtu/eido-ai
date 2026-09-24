@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Input } from 'antd';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference, Project } from '../types';
+import { Message, ChatSession, Skill, SkillAction, ExecutionStep, Reference, Project, RuntimeMode } from '../types';
 import { api, getWorkspaceFileUrl } from '../services/api';
 import {
   canPreviewInBrowser,
@@ -17,6 +17,8 @@ import {
   SUPPORTED_FILE_HINT,
 } from '../utils/supportedFiles';
 import Mermaid from './Mermaid';
+import ModelSelector from './ModelSelector';
+import RuntimeModeSelector from './RuntimeModeSelector';
 
 const DOWNLOADABLE_FILE_EXTENSIONS = [...SUPPORTED_FILE_EXTENSIONS]
   .sort((left, right) => right.length - left.length);
@@ -104,14 +106,17 @@ interface ChatAreaProps {
   onImportProjectFile?: (path: string, displayName: string) => Promise<void>;
   onRefreshSession: (sessionId: string) => Promise<void>;
   onRunningSessionsChange?: (sessionIds: Set<string>) => void;
-  harness: string;
+  model: string;
+  onModelChange: (model: string) => void;
+  runtimeMode: RuntimeMode;
+  onRuntimeModeChange: (mode: RuntimeMode) => void;
   browserContext?: string;
 }
 
 type ActiveExecution = {
   assistantId: string;
   controller: AbortController;
-  harness: string;
+  model: string;
 };
 
 const activeExecutions = new Map<string, ActiveExecution>();
@@ -156,7 +161,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onImportProjectFile,
   onRefreshSession,
   onRunningSessionsChange,
-  harness,
+  model,
+  onModelChange,
+  runtimeMode,
+  onRuntimeModeChange,
   browserContext,
 }) => {
   const [input, setInput] = useState('');
@@ -200,9 +208,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     session?.id && (runningSessionIds.has(session.id) || persistedSessionRunning)
   );
   const activeSessionCanStop = Boolean(session?.id && activeExecutions.has(session.id));
-  const activeExecutionHarness = session?.id ? activeExecutions.get(session.id)?.harness : undefined;
-  const steerAvailable = (activeExecutionHarness || harness) === 'claude_code'
-    && serverSteerAvailable;
+  const activeExecutionModel = session?.id ? activeExecutions.get(session.id)?.model : undefined;
+  const steerAvailable = serverSteerAvailable;
   const effectiveDeliveryMode = deliveryMode === 'steer' && steerAvailable
     ? 'steer'
     : 'queue';
@@ -222,7 +229,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   useEffect(() => {
     executionListeners.add(setRunningSessionIds);
     publishExecutions();
-    return () => executionListeners.delete(setRunningSessionIds);
+    return () => { executionListeners.delete(setRunningSessionIds); };
   }, []);
 
   useEffect(() => {
@@ -342,6 +349,26 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     return ref?.resizableTextArea?.textArea || ref || null;
   };
 
+  // 键盘上下选择技能时，让高亮项保持在菜单可视区内
+  useEffect(() => {
+    if (!mentionMenu.visible) return;
+    const menu = mentionMenuRef.current;
+    if (!menu) return;
+    const item = menu.querySelectorAll('button')[mentionMenu.index] as HTMLElement | undefined;
+    if (!item) return;
+    if (mentionMenu.index === 0) {
+      menu.scrollTop = 0;
+      return;
+    }
+    const itemTop = item.offsetTop;
+    const itemBottom = itemTop + item.offsetHeight;
+    if (itemTop < menu.scrollTop) {
+      menu.scrollTop = itemTop;
+    } else if (itemBottom > menu.scrollTop + menu.clientHeight) {
+      menu.scrollTop = itemBottom - menu.clientHeight;
+    }
+  }, [mentionMenu.visible, mentionMenu.index, mentionMenu.filter]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -405,25 +432,22 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const atMatch = textBeforeCursor.match(/@([\u4e00-\u9fa5\w\-]*)$/);
 
     if (atMatch) {
+      // 菜单锚定在输入框正上方并限制在视口内：逐字符估算光标坐标对中文严重偏移，
+      // 且估算位置可能落入输入框区域，被后绘制的输入框盖住导致菜单项点不到
+      const MENTION_MENU_WIDTH = 256; // w-64
+      const MENTION_MENU_MARGIN = 8;
       const textareaEl = getTextareaEl() as HTMLTextAreaElement | null;
       const textareaRect = textareaEl?.getBoundingClientRect();
+      const minLeft = MENTION_MENU_MARGIN;
+      const maxLeft = Math.max(minLeft, window.innerWidth - MENTION_MENU_WIDTH - MENTION_MENU_MARGIN);
+      const left = textareaRect ? Math.min(maxLeft, Math.max(minLeft, textareaRect.left)) : minLeft;
+      const top = textareaRect ? Math.max(MENTION_MENU_MARGIN, textareaRect.top - MENTION_MENU_MARGIN) : MENTION_MENU_MARGIN;
 
-      const lines = textBeforeCursor.split('\n');
-      const currentLine = lines.length - 1;
-      const charInLine = lines[lines.length - 1].length;
-
-      // Approximate caret position relative to viewport
-      const caretLeft = (textareaRect?.left || 0) + 12 + charInLine * 8; // padding + char width
-      const caretTop = (textareaRect?.top || 0) + 10 + currentLine * 22; // padding + line height
-
-      setMentionMenu({ 
-        visible: true, 
-        filter: atMatch[1], 
+      setMentionMenu({
+        visible: true,
+        filter: atMatch[1],
         index: 0,
-        pos: {
-          top: caretTop,
-          left: caretLeft
-        }
+        pos: { top, left }
       });
     } else {
       setMentionMenu(prev => ({ ...prev, visible: false }));
@@ -444,7 +468,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     const replaceEnd = Math.min(currentValue.length, atPos + 1 + filterLength);
     const newValue = currentValue.slice(0, atPos) + `\`@${skill.name}\` ` + currentValue.slice(replaceEnd);
     setInput(newValue);
-    setMentionMenu({ visible: false, filter: '', index: 0 });
+    setMentionMenu(previous => ({ ...previous, visible: false, filter: '', index: 0 }));
 
     setTimeout(() => {
       textarea?.focus();
@@ -484,7 +508,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     skillHint?: string
   ) => {
     const controller = new AbortController();
-    markSessionRunning(sessionId, { assistantId, controller, harness });
+    markSessionRunning(sessionId, { assistantId, controller, model });
     try {
       await api.streamChat(
         msgs,
@@ -494,7 +518,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         context,
         skillHint ?? undefined,
         controller.signal,
-        harness
+        model,
+        runtimeMode
       );
     } finally {
       delete thinkingLogsRef.current[assistantId];
@@ -518,7 +543,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     for (let i = 0; i < orderedSkills.length; i++) {
       const skill = orderedSkills[i];
       const assistantId = createMessageId(`pipeline-${i}`);
-      markSessionRunning(sessionId, { assistantId, controller, harness });
+      markSessionRunning(sessionId, { assistantId, controller, model });
 
       const placeholder: Message = {
         id: assistantId,
@@ -544,7 +569,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
           skill.id,
           controller.signal,
-          harness
+          model,
+          runtimeMode
         );
       } catch {
         delete thinkingLogsRef.current[assistantId];
@@ -634,14 +660,15 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
     try {
       const assistantId = createMessageId('assistant');
-      const controlHarness = activeExecutionHarness || harness;
+      const controlModel = activeExecutionModel || model;
       const result = await api.controlChat({
         mode: requestedMode,
         session_id: targetSessionId,
         message: { id: userMsg.id, role: 'user', content },
         assistant_message_id: assistantId,
         context: browserContext || undefined,
-        harness: controlHarness,
+        model: controlModel,
+        runtime_mode: runtimeMode,
       });
       onUpdateMessage(targetSessionId, userMsg.id, {
         deliveryMode: requestedMode,
@@ -960,7 +987,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
         {conversationMessages.map((m, idx) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] space-y-3 ${m.role === 'user' ? 'text-right' : ''}`}>
+            <div className={`max-w-[85%] min-w-0 space-y-3 [overflow-wrap:anywhere] ${m.role === 'user' ? 'text-right' : ''}`}>
               {(() => {
                 const generatedFiles = m.role === 'assistant' ? extractGeneratedFiles(m) : [];
                 return (
@@ -1150,10 +1177,10 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
       <div className="p-6 border-t border-gray-200 bg-white relative">
         {mentionMenu.visible && filteredSkills.length > 0 && (
-          <div 
+          <div
             ref={mentionMenuRef}
-            className="fixed w-64 max-h-64 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-y-auto animate-in fade-in zoom-in-95 custom-scrollbar"
-            style={{ top: `${mentionMenu.pos.top}px`, left: `${mentionMenu.pos.left}px`, transform: 'translateY(-110%)' }}
+            className="fixed z-50 w-64 max-h-64 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-y-auto animate-in fade-in zoom-in-95 custom-scrollbar"
+            style={{ top: `${mentionMenu.pos.top}px`, left: `${mentionMenu.pos.left}px`, transform: 'translateY(-100%)' }}
           >
              <div className="sticky top-0 z-10 px-3 py-2 bg-gray-50 border-b border-gray-100 text-[9px] font-black text-gray-500 uppercase tracking-widest">激活智能技能</div>
              {filteredSkills.map((s, i) => (
@@ -1322,7 +1349,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({
               Enter {effectiveDeliveryMode === 'queue' ? '加入队列' : 'Steer 当前任务'} · Shift + Enter 换行
             </div>
           )}
-          <div className="mt-2 flex min-w-0 items-center px-1">
+          <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2 px-1">
+            <ModelSelector
+              value={model}
+              onChange={onModelChange}
+              disabled={activeSessionRunning}
+            />
+            <RuntimeModeSelector
+              value={runtimeMode}
+              onChange={onRuntimeModeChange}
+              disabled={activeSessionRunning}
+            />
             <label className="flex min-w-0 items-center gap-2 text-xs font-semibold text-gray-500">
               <span className="shrink-0">项目归属</span>
               <select

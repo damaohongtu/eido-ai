@@ -34,6 +34,7 @@ export type {
   Tool,
   Agent,
   ScheduledTask,
+  RuntimeMode,
 } from '@shared/types';
 export { skillCanManage } from '@shared/types';
 export {

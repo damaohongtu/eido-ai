@@ -5,6 +5,7 @@ The store deliberately keeps project metadata in the same database as chat
 sessions so project/session moves and activity updates can be transactional.
 Every externally reachable operation is scoped by ``user_id``.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,7 +25,10 @@ logger = logging.getLogger(__name__)
 # v1: Project/session/file schema
 # v2: durable filesystem cleanup outbox (an early Project build reached local data)
 # v3: cleanup jobs retain user/file/byte accounting until physical deletion
-LATEST_SCHEMA_VERSION = 3
+# v4: remove the retired provider session column; preserve all conversations
+# v5: persist a model catalog id per conversation
+# v6: persist the explicit Claude Code execution mode per conversation
+LATEST_SCHEMA_VERSION = 6
 _UNSET = object()
 
 
@@ -59,10 +63,11 @@ def _session_row_to_dict(row: sqlite3.Row) -> dict:
         "user_id": row["user_id"],
         "title": row["title"],
         "skill_id": row["skill_id"],
+        "model": _row_value(row, "model"),
+        "runtime_mode": _row_value(row, "runtime_mode", "agent") or "agent",
         "project_id": _row_value(row, "project_id"),
         "applied_context_revision": _row_value(row, "applied_context_revision"),
         "claude_session_id": _row_value(row, "claude_session_id"),
-        "opencode_session_id": _row_value(row, "opencode_session_id"),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -101,9 +106,7 @@ def _project_row_to_dict(row: sqlite3.Row) -> dict:
     }
 
 
-def _project_file_row_to_dict(
-    row: sqlite3.Row, *, include_storage: bool = False
-) -> dict:
+def _project_file_row_to_dict(row: sqlite3.Row, *, include_storage: bool = False) -> dict:
     result = {
         "id": row["id"],
         "project_id": row["project_id"],
@@ -183,16 +186,16 @@ class ChatSessionStore:
 
     @staticmethod
     def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
-        return conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
-        ).fetchone() is not None
+        return (
+            conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone()
+            is not None
+        )
 
     @staticmethod
     def _columns(conn: sqlite3.Connection, table: str) -> dict[str, sqlite3.Row]:
-        return {
-            row["name"]: row
-            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
-        }
+        return {row["name"]: row for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
     @staticmethod
     def _create_projects_table(conn: sqlite3.Connection) -> None:
@@ -222,10 +225,11 @@ class ChatSessionStore:
                 user_id TEXT NOT NULL,
                 title TEXT NOT NULL DEFAULT '新建会话',
                 skill_id TEXT,
+                model TEXT,
+                runtime_mode TEXT NOT NULL DEFAULT 'agent',
                 project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
                 applied_context_revision INTEGER,
                 claude_session_id TEXT,
-                opencode_session_id TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -233,9 +237,7 @@ class ChatSessionStore:
         )
 
     @staticmethod
-    def _create_messages_table(
-        conn: sqlite3.Connection, table_name: str = "chat_messages"
-    ) -> None:
+    def _create_messages_table(conn: sqlite3.Connection, table_name: str = "chat_messages") -> None:
         conn.execute(
             f"""
             CREATE TABLE {table_name} (
@@ -301,13 +303,11 @@ class ChatSessionStore:
         missing_core = expected_core.difference(columns)
         if missing_core:
             raise RuntimeError(
-                "chat_messages 历史表缺少必要列，拒绝破坏性迁移: "
-                + ", ".join(sorted(missing_core))
+                "chat_messages 历史表缺少必要列，拒绝破坏性迁移: " + ", ".join(sorted(missing_core))
             )
 
         composite_pk = (
-            int(columns["session_id"]["pk"] or 0) == 1
-            and int(columns["id"]["pk"] or 0) == 2
+            int(columns["session_id"]["pk"] or 0) == 1 and int(columns["id"]["pk"] or 0) == 2
         )
         if composite_pk and "extra_json" in columns:
             return
@@ -317,9 +317,7 @@ class ChatSessionStore:
             columns["id"]["pk"],
             columns["session_id"]["pk"],
         )
-        source_count = int(
-            conn.execute("SELECT COUNT(*) FROM chat_messages").fetchone()[0]
-        )
+        source_count = int(conn.execute("SELECT COUNT(*) FROM chat_messages").fetchone()[0])
         conn.execute("DROP TABLE IF EXISTS chat_messages__new")
         self._create_messages_table(conn, "chat_messages__new")
         extra_expr = "COALESCE(extra_json, '{}')" if "extra_json" in columns else "'{}'"
@@ -331,13 +329,10 @@ class ChatSessionStore:
             FROM chat_messages
             """
         )
-        copied_count = int(
-            conn.execute("SELECT COUNT(*) FROM chat_messages__new").fetchone()[0]
-        )
+        copied_count = int(conn.execute("SELECT COUNT(*) FROM chat_messages__new").fetchone()[0])
         if copied_count != source_count:
             raise RuntimeError(
-                "chat_messages 迁移复制计数不一致: "
-                f"source={source_count}, copied={copied_count}"
+                "chat_messages 迁移复制计数不一致: " f"source={source_count}, copied={copied_count}"
             )
         conn.execute("DROP TABLE chat_messages")
         conn.execute("ALTER TABLE chat_messages__new RENAME TO chat_messages")
@@ -389,17 +384,18 @@ class ChatSessionStore:
             session_columns = self._columns(conn, "chat_sessions")
             additions = {
                 "claude_session_id": "TEXT",
-                "opencode_session_id": "TEXT",
                 "project_id": "TEXT REFERENCES projects(id) ON DELETE SET NULL",
                 "applied_context_revision": "INTEGER",
+                "model": "TEXT",
+                "runtime_mode": "TEXT NOT NULL DEFAULT 'agent'",
             }
             for name, sql_type in additions.items():
                 if name not in session_columns:
                     logger.info("迁移 chat_sessions：追加列 %s", name)
-                    conn.execute(
-                        f"ALTER TABLE chat_sessions ADD COLUMN {name} {sql_type}"
-                    )
+                    conn.execute(f"ALTER TABLE chat_sessions ADD COLUMN {name} {sql_type}")
 
+            if "opencode_session_id" in session_columns:
+                conn.execute("ALTER TABLE chat_sessions DROP COLUMN opencode_session_id")
             self._normalize_messages_table(conn)
             self._create_project_files_table(conn)
             self._create_storage_cleanup_jobs_table(conn)
@@ -412,9 +408,7 @@ class ChatSessionStore:
             for name, sql_type in cleanup_additions.items():
                 if name not in cleanup_columns:
                     logger.info("迁移 storage_cleanup_jobs：追加列 %s", name)
-                    conn.execute(
-                        f"ALTER TABLE storage_cleanup_jobs ADD COLUMN {name} {sql_type}"
-                    )
+                    conn.execute(f"ALTER TABLE storage_cleanup_jobs ADD COLUMN {name} {sql_type}")
             self._create_indexes(conn)
 
             violations = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -476,9 +470,7 @@ class ChatSessionStore:
             row = self._project_row(self.conn, user_id, project_id)
             return _project_row_to_dict(row) if row else None
 
-    def list_projects(
-        self, user_id: str, include_archived: bool = False
-    ) -> list[dict]:
+    def list_projects(self, user_id: str, include_archived: bool = False) -> list[dict]:
         sql = (
             "SELECT p.*, COUNT(s.id) AS session_count "
             "FROM projects p LEFT JOIN chat_sessions s "
@@ -492,9 +484,7 @@ class ChatSessionStore:
             rows = self.conn.execute(sql, (user_id,)).fetchall()
             return [_project_row_to_dict(row) for row in rows]
 
-    def update_project(
-        self, user_id: str, project_id: str, **fields
-    ) -> Optional[dict]:
+    def update_project(self, user_id: str, project_id: str, **fields) -> Optional[dict]:
         allowed = {"name", "description", "instructions", "archived_at", "archived"}
         with self._transaction() as conn:
             existing_row = self._project_row(conn, user_id, project_id)
@@ -560,7 +550,6 @@ class ChatSessionStore:
                 SET project_id = NULL,
                     applied_context_revision = NULL,
                     claude_session_id = NULL,
-                    opencode_session_id = NULL,
                     updated_at = ?
                 WHERE user_id = ? AND project_id = ?
                 """,
@@ -593,10 +582,7 @@ class ChatSessionStore:
                 "SELECT * FROM project_files WHERE project_id = ? ORDER BY created_at ASC",
                 (project_id,),
             ).fetchall()
-            return [
-                _project_file_row_to_dict(row, include_storage=include_storage)
-                for row in rows
-            ]
+            return [_project_file_row_to_dict(row, include_storage=include_storage) for row in rows]
 
     def get_project_file(
         self,
@@ -615,11 +601,7 @@ class ChatSessionStore:
                 """,
                 (file_id, project_id, user_id),
             ).fetchone()
-            return (
-                _project_file_row_to_dict(row, include_storage=include_storage)
-                if row
-                else None
-            )
+            return _project_file_row_to_dict(row, include_storage=include_storage) if row else None
 
     @staticmethod
     def _project_file_usage(
@@ -662,34 +644,20 @@ class ChatSessionStore:
             + int(project_pending["file_count"]),
             "project_total_bytes": int(project_usage["total_bytes"])
             + int(project_pending["total_bytes"]),
-            "user_file_count": int(user_usage["file_count"])
-            + int(user_pending["file_count"]),
-            "user_total_bytes": int(user_usage["total_bytes"])
-            + int(user_pending["total_bytes"]),
+            "user_file_count": int(user_usage["file_count"]) + int(user_pending["file_count"]),
+            "user_total_bytes": int(user_usage["total_bytes"]) + int(user_pending["total_bytes"]),
         }
 
-    def get_project_file_capacity(
-        self, user_id: str, project_id: str
-    ) -> Optional[dict[str, int]]:
+    def get_project_file_capacity(self, user_id: str, project_id: str) -> Optional[dict[str, int]]:
         """Return remaining logical capacity, including pending physical cleanup."""
         with self._lock:
-            if not self._project_row(
-                self.conn, user_id, project_id, active_only=True
-            ):
+            if not self._project_row(self.conn, user_id, project_id, active_only=True):
                 return None
             usage = self._project_file_usage(self.conn, user_id, project_id)
-            project_remaining_files = (
-                settings.EIDO_PROJECT_MAX_FILES - usage["project_file_count"]
-            )
-            user_remaining_files = (
-                settings.EIDO_USER_PROJECT_MAX_FILES - usage["user_file_count"]
-            )
-            project_remaining_bytes = (
-                settings.EIDO_PROJECT_MAX_BYTES - usage["project_total_bytes"]
-            )
-            user_remaining_bytes = (
-                settings.EIDO_USER_PROJECT_MAX_BYTES - usage["user_total_bytes"]
-            )
+            project_remaining_files = settings.EIDO_PROJECT_MAX_FILES - usage["project_file_count"]
+            user_remaining_files = settings.EIDO_USER_PROJECT_MAX_FILES - usage["user_file_count"]
+            project_remaining_bytes = settings.EIDO_PROJECT_MAX_BYTES - usage["project_total_bytes"]
+            user_remaining_bytes = settings.EIDO_USER_PROJECT_MAX_BYTES - usage["user_total_bytes"]
             return {
                 "project_remaining_files": project_remaining_files,
                 "user_remaining_files": user_remaining_files,
@@ -733,23 +701,15 @@ class ChatSessionStore:
                     (source_session_id, user_id, project_id),
                 ).fetchone()
                 if not source:
-                    raise ValueError(
-                        "来源会话不存在、不属于当前用户或当前不在目标项目中"
-                    )
+                    raise ValueError("来源会话不存在、不属于当前用户或当前不在目标项目中")
             usage = self._project_file_usage(conn, user_id, project_id)
             if usage["project_file_count"] >= settings.EIDO_PROJECT_MAX_FILES:
                 raise ProjectQuotaExceededError("项目共享资料数量已达上限")
-            if (
-                usage["project_total_bytes"] + int(size_bytes)
-                > settings.EIDO_PROJECT_MAX_BYTES
-            ):
+            if usage["project_total_bytes"] + int(size_bytes) > settings.EIDO_PROJECT_MAX_BYTES:
                 raise ProjectQuotaExceededError("项目共享资料总容量已达上限")
             if usage["user_file_count"] >= settings.EIDO_USER_PROJECT_MAX_FILES:
                 raise ProjectQuotaExceededError("当前用户的项目资料数量已达上限")
-            if (
-                usage["user_total_bytes"] + int(size_bytes)
-                > settings.EIDO_USER_PROJECT_MAX_BYTES
-            ):
+            if usage["user_total_bytes"] + int(size_bytes) > settings.EIDO_USER_PROJECT_MAX_BYTES:
                 raise ProjectQuotaExceededError("当前用户的项目资料总容量已达上限")
             conn.execute(
                 """
@@ -797,9 +757,7 @@ class ChatSessionStore:
             raise RuntimeError("项目文件元数据事务未生成结果")
         return result
 
-    def delete_project_file(
-        self, user_id: str, project_id: str, file_id: str
-    ) -> bool:
+    def delete_project_file(self, user_id: str, project_id: str, file_id: str) -> bool:
         now = _now_iso()
         with self._transaction() as conn:
             owned = conn.execute(
@@ -835,9 +793,7 @@ class ChatSessionStore:
             )
             return True
 
-    def get_project_context_for_session(
-        self, user_id: str, session_id: str
-    ) -> Optional[dict]:
+    def get_project_context_for_session(self, user_id: str, session_id: str) -> Optional[dict]:
         """Return a server-derived project context; never accepts project_id."""
         with self._lock:
             row = self.conn.execute(
@@ -867,17 +823,14 @@ class ChatSessionStore:
                 "applied_context_revision": row["applied_context_revision"],
                 "archived_at": row["archived_at"],
                 "files": [
-                    _project_file_row_to_dict(file_row, include_storage=True)
-                    for file_row in files
+                    _project_file_row_to_dict(file_row, include_storage=True) for file_row in files
                 ],
             }
 
     # -------------------- retryable filesystem cleanup -------------------- #
 
     @staticmethod
-    def _cleanup_job_id(
-        resource_type: str, project_id: str, storage_name: str = ""
-    ) -> str:
+    def _cleanup_job_id(resource_type: str, project_id: str, storage_name: str = "") -> str:
         return f"{resource_type}:{project_id}:{storage_name}"
 
     @classmethod
@@ -972,9 +925,7 @@ class ChatSessionStore:
     ) -> bool:
         job_id = self._cleanup_job_id(resource_type, project_id, storage_name)
         with self._transaction() as conn:
-            deleted = conn.execute(
-                "DELETE FROM storage_cleanup_jobs WHERE id = ?", (job_id,)
-            )
+            deleted = conn.execute("DELETE FROM storage_cleanup_jobs WHERE id = ?", (job_id,))
             return deleted.rowcount > 0
 
     def complete_project_storage_cleanup(self, project_id: str) -> int:
@@ -998,30 +949,30 @@ class ChatSessionStore:
 
     def project_resource_exists(self, project_id: str) -> bool:
         with self._lock:
-            return self.conn.execute(
-                "SELECT 1 FROM projects WHERE id = ?", (project_id,)
-            ).fetchone() is not None
+            return (
+                self.conn.execute("SELECT 1 FROM projects WHERE id = ?", (project_id,)).fetchone()
+                is not None
+            )
 
-    def project_file_resource_exists(
-        self, project_id: str, storage_name: str
-    ) -> bool:
+    def project_file_resource_exists(self, project_id: str, storage_name: str) -> bool:
         with self._lock:
-            return self.conn.execute(
-                """
+            return (
+                self.conn.execute(
+                    """
                 SELECT 1 FROM project_files
                 WHERE project_id = ? AND storage_name = ?
                 """,
-                (project_id, storage_name),
-            ).fetchone() is not None
+                    (project_id, storage_name),
+                ).fetchone()
+                is not None
+            )
 
     def project_storage_index(self) -> tuple[dict[str, str], set[tuple[str, str]]]:
         """Return the authoritative Project/file keys for startup reconciliation."""
         with self._lock:
             projects = {
                 row["id"]: row["user_id"]
-                for row in self.conn.execute(
-                    "SELECT id, user_id FROM projects"
-                ).fetchall()
+                for row in self.conn.execute("SELECT id, user_id FROM projects").fetchall()
             }
             files = {
                 (row["project_id"], row["storage_name"])
@@ -1076,8 +1027,7 @@ class ChatSessionStore:
                 """
                 UPDATE chat_sessions
                 SET applied_context_revision = ?,
-                    claude_session_id = NULL,
-                    opencode_session_id = NULL
+                    claude_session_id = NULL
                 WHERE id = ? AND user_id = ? AND project_id = ?
                 """,
                 (revision, session_id, user_id, project_id),
@@ -1092,23 +1042,34 @@ class ChatSessionStore:
         *,
         title: str = "新建会话",
         skill_id: Optional[str] = None,
+        model: Optional[str] = None,
+        runtime_mode: str = "agent",
         project_id: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> dict:
         sid = session_id or _new_id()
         now = _now_iso()
         with self._transaction() as conn:
-            if project_id and not self._project_row(
-                conn, user_id, project_id, active_only=True
-            ):
+            if project_id and not self._project_row(conn, user_id, project_id, active_only=True):
                 raise ValueError("项目不存在、不属于当前用户或已归档")
             conn.execute(
                 """
                 INSERT INTO chat_sessions
-                    (id, user_id, title, skill_id, project_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (id, user_id, title, skill_id, model, runtime_mode, project_id,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (sid, user_id, title or "新建会话", skill_id, project_id, now, now),
+                (
+                    sid,
+                    user_id,
+                    title or "新建会话",
+                    skill_id,
+                    model,
+                    runtime_mode,
+                    project_id,
+                    now,
+                    now,
+                ),
             )
             if project_id:
                 conn.execute(
@@ -1212,10 +1173,8 @@ class ChatSessionStore:
             "sessions": session_results,
         }
 
-    def update_session(
-        self, user_id: str, session_id: str, **fields
-    ) -> Optional[dict]:
-        allowed = {"title", "skill_id", "project_id"}
+    def update_session(self, user_id: str, session_id: str, **fields) -> Optional[dict]:
+        allowed = {"title", "skill_id", "project_id", "model", "runtime_mode"}
         now = _now_iso()
         with self._transaction() as conn:
             existing = conn.execute(
@@ -1228,6 +1187,8 @@ class ChatSessionStore:
             sets: list[str] = []
             values: list[object] = []
             project_changed = False
+            model_changed = False
+            runtime_mode_changed = False
             new_project_id = existing["project_id"]
             for key, value in fields.items():
                 if key not in allowed:
@@ -1243,6 +1204,15 @@ class ChatSessionStore:
                     project_changed = True
                 if key == "title" and value is None:
                     raise ValueError("会话标题不能为空")
+                if key == "model":
+                    value = value or None
+                    if value == _row_value(existing, "model"):
+                        continue
+                    model_changed = True
+                if key == "runtime_mode":
+                    if value == _row_value(existing, "runtime_mode", "agent"):
+                        continue
+                    runtime_mode_changed = True
                 sets.append(f"{key} = ?")
                 values.append(value)
 
@@ -1253,15 +1223,15 @@ class ChatSessionStore:
                     [
                         "applied_context_revision = NULL",
                         "claude_session_id = NULL",
-                        "opencode_session_id = NULL",
                     ]
                 )
+            elif model_changed or runtime_mode_changed:
+                sets.append("claude_session_id = NULL")
             sets.append("updated_at = ?")
             values.append(now)
             values.extend([session_id, user_id])
             conn.execute(
-                f"UPDATE chat_sessions SET {', '.join(sets)} "
-                "WHERE id = ? AND user_id = ?",
+                f"UPDATE chat_sessions SET {', '.join(sets)} " "WHERE id = ? AND user_id = ?",
                 values,
             )
             if project_changed and new_project_id:
@@ -1336,49 +1306,6 @@ class ChatSessionStore:
             )
             return cur.rowcount > 0
 
-    def get_opencode_session_id(
-        self,
-        user_id: str,
-        session_id: str,
-        *,
-        expected_project_id: object = _UNSET,
-        expected_context_revision: object = _UNSET,
-    ) -> Optional[str]:
-        with self._lock:
-            where, values = self._provider_session_guard(
-                session_id,
-                user_id,
-                expected_project_id=expected_project_id,
-                expected_context_revision=expected_context_revision,
-            )
-            row = self.conn.execute(
-                f"SELECT opencode_session_id FROM chat_sessions WHERE {where}",
-                values,
-            ).fetchone()
-            return row["opencode_session_id"] or None if row else None
-
-    def set_opencode_session_id(
-        self,
-        user_id: str,
-        session_id: str,
-        opencode_sid: Optional[str],
-        *,
-        expected_project_id: object = _UNSET,
-        expected_context_revision: object = _UNSET,
-    ) -> bool:
-        with self._transaction() as conn:
-            where, values = self._provider_session_guard(
-                session_id,
-                user_id,
-                expected_project_id=expected_project_id,
-                expected_context_revision=expected_context_revision,
-            )
-            cur = conn.execute(
-                f"UPDATE chat_sessions SET opencode_session_id = ?, updated_at = ? WHERE {where}",
-                (opencode_sid, _now_iso(), *values),
-            )
-            return cur.rowcount > 0
-
     @staticmethod
     def _provider_session_guard(
         session_id: str,
@@ -1444,7 +1371,8 @@ class ChatSessionStore:
         sql += " ORDER BY m.created_at ASC"
         if limit is not None:
             # Preserve chronological order while selecting the newest bounded history.
-            sql = f"SELECT * FROM ({sql.replace(' ORDER BY m.created_at ASC', ' ORDER BY m.created_at DESC')} LIMIT ?) ORDER BY created_at ASC"
+            newest = sql.replace(" ORDER BY m.created_at ASC", " ORDER BY m.created_at DESC")
+            sql = f"SELECT * FROM ({newest} LIMIT ?) ORDER BY created_at ASC"
             params.append(max(1, int(limit)))
         with self._lock:
             rows = self.conn.execute(sql, params).fetchall()

@@ -31,6 +31,11 @@ services:
     restart: unless-stopped
     ports:
       - "${EIDO_PORT:-80}:80"
+    # 直连上游 LLM（open.bigmodel.cn 等）需解析外网域名；宿主机 systemd-resolved
+    # 的 127.0.0.53 在容器内不可达，Docker 会回退到 8.8.8.8（国内不通）。
+    dns:
+      - ${EIDO_DNS_1:-223.5.5.5}
+      - ${EIDO_DNS_2:-114.114.114.114}
     environment:
       - EIDO_SANDBOX_MODE=local
       # 会话、项目元数据与工作区统一落到持久卷 /data；避免重建单容器后丢失。
@@ -88,6 +93,11 @@ services:
       - "${EIDO_PORT:-80}:80"
     networks:
       - eido-net
+    # provider relay 是全栈唯一出网点（转发到 open.bigmodel.cn 等），必须配外网 DNS；
+    # 自定义网络下该列表作为内嵌 DNS(127.0.0.11) 的转发上游，不会写进 resolv.conf。
+    dns:
+      - ${EIDO_DNS_1:-223.5.5.5}
+      - ${EIDO_DNS_2:-114.114.114.114}
     environment:
       - EIDO_SANDBOX_MODE=docker
       - EIDO_USER_IMAGE=${EIDO_USER_IMAGE:-damaohongtu/eido-user:latest}

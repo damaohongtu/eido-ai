@@ -21,6 +21,9 @@ RUN apt-get -o Acquire::Retries=5 update \
         fonts-noto-cjk \
         libmagic1 \
         poppler-utils \
+        git \
+        telnet \
+        vim \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && if ! command -v npm >/dev/null 2>&1; then \

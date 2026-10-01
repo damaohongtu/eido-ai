@@ -186,7 +186,7 @@ def create_application() -> FastAPI:
         from app.schemas.chat import ChatRequest
         from app.core.auth import get_current_user_id
 
-        if settings.EIDO_SANDBOX_MODE == "docker" and not settings.EIDO_TRUST_GATEWAY:
+        if settings.is_gateway_role:
             from app.gateway.router_user import proxy_chat_chat
 
             return await proxy_chat_chat(raw_request, user_id=get_current_user_id(raw_request))
@@ -221,7 +221,7 @@ def create_application() -> FastAPI:
 
         三种角色：
         - user-runtime（EIDO_TRUST_GATEWAY=1）：仅初始化技能服务、会话存储与工作区
-        - gateway（EIDO_SANDBOX_MODE=docker）：初始化 sandbox manager + 调度器（gateway 自身负责触发），
+        - gateway（EIDO_SANDBOX_MODE=docker|k8s）：初始化 sandbox manager + 调度器（gateway 自身负责触发），
           技能服务用于跨用户共享只读
         - 单租户/local：保留原有完整初始化
         """
@@ -239,13 +239,13 @@ def create_application() -> FastAPI:
         from app.api.v1.endpoints import tasks as tasks_ep
 
         is_user_runtime = bool(settings.EIDO_TRUST_GATEWAY)
-        is_gateway = (settings.EIDO_SANDBOX_MODE or "").lower() == "docker" and not is_user_runtime
+        is_gateway = settings.is_gateway_role
 
         logger.info("=" * 60)
         if is_user_runtime:
             logger.info(f"启动为 USER 沙箱容器 user_id={settings.EIDO_USER_ID}")
         elif is_gateway:
-            logger.info("启动为 GATEWAY 进程（EIDO_SANDBOX_MODE=docker）")
+            logger.info(f"启动为 GATEWAY 进程（EIDO_SANDBOX_MODE={settings.sandbox_orchestrator_mode}）")
         else:
             logger.info("启动为单租户/兼容模式（EIDO_SANDBOX_MODE=local）")
         logger.info("=" * 60)
@@ -373,9 +373,7 @@ def create_application() -> FastAPI:
             logger.exception("关闭 MCP 配置存储失败")
 
         # gateway 关停 sandbox idle gc + httpx client
-        if (
-            settings.EIDO_SANDBOX_MODE or ""
-        ).lower() == "docker" and not settings.EIDO_TRUST_GATEWAY:
+        if settings.is_gateway_role:
             try:
                 from app.gateway.sandbox_manager import get_sandbox_manager
 

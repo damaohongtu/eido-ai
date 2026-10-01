@@ -61,3 +61,6 @@ config.json
 .eido/scheduled_tasks.db-wal
 
 .eido
+
+# K8s 部署生成的凭据（k8s/gen-secret.sh 产出）
+k8s/30-secret.yaml

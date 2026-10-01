@@ -1,12 +1,17 @@
 """
-Sandbox Manager — 每用户独立 FastAPI 容器编排。
+Sandbox Manager — 每用户独立 FastAPI 沙盒编排（docker / k8s 双后端）。
 
 - ensure_running(user_id) 幂等启动并返回 SandboxHandle
 - release(user_id) 标记最近一次活跃时间，由 idle_gc_loop 决定是否回收
 - idle_gc_loop() 周期扫描 sandbox_registry.db，对 last_active_at 超过
-  EIDO_SANDBOX_IDLE_TTL 的容器执行 stop+remove，volumes 永远保留
+  EIDO_SANDBOX_IDLE_TTL 的沙盒执行回收，数据卷 / PVC 永远保留
 
-容器命名规则：`eido-user-<safe_user_id>`，user_id 走 _safe_user_id 白名单后再拼接，
+编排后端：
+- docker：Docker SDK + per-user 容器/bridge 网络/卷，容器名即内部寻址
+- k8s：K8s API + per-user Pod/PVC（sandbox_k8s.K8sSandboxClient），Pod IP 寻址，
+  registry 记录的 internal_host 在 Pod 重建后自动刷新
+
+沙盒命名规则：`eido-user-<safe_user_id>`，user_id 走 _safe_user_id 白名单后再拼接，
 原始 user_id 仍记录在 registry.user_id 字段中。
 """
 
@@ -86,7 +91,7 @@ def _now_iso() -> str:
 
 
 class SandboxManager:
-    """Per-user docker sandbox lifecycle.
+    """Per-user sandbox lifecycle（docker / k8s 双编排后端）。
 
     Local mode：sandbox 关闭，调用方仍可通过 ensure_running 拿到一个指向自身的
     SandboxHandle，方便单租户走相同的代码路径。
@@ -98,6 +103,7 @@ class SandboxManager:
         Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn: Optional[sqlite3.Connection] = None
         self._docker = None
+        self._k8s = None
         self._lock = threading.RLock()
         self._gc_task: Optional[asyncio.Task] = None
         self._gc_stop = asyncio.Event()
@@ -119,20 +125,23 @@ class SandboxManager:
         self._conn.commit()
         logger.info(f"SandboxManager registry connected: {self._db_path} mode={self._mode}")
 
-        if self._mode == "docker":
+        if self._mode in ("docker", "k8s"):
             secret = (settings.EIDO_GATEWAY_SECRET or "").strip()
             if not secret or len(secret) < 16:
                 # 没有共享密钥则受信网关头会被 user 容器拒绝，业务全报 401
                 logger.error(
-                    "✗ EIDO_SANDBOX_MODE=docker 但 EIDO_GATEWAY_SECRET 未配置/过短（< 16 字符）"
+                    "✗ EIDO_SANDBOX_MODE=%s 但 EIDO_GATEWAY_SECRET 未配置/过短（< 16 字符）",
+                    self._mode,
                 )
                 raise RuntimeError(
-                    "EIDO_GATEWAY_SECRET 未配置或过短，gateway 拒绝以 docker 模式启动"
+                    f"EIDO_GATEWAY_SECRET 未配置或过短，gateway 拒绝以 {self._mode} 模式启动"
                 )
             if (settings.SESSION_SECRET_KEY or "") in ("", "dev-secret-change-in-production"):
                 raise RuntimeError(
-                    "docker 沙箱模式禁止使用默认 SESSION_SECRET_KEY，请显式配置随机密钥"
+                    f"{self._mode} 沙箱模式禁止使用默认 SESSION_SECRET_KEY，请显式配置随机密钥"
                 )
+
+        if self._mode == "docker":
             try:
                 import docker  # type: ignore
 
@@ -142,11 +151,24 @@ class SandboxManager:
             except Exception as e:
                 self.close()
                 raise RuntimeError("Docker 不可用，拒绝退回共享进程") from e
+        elif self._mode == "k8s":
+            from app.gateway.sandbox_k8s import K8sSandboxClient
+
+            client = K8sSandboxClient()
+            try:
+                client.connect()
+            except Exception as e:
+                self.close()
+                raise RuntimeError("Kubernetes API 不可用，拒绝退回共享进程") from e
+            self._k8s = client
 
     def close(self) -> None:
         if self._docker:
             self._docker.close()
             self._docker = None
+        if self._k8s:
+            self._k8s.close()
+            self._k8s = None
         if self._conn:
             self._conn.close()
             self._conn = None
@@ -166,14 +188,17 @@ class SandboxManager:
 
         lock = self._user_locks.setdefault(user_id, asyncio.Lock())
         async with lock:
-            if self._mode != "docker":
+            if self._mode not in ("docker", "k8s"):
                 return self._build_local_handle(user_id)
 
             cached = self._healthy.get(user_id)
             if cached and time.monotonic() - cached[0] < settings.EIDO_SANDBOX_HEALTH_TTL:
                 self._touch(user_id)
                 return cached[1]
-            handle = await asyncio.to_thread(self._ensure_running_docker, user_id)
+            if self._mode == "k8s":
+                handle = await asyncio.to_thread(self._ensure_running_k8s, user_id)
+            else:
+                handle = await asyncio.to_thread(self._ensure_running_docker, user_id)
             await asyncio.to_thread(self._wait_health, handle)
             self._healthy[user_id] = (time.monotonic(), handle)
             return handle
@@ -197,10 +222,10 @@ class SandboxManager:
         self._healthy.pop(user_id, None)
 
     async def stop(self, user_id: str) -> bool:
-        """显式停止 + 移除容器。volume 不删除。"""
-        if self._mode != "docker":
+        """显式回收沙盒（docker：stop+remove 容器；k8s：删 Pod）。数据卷/PVC 不删除。"""
+        if self._mode not in ("docker", "k8s"):
             return False
-        return await asyncio.to_thread(self._stop_docker, user_id)
+        return await asyncio.to_thread(self._stop_backend, user_id)
 
     def list_active(self) -> list[SandboxHandle]:
         rows = (
@@ -217,7 +242,7 @@ class SandboxManager:
     # -------------------------------------------------------------- #
 
     async def start_idle_gc(self) -> None:
-        if self._mode != "docker":
+        if self._mode not in ("docker", "k8s"):
             return
         if self._gc_task is not None and not self._gc_task.done():
             return
@@ -263,8 +288,8 @@ class SandboxManager:
 
         for uid in stale_users:
             try:
-                if self._stop_docker(uid, idle_before=cutoff):
-                    logger.info(f"[sandbox-gc] 回收闲置容器 user={uid}")
+                if self._stop_backend(uid, idle_before=cutoff):
+                    logger.info(f"[sandbox-gc] 回收闲置沙盒 user={uid}")
             except Exception as e:
                 logger.warning(f"[sandbox-gc] 回收 {uid} 失败: {e}")
 
@@ -310,6 +335,56 @@ class SandboxManager:
     def _ensure_running_docker(self, user_id: str) -> SandboxHandle:
         with self._docker_locks.setdefault(user_id, threading.RLock()):
             return self._ensure_running_locked(user_id)
+
+    def _ensure_running_k8s(self, user_id: str) -> SandboxHandle:
+        assert self._k8s is not None
+        with self._docker_locks.setdefault(user_id, threading.RLock()):
+            safe = _safe_user_id(user_id)
+            name = f"eido-user-{safe}"
+            env = self._build_user_env(user_id)
+            # Pod 重建后 IP 会变化，registry 每次刷新
+            pod_ip = self._k8s.ensure(user_id, safe, env)
+            self._upsert_row(user_id, safe, name, pod_ip)
+            return self._build_handle_from_row(user_id)
+
+    def _build_user_env(self, user_id: str) -> dict[str, str]:
+        """docker / k8s 两种后端共用的 user 容器环境变量。"""
+        env = {
+            "EIDO_USER_ID": user_id,
+            "EIDO_DATA_ROOT": "/data",
+            "EIDO_TRUST_GATEWAY": "1",
+            "AUTH_DISABLED": "False",
+            "EIDO_API_URL": settings.EIDO_GATEWAY_INTERNAL_URL,
+            "WORKSPACE_ROOT": "/workspace",
+            "EIDO_GATEWAY_SECRET": gateway_secret(user_id),
+            "EIDO_USER_TOKEN_SECRET": token_secret(user_id),
+            "SESSION_SECRET_KEY": derive_secret(settings.SESSION_SECRET_KEY, "session", user_id),
+            "EIDO_PROJECT_MAX_FILES": str(settings.EIDO_PROJECT_MAX_FILES),
+            "EIDO_PROJECT_MAX_BYTES": str(settings.EIDO_PROJECT_MAX_BYTES),
+            "EIDO_USER_PROJECT_MAX_FILES": str(settings.EIDO_USER_PROJECT_MAX_FILES),
+            "EIDO_USER_PROJECT_MAX_BYTES": str(settings.EIDO_USER_PROJECT_MAX_BYTES),
+        }
+        # 透传 Claude provider 配置。Settings 同时支持进程环境和 backend/.env，
+        # 避免本地启动 gateway 时因 .env 未 export 而丢失凭据。
+        provider_env = settings.claude_agent_env
+        if provider_env.get("ANTHROPIC_API_KEY") or provider_env.get("ANTHROPIC_AUTH_TOKEN"):
+            provider_env.pop("ANTHROPIC_API_KEY", None)
+            provider_env["ANTHROPIC_AUTH_TOKEN"] = provider_token(user_id)
+            provider_env["ANTHROPIC_BASE_URL"] = (
+                settings.EIDO_GATEWAY_INTERNAL_URL.rstrip("/") + "/api/v1/provider"
+            )
+        env.update(provider_env)
+        from app.services.model_catalog import load_model_catalog
+
+        env["CLAUDE_MODEL_CATALOG_JSON"] = json.dumps(
+            load_model_catalog().sandbox(), ensure_ascii=False
+        )
+        env["CLAUDE_COMPACT_PERCENT"] = str(settings.CLAUDE_COMPACT_PERCENT)
+        env["CLAUDE_SIMPLE_SYSTEM_PROMPT"] = str(settings.CLAUDE_SIMPLE_SYSTEM_PROMPT).lower()
+        env["CLAUDE_DEFAULT_RUNTIME_MODE"] = settings.CLAUDE_DEFAULT_RUNTIME_MODE
+        if settings.CLAUDE_EFFORT:
+            env["CLAUDE_EFFORT"] = settings.CLAUDE_EFFORT
+        return env
 
     def _ensure_running_locked(self, user_id: str) -> SandboxHandle:
         assert self._docker is not None
@@ -415,41 +490,7 @@ class SandboxManager:
         assert self._docker is not None
         from docker.types import LogConfig, Mount
 
-        env = {
-            "EIDO_USER_ID": user_id,
-            "EIDO_DATA_ROOT": "/data",
-            "EIDO_TRUST_GATEWAY": "1",
-            "AUTH_DISABLED": "False",
-            "EIDO_API_URL": settings.EIDO_GATEWAY_INTERNAL_URL,
-            "WORKSPACE_ROOT": "/workspace",
-            "EIDO_GATEWAY_SECRET": gateway_secret(user_id),
-            "EIDO_USER_TOKEN_SECRET": token_secret(user_id),
-            "SESSION_SECRET_KEY": derive_secret(settings.SESSION_SECRET_KEY, "session", user_id),
-            "EIDO_PROJECT_MAX_FILES": str(settings.EIDO_PROJECT_MAX_FILES),
-            "EIDO_PROJECT_MAX_BYTES": str(settings.EIDO_PROJECT_MAX_BYTES),
-            "EIDO_USER_PROJECT_MAX_FILES": str(settings.EIDO_USER_PROJECT_MAX_FILES),
-            "EIDO_USER_PROJECT_MAX_BYTES": str(settings.EIDO_USER_PROJECT_MAX_BYTES),
-        }
-        # 透传 Claude provider 配置。Settings 同时支持进程环境和 backend/.env，
-        # 避免本地启动 gateway 时因 .env 未 export 而丢失凭据。
-        provider_env = settings.claude_agent_env
-        if provider_env.get("ANTHROPIC_API_KEY") or provider_env.get("ANTHROPIC_AUTH_TOKEN"):
-            provider_env.pop("ANTHROPIC_API_KEY", None)
-            provider_env["ANTHROPIC_AUTH_TOKEN"] = provider_token(user_id)
-            provider_env["ANTHROPIC_BASE_URL"] = (
-                settings.EIDO_GATEWAY_INTERNAL_URL.rstrip("/") + "/api/v1/provider"
-            )
-        env.update(provider_env)
-        from app.services.model_catalog import load_model_catalog
-
-        env["CLAUDE_MODEL_CATALOG_JSON"] = json.dumps(
-            load_model_catalog().sandbox(), ensure_ascii=False
-        )
-        env["CLAUDE_COMPACT_PERCENT"] = str(settings.CLAUDE_COMPACT_PERCENT)
-        env["CLAUDE_SIMPLE_SYSTEM_PROMPT"] = str(settings.CLAUDE_SIMPLE_SYSTEM_PROMPT).lower()
-        env["CLAUDE_DEFAULT_RUNTIME_MODE"] = settings.CLAUDE_DEFAULT_RUNTIME_MODE
-        if settings.CLAUDE_EFFORT:
-            env["CLAUDE_EFFORT"] = settings.CLAUDE_EFFORT
+        env = self._build_user_env(user_id)
 
         volume_name = f"eido-user-{safe}"
         from docker.errors import NotFound
@@ -550,25 +591,40 @@ class SandboxManager:
             # Do not destroy a running task just because the health request failed.
             return True
 
+    def _acquire_stop_slot(self, user_id: str, *, idle_before: float | None):
+        """租约与闲置条件全部通过时返回 registry 行，否则 None。
+
+        docker / k8s 两种后端共用的回收前置检查。
+        """
+        with self._lock:
+            row = self._select_row(user_id)
+            if not row or self._active_requests.get(user_id, 0):
+                return None
+            if idle_before is not None and row["last_active_at"] >= idle_before:
+                return None
+        if idle_before is not None and self._runtime_busy(user_id):
+            self._touch(user_id)
+            return None
+        # Health polling may have overlapped a new request; recheck the lease.
+        with self._lock:
+            current = self._select_row(user_id)
+            if self._active_requests.get(user_id, 0):
+                return None
+            if idle_before is not None and current["last_active_at"] >= idle_before:
+                return None
+            self.invalidate_health(user_id)
+        return current
+
+    def _stop_backend(self, user_id: str, *, idle_before: float | None = None) -> bool:
+        if self._mode == "k8s":
+            return self._stop_k8s(user_id, idle_before=idle_before)
+        return self._stop_docker(user_id, idle_before=idle_before)
+
     def _stop_docker(self, user_id: str, *, idle_before: float | None = None) -> bool:
         with self._docker_locks.setdefault(user_id, threading.RLock()):
-            with self._lock:
-                row = self._select_row(user_id)
-                if not row or self._active_requests.get(user_id, 0):
-                    return False
-                if idle_before is not None and row["last_active_at"] >= idle_before:
-                    return False
-            if idle_before is not None and self._runtime_busy(user_id):
-                self._touch(user_id)
+            row = self._acquire_stop_slot(user_id, idle_before=idle_before)
+            if row is None:
                 return False
-            # Health polling may have overlapped a new request; recheck the lease.
-            with self._lock:
-                current = self._select_row(user_id)
-                if self._active_requests.get(user_id, 0):
-                    return False
-                if idle_before is not None and current["last_active_at"] >= idle_before:
-                    return False
-                self.invalidate_health(user_id)
             container = self._find_container(row["container_name"])
             if container is not None:
                 labels = container.attrs.get("Config", {}).get("Labels", {})
@@ -578,6 +634,17 @@ class SandboxManager:
                 container.remove()
             self._mark_status(user_id, "stopped")
             self._remove_user_network(row["safe_user_id"], user_id)
+            return True
+
+    def _stop_k8s(self, user_id: str, *, idle_before: float | None = None) -> bool:
+        assert self._k8s is not None
+        with self._docker_locks.setdefault(user_id, threading.RLock()):
+            row = self._acquire_stop_slot(user_id, idle_before=idle_before)
+            if row is None:
+                return False
+            # 只删 Pod；PVC 与 docker 模式的 volume 语义一致，永远保留
+            self._k8s.stop(user_id, row["safe_user_id"])
+            self._mark_status(user_id, "stopped")
             return True
 
     def _remove_user_network(self, safe: str, user_id: str) -> None:
@@ -597,10 +664,17 @@ class SandboxManager:
         except Exception:
             logger.exception("回收用户网络失败 user=%s", user_id)
 
-    def _wait_health(self, handle: SandboxHandle, *, timeout: float = 30.0) -> None:
-        """轮询 user 容器的 /health；超时抛 RuntimeError。"""
-        if self._mode != "docker":
+    def _wait_health(self, handle: SandboxHandle, *, timeout: float | None = None) -> None:
+        """轮询 user 沙盒的 /health；超时抛 RuntimeError。"""
+        if self._mode not in ("docker", "k8s"):
             return
+        if timeout is None:
+            # k8s：含 Pod 调度与容器重启窗口，等待上限远高于 docker
+            timeout = (
+                float(settings.EIDO_K8S_POD_READY_TIMEOUT)
+                if self._mode == "k8s"
+                else 30.0
+            )
         import httpx
 
         deadline = time.monotonic() + timeout

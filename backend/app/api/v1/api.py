@@ -3,8 +3,8 @@ API router aggregator for v1 endpoints.
 
 布局思路：
 - gateway / 单租户模式（默认）：聚合所有路由 — auth, chat, sessions, workspace, skills, tasks
-- sandbox 模式（gateway 启用 docker，EIDO_SANDBOX_MODE=docker）：
-  gateway 进程把 chat/sessions/workspace/upload 替换成 router_user 反代到用户容器；
+- sandbox 模式（gateway 启用 docker|k8s 编排）：
+  gateway 进程把 chat/sessions/workspace/upload 替换成 router_user 反代到用户沙盒；
   其余路由（auth, skills, tasks）继续走 gateway 自身。
 
 user 沙箱容器内：路由聚合走 _user_only_router()，仅保留 chat / sessions / workspace。
@@ -32,7 +32,8 @@ def _is_user_sandbox_runtime() -> bool:
 
 
 def _is_gateway_sandbox_mode() -> bool:
-    return (settings.EIDO_SANDBOX_MODE or "").lower() == "docker"
+    """docker / k8s 两种沙盒编排模式下，gateway 进程都以反代路由对外。"""
+    return settings.is_gateway_role
 
 
 api_router = APIRouter()

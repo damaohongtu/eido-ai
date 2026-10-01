@@ -20,6 +20,7 @@ K8s API 为每个登录用户动态创建 **Pod + PVC**（不再依赖 docker.so
 | `10-rbac.yaml` | gateway ServiceAccount + 最小 Role（pods / pvc） |
 | `20-storage.yaml` | gateway 数据 PVC + 共享技能库 PVC |
 | `30-secret.yaml` | 凭据（由 `gen-secret.sh` 生成，勿提交 git） |
+| `30-secret.example.yaml` | 上者的样例（占位值），可复制手工填写 |
 | `40-gateway.yaml` | gateway Deployment（**单副本**）+ NodePort Service 30080 |
 | `50-cas.yaml` | 可选 CAS（本地验证用）+ NodePort 31443 |
 | `gen-secret.sh` | 从 `docker/.env` 生成 `30-secret.yaml` |
@@ -60,6 +61,7 @@ kind load docker-image apereo/cas:6.6.10               --name eido-dce
 ```bash
 cd k8s
 ./gen-secret.sh                       # 生成 30-secret.yaml（含模型凭据）
+                                      # 或：cp 30-secret.example.yaml 30-secret.yaml 手工填写
 kubectl apply -f 00-namespace.yaml
 kubectl apply -f 10-rbac.yaml -f 20-storage.yaml -f 30-secret.yaml
 kubectl apply -f 40-gateway.yaml -f 50-cas.yaml

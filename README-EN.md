@@ -27,23 +27,23 @@ The project ships three client surfaces — desktop web, mobile H5, and a Chrome
 
 **Chat workbench**: streams model reasoning, execution steps, and the final answer; the session sidebar supports search, and the input bar switches model and runtime mode.
 
-![Chat workbench](images/1-chat.png)
+![Chat workbench](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/1-chat.png)
 
 **Projects**: project sessions automatically receive project instructions and shared materials; session outputs can be saved into project knowledge in one click.
 
-![Projects](images/2-project.png)
+![Projects](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/2-project.png)
 
 **Skill management**: system skills and per-user private skills in one place, with online `SKILL.md` viewing and editing.
 
-![Skill management](images/3-skill.png)
+![Skill management](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/3-skill.png)
 
 **MCP config**: edit the standard `mcpServers` JSON as a whole; HTTP / SSE / stdio supported, secrets encrypted at rest.
 
-![MCP config](images/4-mcp.png)
+![MCP config](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/4-mcp.png)
 
 **Scheduled tasks**: recurring scheduling and run-now for skill / script / conversation tasks.
 
-![Scheduled tasks](images/5-schedule.png)
+![Scheduled tasks](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/5-schedule.png)
 
 ## Tech Stack
 
@@ -315,9 +315,9 @@ End-to-end verified on kind + DaoCloud DCE 5.0 community edition (installer v0.4
 
 Eido workloads in the DCE console — the gateway and the dynamically created user sandbox Pods are both visible and observable:
 
-![DCE console · container management](images/daocloud-cluster.png)
+![DCE console · container management](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/daocloud-cluster.png)
 
-![DCE console · eido-system workloads](images/daocloud-eido-gateway.png)
+![DCE console · eido-system workloads](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/daocloud-eido-gateway.png)
 
 ```bash
 # 1. kind cluster (with DCE / eido port mappings)

@@ -27,23 +27,23 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 
 **对话工作台**：流式返回模型思考、执行步骤与最终回答；左侧会话列表支持检索，输入框下方切换模型与运行模式。
 
-![对话工作台](images/1-chat.png)
+![对话工作台](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/1-chat.png)
 
 **项目**：Project 会话自动获得项目指令与共享资料，会话产出可一键沉淀为项目知识。
 
-![项目](images/2-project.png)
+![项目](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/2-project.png)
 
 **技能管理**：系统技能与用户私有技能统一管理，`SKILL.md` 在线查看与编辑。
 
-![技能管理](images/3-skill.png)
+![技能管理](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/3-skill.png)
 
 **MCP 配置**：标准 `mcpServers` JSON 整体编辑，支持 HTTP / SSE / Stdio，密钥加密保存。
 
-![MCP 配置](images/4-mcp.png)
+![MCP 配置](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/4-mcp.png)
 
 **定时任务**：技能 / 脚本 / 对话类任务的周期调度与手动运行。
 
-![定时任务](images/5-schedule.png)
+![定时任务](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/5-schedule.png)
 
 ## 技术栈
 
@@ -314,9 +314,9 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 
 DCE 控制台中的 eido 工作负载——gateway 与动态创建的用户沙盒 Pod（容器组）均可见、可观测：
 
-![DCE 控制台 · 容器管理](images/daocloud-cluster.png)
+![DCE 控制台 · 容器管理](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/daocloud-cluster.png)
 
-![DCE 控制台 · eido-system 工作负载](images/daocloud-eido-gateway.png)
+![DCE 控制台 · eido-system 工作负载](https://cdn.jsdelivr.net/gh/damaohongtu/eido-ai@main/images/daocloud-eido-gateway.png)
 
 ```bash
 # 1. kind 集群（含 DCE / eido 端口映射）

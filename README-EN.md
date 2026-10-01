@@ -23,6 +23,28 @@ The project ships three client surfaces — desktop web, mobile H5, and a Chrome
 - **Auth & isolation**: Supports password-free local development, CAS login, admin users, and system/user skill separation; in multi-user sandbox mode the gateway is the single entry point and provisions isolated containers (Docker) or Pods + PVCs (Kubernetes) per user, with idle reclamation and persistent data.
 - **Fast deployment**: Four deployment paths — local, single-tenant Docker, multi-user Docker sandbox, and Kubernetes; works with any Anthropic-API-compatible model service.
 
+## UI Tour
+
+**Chat workbench**: streams model reasoning, execution steps, and the final answer; the session sidebar supports search, and the input bar switches model and runtime mode.
+
+![Chat workbench](images/1-chat.png)
+
+**Projects**: project sessions automatically receive project instructions and shared materials; session outputs can be saved into project knowledge in one click.
+
+![Projects](images/2-project.png)
+
+**Skill management**: system skills and per-user private skills in one place, with online `SKILL.md` viewing and editing.
+
+![Skill management](images/3-skill.png)
+
+**MCP config**: edit the standard `mcpServers` JSON as a whole; HTTP / SSE / stdio supported, secrets encrypted at rest.
+
+![MCP config](images/4-mcp.png)
+
+**Scheduled tasks**: recurring scheduling and run-now for skill / script / conversation tasks.
+
+![Scheduled tasks](images/5-schedule.png)
+
 ## Tech Stack
 
 | Module | Key technologies |
@@ -290,6 +312,12 @@ The `gateway` / `user` images serve both the Docker sandbox and Kubernetes deplo
 The Kubernetes flavor of the multi-user sandbox: the gateway runs with `EIDO_SANDBOX_MODE=k8s` and provisions a **Pod + PVC** per logged-in user through a ServiceAccount and the Kubernetes API — no docker.sock. User data (sessions, workspace, private skills, scheduled tasks) lives on a dedicated PVC (default `5Gi`); idle reclamation (`EIDO_SANDBOX_IDLE_TTL`, default 900 s) deletes only the Pod and keeps the PVC, and the next visit rebuilds the Pod reusing the same data. The system skill library is mounted read-only from a shared PVC. Every user Pod/PVC is visible and observable in the DCE console.
 
 End-to-end verified on kind + DaoCloud DCE 5.0 community edition (installer v0.44.0, Apple Silicon): multi-account CAS login callback, SSE streaming chat (GLM via provider relay), two-user data isolation, idle GC with rebuild-and-reuse, and license activation.
+
+Eido workloads in the DCE console — the gateway and the dynamically created user sandbox Pods are both visible and observable:
+
+![DCE console · container management](images/daocloud-cluster.png)
+
+![DCE console · eido-system workloads](images/daocloud-eido-gateway.png)
 
 ```bash
 # 1. kind cluster (with DCE / eido port mappings)

@@ -23,6 +23,28 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 - **认证与隔离**：支持本地开发免登录、CAS 登录、管理员用户、系统/用户技能隔离；多用户沙盒模式下 gateway 统一入口，按用户创建隔离的容器（Docker）或 Pod + PVC（K8s），闲置自动回收、数据持久保留。
 - **快速部署**：本地开发、Docker 单租户、Docker 沙盒多用户、K8s 四条部署路径；支持 Anthropic API 兼容模型服务。
 
+## 界面一览
+
+**对话工作台**：流式返回模型思考、执行步骤与最终回答；左侧会话列表支持检索，输入框下方切换模型与运行模式。
+
+![对话工作台](images/1-chat.png)
+
+**项目**：Project 会话自动获得项目指令与共享资料，会话产出可一键沉淀为项目知识。
+
+![项目](images/2-project.png)
+
+**技能管理**：系统技能与用户私有技能统一管理，`SKILL.md` 在线查看与编辑。
+
+![技能管理](images/3-skill.png)
+
+**MCP 配置**：标准 `mcpServers` JSON 整体编辑，支持 HTTP / SSE / Stdio，密钥加密保存。
+
+![MCP 配置](images/4-mcp.png)
+
+**定时任务**：技能 / 脚本 / 对话类任务的周期调度与手动运行。
+
+![定时任务](images/5-schedule.png)
+
 ## 技术栈
 
 | 模块 | 主要技术 |
@@ -289,6 +311,12 @@ docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
 沙盒多用户模式的 K8s 形态：gateway 以 `EIDO_SANDBOX_MODE=k8s` 运行，通过 ServiceAccount + K8s API 为每个登录用户动态创建 **Pod + PVC**，不再依赖 docker.sock。用户数据（会话、工作区、私有技能、定时任务）落在专属 PVC（默认 `5Gi`）；闲置回收（`EIDO_SANDBOX_IDLE_TTL`，默认 900 秒）只删除 Pod、保留 PVC，再次访问自动重建并复用数据；系统技能库由共享 PVC 只读挂载。所有用户 Pod / PVC 在 DCE 控制台可见、可观测。
 
 已在 kind + DaoCloud DCE 5.0 社区版（installer v0.44.0，Apple Silicon）完成端到端实测：CAS 多账号登录回调、SSE 流式聊天（GLM 经 provider relay）、双用户数据隔离、闲置 GC 与重建复用、License 激活。
+
+DCE 控制台中的 eido 工作负载——gateway 与动态创建的用户沙盒 Pod（容器组）均可见、可观测：
+
+![DCE 控制台 · 容器管理](images/daocloud-cluster.png)
+
+![DCE 控制台 · eido-system 工作负载](images/daocloud-eido-gateway.png)
 
 ```bash
 # 1. kind 集群（含 DCE / eido 端口映射）

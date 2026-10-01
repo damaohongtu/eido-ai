@@ -1,0 +1,158 @@
+# eido gateway（K8s 沙盒编排模式）
+#
+# 关键约束：
+# - replicas 必须 = 1：sandbox_registry.db / scheduled_tasks.db 是 PVC 上的
+#   SQLite，多副本会脑裂；扩容前需先迁移到外部存储。strategy 用 Recreate
+#   保证滚动更新时不出现双副本同时写库。
+# - EIDO_GATEWAY_INTERNAL_URL 指向本 Service 的集群内 DNS，user Pod 经由它
+#   回访 gateway（provider relay / 上传下载）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eido-gateway
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: eido-gateway
+    app.kubernetes.io/part-of: eido
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: eido-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: eido-gateway
+        app.kubernetes.io/part-of: eido
+        io.eido.role: gateway
+    spec:
+      serviceAccountName: eido-gateway
+      # 镜像内 nginx(80)/supervisord 以 root 运行，保持与 docker 部署一致
+      securityContext: {}
+      containers:
+        - name: eido-gateway
+          image: damaohongtu/eido-gateway:latest
+          # :latest 默认策略为 Always；kind load 的本地镜像必须 IfNotPresent
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          envFrom:
+            - secretRef:
+                name: eido-secrets
+          env:
+            # ---------- 沙盒编排（K8s）---------- #
+            - name: EIDO_SANDBOX_MODE
+              value: k8s
+            - name: EIDO_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: EIDO_USER_IMAGE
+              value: damaohongtu/eido-user:latest
+            - name: EIDO_GATEWAY_INTERNAL_URL
+              value: http://eido-gateway.eido-system.svc.cluster.local/ai-eido
+            - name: EIDO_USER_INTERNAL_PORT
+              value: "8000"
+            - name: EIDO_TRUST_GATEWAY
+              value: "0"
+            - name: EIDO_K8S_SKILLS_CLAIM
+              value: eido-skills
+            - name: EIDO_K8S_USER_STORAGE
+              value: 5Gi
+            - name: EIDO_K8S_POD_READY_TIMEOUT
+              value: "120"
+            # EIDO_K8S_STORAGE_CLASS 留空 = 集群默认 StorageClass
+            # ---------- 用户沙盒资源限额（user Pod）---------- #
+            - name: EIDO_USER_MEM
+              value: 2Gi
+            - name: EIDO_USER_CPUS
+              value: "1.0"
+            - name: EIDO_USER_TMPFS_SIZE
+              value: 512Mi
+            - name: EIDO_SANDBOX_IDLE_TTL
+              value: "900"
+            - name: EIDO_SANDBOX_HEALTH_TTL
+              value: "15"
+            # ---------- CAS / 前端 ---------- #
+            # CAS_SERVER_URL 必须同时被浏览器与 gateway Pod 解析到同一地址：
+            # 浏览器经宿主 /etc/hosts（127.0.0.1 cas.eido-system.svc.cluster.local）
+            # + NodePort 31443；Pod 内走集群 DNS + Service 31443 端口。
+            - name: CAS_SERVER_URL
+              value: http://cas.eido-system.svc.cluster.local:31443/cas/
+            # 注意：宿主端口必须避开浏览器封禁端口（如 10080/amanda 会 ERR_UNSAFE_PORT），
+            # kind 已映射 19080→30080（见 kind-eido-dce.yaml）。
+            - name: CAS_SERVICE_URL
+              value: http://localhost:19080/ai-eido/api/v1/auth/callback
+            - name: FRONTEND_URL
+              value: http://localhost:19080/ai-eido/
+            - name: AUTH_DISABLED
+              value: "False"
+            - name: EIDO_ADMIN_USERS
+              value: admin
+            # ---------- 模型（凭据在 eido-secrets）---------- #
+            - name: ANTHROPIC_MODEL
+              value: glm-5.2
+            - name: ANTHROPIC_SMALL_FAST_MODEL
+              value: glm-5.2
+            - name: CLAUDE_DEFAULT_RUNTIME_MODE
+              value: qa
+            - name: CLAUDE_COMPACT_PERCENT
+              value: "80"
+            - name: CLAUDE_SIMPLE_SYSTEM_PROMPT
+              value: "true"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            # gateway 持久化：sandbox_registry.db / scheduled_tasks.db
+            - name: gateway-data
+              mountPath: /workspace/.eido
+            # 技能库（gateway 读写管理；user Pod 以 subPath 只读挂载）
+            - name: skills
+              mountPath: /workspace/.claude/skills
+          readinessProbe:
+            httpGet:
+              path: /ai-eido/health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /ai-eido/health
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 5
+      volumes:
+        - name: gateway-data
+          persistentVolumeClaim:
+            claimName: eido-gateway-data
+        - name: skills
+          persistentVolumeClaim:
+            claimName: eido-skills
+---
+# 对外入口：NodePort 30080（浏览器 http://<node>:30080/ai-eido/）
+apiVersion: v1
+kind: Service
+metadata:
+  name: eido-gateway
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: eido-gateway
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: eido-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080

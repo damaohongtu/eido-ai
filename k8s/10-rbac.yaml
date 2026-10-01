@@ -1,0 +1,40 @@
+# gateway 的 K8s 编排权限（namespace 级最小授权）
+#
+# gateway 通过 in-cluster ServiceAccount 调 K8s API：
+# - pods：动态创建/查询/删除每用户沙盒 Pod
+# - persistentvolumeclaims：动态创建每用户数据 PVC（只创建与读取，永不删除）
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eido-gateway
+  namespace: eido-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eido-gateway
+  namespace: eido-system
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: eido-gateway
+  namespace: eido-system
+subjects:
+  - kind: ServiceAccount
+    name: eido-gateway
+    namespace: eido-system
+roleRef:
+  kind: Role
+  name: eido-gateway
+  apiGroup: rbac.authorization.k8s.io

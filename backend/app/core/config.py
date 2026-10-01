@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     EIDO_DATA_ROOT: str = ""
     # 显式覆盖 chat_sessions.db 路径，沙箱模式下指向 /data/chat_sessions.db。
     CHAT_SESSIONS_DB: str = ""
-    # 沙箱模式：local | docker（gateway 端使用，user 容器无需关心）
+    # 沙箱模式：local | docker | k8s（gateway 端使用，user 容器无需关心）
     EIDO_SANDBOX_MODE: str = "local"
     # gateway 用于启动 user 容器的镜像 tag
     EIDO_USER_IMAGE: str = "eido-user:latest"
@@ -65,6 +65,19 @@ class Settings(BaseSettings):
     EIDO_NET: str = "eido-net"
     EIDO_GATEWAY_CONTAINER: str = "eido-gateway"
     EIDO_GATEWAY_INTERNAL_URL: str = "http://eido-gateway/ai-eido"
+    # ---------------- K8s 沙盒编排（EIDO_SANDBOX_MODE=k8s）---------------- #
+    # user Pod / PVC 所在 namespace
+    EIDO_K8S_NAMESPACE: str = "eido-system"
+    # user PVC 使用的 StorageClass；空串 = 集群默认 SC
+    EIDO_K8S_STORAGE_CLASS: str = ""
+    # 共享技能库 PVC 名称（gateway 与 user Pod 同时挂载）
+    EIDO_K8S_SKILLS_CLAIM: str = "eido-skills"
+    # 单用户数据 PVC 初始容量（docker volume 无容量限制，PVC 必须显式给定）
+    EIDO_K8S_USER_STORAGE: str = "5Gi"
+    # user Pod Ready 等待超时（秒）；含调度与镜像拉取时间
+    EIDO_K8S_POD_READY_TIMEOUT: int = Field(default=120, gt=0)
+    # user Pod 拉取镜像用的 imagePullSecret（可选）
+    EIDO_K8S_IMAGE_PULL_SECRET: str = ""
     EIDO_SANDBOX_HEALTH_TTL: int = Field(default=15, ge=0)
     EIDO_USER_TMPFS_SIZE: str = "512m"
     # 闲置回收 TTL（秒），默认 15min
@@ -183,6 +196,22 @@ class Settings(BaseSettings):
     def admin_user_set(self) -> set[str]:
         """admin 白名单（逗号分隔）的集合形式。"""
         return {u.strip() for u in (self.EIDO_ADMIN_USERS or "").split(",") if u.strip()}
+
+    @property
+    def sandbox_orchestrator_mode(self) -> str:
+        """编排后端模式：docker（Docker SDK + docker.sock）或 k8s（K8s API）。"""
+        return (self.EIDO_SANDBOX_MODE or "local").strip().lower()
+
+    @property
+    def is_gateway_role(self) -> bool:
+        """当前进程是否为沙盒 gateway（编排者）。
+
+        docker / k8s 两种沙盒模式都代表 gateway 角色；user 容器以
+        EIDO_TRUST_GATEWAY=1 启动，优先级高于沙盒模式判断。
+        """
+        if self.EIDO_TRUST_GATEWAY:
+            return False
+        return self.sandbox_orchestrator_mode in ("docker", "k8s")
 
     def is_admin(self, user_id: str | None) -> bool:
         """判断给定 user_id 是否在 admin 白名单内。"""

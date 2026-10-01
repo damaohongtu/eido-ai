@@ -28,9 +28,8 @@ class _PersistedTaskFailure(RuntimeError):
 
 
 def _is_docker_sandbox() -> bool:
-    return (
-        settings.EIDO_SANDBOX_MODE or ""
-    ).lower() == "docker" and not settings.EIDO_TRUST_GATEWAY
+    """gateway 进程（docker / k8s 编排模式）下任务经由用户沙箱执行。"""
+    return settings.is_gateway_role
 
 
 def _conversation_title(task: dict) -> str:

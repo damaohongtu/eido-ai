@@ -54,3 +54,5 @@ itsdangerous>=2.0
 
 # Sandbox / gateway（仅 gateway 进程使用，user 容器不需要 docker SDK，但保留以共用镜像）
 docker>=7.1.0
+# K8s 沙盒编排（EIDO_SANDBOX_MODE=k8s，仅 gateway 进程使用）
+kubernetes>=28.1.0

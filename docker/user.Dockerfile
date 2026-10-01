@@ -4,8 +4,11 @@
 # - 不打包前端静态资源
 # - 不依赖 nginx / supervisor / logrotate
 # - 不挂载 /var/log/eido/nginx
-# - 入口直接 uvicorn，单进程；由 gateway 通过 docker SDK 编排
+# - 入口 tini + uvicorn，单进程；由 gateway 编排（docker SDK 或 K8s API）
 # - 默认环境 EIDO_TRUST_GATEWAY=1，让 backend/app/core/auth.py 接受 X-Eido-User-Id
+#
+# tini 作为 PID 1：docker 模式下等价 --init；K8s 无 --init 等价物，
+# Claude CLI 子进程退出后的僵尸进程必须由 init 进程回收
 
 ARG REGISTRY=docker.1ms.run
 FROM ${REGISTRY}/python:3.12-slim
@@ -24,6 +27,7 @@ RUN apt-get -o Acquire::Retries=5 update \
         git \
         telnet \
         vim \
+        tini \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && if ! command -v npm >/dev/null 2>&1; then \
@@ -69,4 +73,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8000/health || exit 1
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

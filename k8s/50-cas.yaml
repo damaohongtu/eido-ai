@@ -1,0 +1,126 @@
+# 可选：CAS 单点登录（本地验证用；生产替换为企业 CAS 并改 CAS_SERVER_URL）
+#
+# 网络设计：Service 的 port == nodePort == 31443，让浏览器与 gateway Pod 用
+# 完全相同的 URL 访问 CAS：
+# - 浏览器：/etc/hosts 加 `127.0.0.1 cas.eido-system.svc.cluster.local`，
+#   经 kind 宿主端口映射 31443 → 节点 31443
+# - gateway Pod：集群 DNS cas.eido-system.svc.cluster.local → ClusterIP:31443
+# 两侧 URL 一致，CAS 签发的 service ticket 回调校验才不会因 host 不同而失败。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cas-config
+  namespace: eido-system
+data:
+  application.properties: |
+    # 与 docker/cas/config/application.properties 保持一致
+    cas.service-registry.json.location=file:/etc/cas/services/
+    cas.service-registry.core.init-from-json=true
+    cas.service-registry.core.init-default-services=false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cas-services
+  namespace: eido-system
+data:
+  Localhost-10000001.json: |
+    {
+      "@class": "org.apereo.cas.services.RegexRegisteredService",
+      "serviceId": "^https?://.*",
+      "name": "Local dev allow http(s) callbacks",
+      "id": 10000001,
+      "evaluationOrder": 1
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cas
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: cas
+    app.kubernetes.io/part-of: eido
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cas
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cas
+        app.kubernetes.io/part-of: eido
+    spec:
+      containers:
+        - name: cas
+          image: apereo/cas:6.6.10
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            # 验证账号：test1/123456、test2/123456（生产环境必须替换）
+            - name: CAS_AUTHN_ACCEPT_USERS
+              value: casuser::Mellon,test1::123456,test2::123456,admin::admin123
+            - name: CAS_TGC_SECURE
+              value: "false"
+            - name: SERVER_SSL_ENABLED
+              value: "false"
+            - name: SERVER_PORT
+              value: "8080"
+            - name: CAS_SERVICE_REGISTRY_JSON_LOCATION
+              value: file:/etc/cas/services/
+            - name: CAS_SERVICE_REGISTRY_CORE_INIT_FROM_JSON
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1.5Gi
+          readinessProbe:
+            httpGet:
+              path: /cas/login
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /cas/login
+              port: 8080
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - name: cas-config
+              mountPath: /etc/cas/config
+            - name: cas-services
+              mountPath: /etc/cas/services
+      volumes:
+        - name: cas-config
+          configMap:
+            name: cas-config
+        - name: cas-services
+          configMap:
+            name: cas-services
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cas
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: cas
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: cas
+  ports:
+    # port 与 nodePort 必须相同（见顶部注释）
+    - name: http
+      port: 31443
+      targetPort: 8080
+      nodePort: 31443

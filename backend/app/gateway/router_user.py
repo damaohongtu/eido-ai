@@ -1,11 +1,11 @@
 """
 Gateway → user 沙箱 反代路由。
 
-当 EIDO_SANDBOX_MODE=docker 时，main 应用会改用本路由代替原来的
+当 EIDO_SANDBOX_MODE=docker|k8s 时，main 应用会改用本路由代替原来的
 chat / sessions / workspace 直连业务逻辑：
 - 入口仍解析 user_id（CAS session / Token / 受信网关头都不适用，但 gateway 自身
   以 CAS session 为准）
-- ensure_running(user_id) 后获得容器内部地址
+- ensure_running(user_id) 后获得沙盒内部地址（容器名或 Pod IP）
 - proxy_request 透传请求与响应（含 SSE）
 """
 

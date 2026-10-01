@@ -1,0 +1,26 @@
+# kind 集群配置：本地跑 DaoCloud DCE 5.0 社区版 + eido 沙盒多用户
+#
+# 前置：Docker Desktop 内存 ≥ 12GB、磁盘 ≥ 100GB（DCE 官方要求）
+# 用法：kind create cluster --config k8s/kind-eido-dce.yaml
+#
+# 端口映射（宿主 → kind 节点）：
+#   8888  → 32088   DCE 控制台（dce5-installer install-app -z -k <IP>:8888）
+#   19080 → 30080   eido gateway（http://localhost:19080/ai-eido/；
+#                    不能用 10080：它在浏览器封禁端口名单（amanda），
+#                    Chrome/Safari 访问会报 ERR_UNSAFE_PORT）
+#   31443 → 31443   CAS NodePort（浏览器与 Pod 同 URL，见 50-cas.yaml）
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: eido-dce
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 32088
+        hostPort: 8888
+        protocol: TCP
+      - containerPort: 30080
+        hostPort: 19080
+        protocol: TCP
+      - containerPort: 31443
+        hostPort: 31443
+        protocol: TCP

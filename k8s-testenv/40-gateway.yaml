@@ -1,0 +1,175 @@
+# eido gateway（K8s 沙盒编排模式）— 测试环境专用
+#
+# 与本地 k8s/40-gateway.yaml 仅 3 处不同：CAS_SERVER_URL（真实 CAS）、
+# CAS_SERVICE_URL / FRONTEND_URL（测试集群节点 NodePort 入口）。
+# 其余配置（资源限额、TTL、模型、管理员、存储大小）与本地完全一致。
+#
+# ⚠ 粘贴到 DCE 界面前必须替换 <节点IP> 占位符（2 处）。
+# CAS 地址已实测确认为 /cas 上下文；镜像已指向 192.168.98.65/molt-dev 仓库。
+#
+# 关键约束：
+# - replicas 必须 = 1：sandbox_registry.db / scheduled_tasks.db 是 PVC 上的
+#   SQLite，多副本会脑裂；扩容前需先迁移到外部存储。strategy 用 Recreate
+#   保证滚动更新时不出现双副本同时写库。
+# - EIDO_GATEWAY_INTERNAL_URL 指向本 Service 的集群内 DNS，user Pod 经由它
+#   回访 gateway（provider relay / 上传下载）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eido-gateway
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: eido-gateway
+    app.kubernetes.io/part-of: eido
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: eido-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: eido-gateway
+        app.kubernetes.io/part-of: eido
+        io.eido.role: gateway
+    spec:
+      serviceAccountName: eido-gateway
+      # 镜像内 nginx(80)/supervisord 以 root 运行，保持与 docker 部署一致
+      securityContext: {}
+      # 若镜像推送到了带认证的私有仓库，在此追加 imagePullSecrets（见 README）
+      containers:
+        - name: eido-gateway
+          image: 192.168.98.65/molt-dev/eido-gateway:latest
+          # 镜像在 192.168.98.65/molt-dev 仓库（tag 按实际推送的调整）。
+          # :latest + IfNotPresent 意味着节点已有同名镜像就不再拉取——
+          # 更新版本请换具体 tag（如 :test）
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          envFrom:
+            - secretRef:
+                name: eido-secrets
+          env:
+            # ---------- 沙盒编排（K8s）---------- #
+            - name: EIDO_SANDBOX_MODE
+              value: k8s
+            - name: EIDO_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # 与上面 image 保持同一仓库/版本；gateway 用它动态创建 user Pod
+            - name: EIDO_USER_IMAGE
+              value: 192.168.98.65/molt-dev/eido-user:latest
+            - name: EIDO_GATEWAY_INTERNAL_URL
+              value: http://eido-gateway.eido-system.svc.cluster.local/ai-eido
+            - name: EIDO_USER_INTERNAL_PORT
+              value: "8000"
+            - name: EIDO_TRUST_GATEWAY
+              value: "0"
+            - name: EIDO_K8S_SKILLS_CLAIM
+              value: eido-skills
+            - name: EIDO_K8S_USER_STORAGE
+              value: 5Gi
+            - name: EIDO_K8S_POD_READY_TIMEOUT
+              value: "120"
+            # 集群无默认 StorageClass 时，取消注释并填入实际 SC 名称
+            # - name: EIDO_K8S_STORAGE_CLASS
+            #   value: local-path
+            # 私有仓库拉取 user Pod 镜像的凭据（Secret 名），按需启用
+            # - name: EIDO_K8S_IMAGE_PULL_SECRET
+            #   value: eido-registry-secret
+            # ---------- 用户沙盒资源限额（user Pod）---------- #
+            - name: EIDO_USER_MEM
+              value: 2Gi
+            - name: EIDO_USER_CPUS
+              value: "1.0"
+            - name: EIDO_USER_TMPFS_SIZE
+              value: 512Mi
+            - name: EIDO_SANDBOX_IDLE_TTL
+              value: "900"
+            - name: EIDO_SANDBOX_HEALTH_TTL
+              value: "15"
+            # ---------- CAS / 前端 ---------- #
+            # 真实 CAS 地址（已实测确认部署在 /cas 上下文：
+            # http://192.168.127.32:60333/cas/login 可访问）
+            - name: CAS_SERVER_URL
+              value: http://192.168.127.32:60333/cas/
+            # ⚠ 替换 <节点IP> 为测试集群任一可达节点的 IP（NodePort 直连，
+            # 浏览器与 CAS 回调都用这个地址）
+            - name: CAS_SERVICE_URL
+              value: http://<节点IP>:30080/ai-eido/api/v1/auth/callback
+            - name: FRONTEND_URL
+              value: http://<节点IP>:30080/ai-eido/
+            - name: AUTH_DISABLED
+              value: "False"
+            # 管理员用户名：必须是真实 CAS 中存在的账号（登录用户名命中此
+            # 列表即获管理员权限，技能库安装等管理功能依赖它）
+            - name: EIDO_ADMIN_USERS
+              value: admin
+            # ---------- 模型（凭据在 eido-secrets）---------- #
+            - name: ANTHROPIC_MODEL
+              value: glm-5.2
+            - name: ANTHROPIC_SMALL_FAST_MODEL
+              value: glm-5.2
+            - name: CLAUDE_DEFAULT_RUNTIME_MODE
+              value: qa
+            - name: CLAUDE_COMPACT_PERCENT
+              value: "80"
+            - name: CLAUDE_SIMPLE_SYSTEM_PROMPT
+              value: "true"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            # gateway 持久化：sandbox_registry.db / scheduled_tasks.db
+            - name: gateway-data
+              mountPath: /workspace/.eido
+            # 技能库（gateway 读写管理；user Pod 以 subPath 只读挂载）
+            - name: skills
+              mountPath: /workspace/.claude/skills
+          readinessProbe:
+            httpGet:
+              path: /ai-eido/health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /ai-eido/health
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 5
+      volumes:
+        - name: gateway-data
+          persistentVolumeClaim:
+            claimName: eido-gateway-data
+        - name: skills
+          persistentVolumeClaim:
+            claimName: eido-skills
+---
+# 对外入口：NodePort 30080（浏览器 http://<节点IP>:30080/ai-eido/）
+apiVersion: v1
+kind: Service
+metadata:
+  name: eido-gateway
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: eido-gateway
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: eido-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080

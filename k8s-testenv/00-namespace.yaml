@@ -1,0 +1,7 @@
+# Eido 沙盒多用户命名空间
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eido-system
+  labels:
+    app.kubernetes.io/part-of: eido

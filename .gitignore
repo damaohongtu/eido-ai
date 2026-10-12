@@ -64,3 +64,5 @@ config.json
 
 # K8s 部署生成的凭据（k8s/gen-secret.sh 产出）
 k8s/30-secret.yaml
+# 测试环境部署包生成的凭据（k8s-testenv/gen-secret.sh 产出）
+k8s-testenv/30-secret.yaml

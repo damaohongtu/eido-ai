@@ -1,0 +1,39 @@
+# 静态存储：gateway 数据卷 + 共享技能库
+#
+# 每用户数据 PVC（eido-user-<safe>）由 gateway 在用户首次访问时动态创建，
+# 不在本清单内。
+#
+# 多节点集群注意：
+# - eido-skills 需被 gateway 与所有 user Pod 同时挂载。RWO 在单节点（kind）
+#   下可被同节点多个 Pod 同时挂载，够用；多节点集群必须改为 ReadWriteMany
+#   （NFS / CephFS 等 StorageClass），否则跨节点 Pod 无法挂载。
+# - eido-user-<safe> 为 RWO，跟随被调度的节点；若集群多节点且节点故障，
+#   PVC 需要 volume relocation 策略（或直接使用 RWX）。
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: eido-gateway-data
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: eido-gateway
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: eido-skills
+  namespace: eido-system
+  labels:
+    app.kubernetes.io/name: eido
+    io.eido.role: skills-library
+spec:
+  accessModes:
+    - ReadWriteOnce   # 多节点集群改为 ReadWriteMany（见顶部注释）
+  resources:
+    requests:
+      storage: 2Gi

@@ -133,7 +133,51 @@ cd k8s-testenv && ./gen-secret.sh
 - 产出 `30-secret.yaml`（敏感文件，已 gitignore，勿提交）。
 - kubectl 仅用于 `--dry-run=client` 生成 YAML，**不会连接集群**。
 
-## 四、DCE 控制台界面部署（按序操作）
+## 四、部署（kubectl 或 DCE 界面，二选一）
+
+两种方式操作同一套 K8s API，完全等价、可混用：任意一边创建/修改的对象，
+另一边都可见（如 RBAC 对象在界面无专门菜单，用 CloudShell 或 kubectl 查看）。
+
+### 方式一：kubectl（推荐）
+
+**1. 获取测试集群 kubeconfig**：DCE 界面 → 容器管理 → 集群列表 → 点进测试
+集群 → 右上角「KubeConfig」（可选有效期）→ 复制保存为本机文件。前提：本机
+能直连该集群 API Server（默认 6443 端口）。
+
+**2. 切换并确认 context**：⚠ 本机默认 context 是本地 kind 的 `eido-dce`，
+误用会把测试环境配置（CAS/入口 URL）覆盖到本地集群！
+
+```bash
+export KUBECONFIG=~/kubeconfigs/test-cluster.yaml   # 或合并进 ~/.kube/config
+kubectl config current-context
+```
+
+**3. 替换 `<节点IP>` 占位符**（`40-gateway.yaml` 两处，位置见文件内注释）。
+
+**4. 按序执行**：
+
+```bash
+kubectl apply -f k8s-testenv/00-namespace.yaml
+kubectl apply -f k8s-testenv/10-rbac.yaml
+kubectl apply -f k8s-testenv/20-storage.yaml
+kubectl apply -f k8s-testenv/30-secret.yaml
+kubectl apply -f k8s-testenv/40-gateway.yaml
+```
+
+**5. 观察就绪**（Pod Running、两个 PVC Bound）：
+
+```bash
+kubectl get pods,pvc -n eido-system -w
+```
+
+启动异常时排查（事件 + 日志）：
+
+```bash
+kubectl describe pod -n eido-system -l app.kubernetes.io/name=eido-gateway
+kubectl logs -n eido-system deploy/eido-gateway --tail=100
+```
+
+### 方式二：DCE 控制台界面（按序粘贴）
 
 前提：**容器管理** → 左侧集群列表中已接入测试集群。以下操作均在选中该集群
 后进行；菜单名称可能随 DCE 版本略有差异，找不到时统一走「YAML 创建」入口
@@ -151,16 +195,6 @@ cd k8s-testenv && ./gen-secret.sh
    **粘贴前确认 `<节点IP>` 占位符已替换**
 6. **等待就绪**：无状态负载 `eido-gateway` 副本 1/1、Pod Running、两个 PVC
    均已绑定（事件里无 Warning）
-
-### kubectl 等价操作（有 kubeconfig 时）
-
-```bash
-kubectl apply -f k8s-testenv/00-namespace.yaml
-kubectl apply -f k8s-testenv/10-rbac.yaml
-kubectl apply -f k8s-testenv/20-storage.yaml
-kubectl apply -f k8s-testenv/30-secret.yaml
-kubectl apply -f k8s-testenv/40-gateway.yaml
-```
 
 ## 五、部署后验证清单
 

@@ -185,10 +185,12 @@ export class ApiService {
   private async _fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const response = await fetch(input, { ...init, credentials: 'include' });
     if (response.status === 401) {
-      const loginUrl = `${BACKEND_URL}/api/v1/auth/login`;
       const isChromeExtension =
         typeof window !== 'undefined' &&
         window.location.protocol === 'chrome-extension:';
+      // 登录后回到当前页面（后端校验 next 仅允许站内相对路径；CAS 模式下后端忽略该参数）
+      const loginUrl = `${BACKEND_URL}/api/v1/auth/login` +
+        (isChromeExtension ? '' : `?next=${encodeURIComponent(window.location.pathname)}`);
       if (isChromeExtension) {
         window.dispatchEvent(new CustomEvent('eido-auth-required', { detail: { loginUrl } }));
         throw new Error('未登录，请在浏览器标签页完成登录后重试');

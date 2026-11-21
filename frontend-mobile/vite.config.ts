@@ -28,6 +28,10 @@ export default defineConfig({
       // 复用 PC 端逻辑层（service / types / constants），保持单一数据源、零漂移
       '@shared': path.resolve(__dirname, '..', 'frontend'),
     },
+    // @shared 指向 ../frontend，那里有独立的 node_modules/react（版本还不同）。
+    // 不去重会产生两个 React 实例：共享代码的 hooks 拿到 dispatcher 为 null
+    // 的那份，登录后挂载主界面即白屏（useState of null）
+    dedupe: ['react', 'react-dom'],
   },
   build: {
     outDir: 'dist',

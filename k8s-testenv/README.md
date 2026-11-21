@@ -207,7 +207,57 @@ kubectl logs -n eido-system deploy/eido-gateway --tail=100
 - [ ] 技能库为空属正常（新集群）：`EIDO_ADMIN_USERS` 对应的 CAS 账号登录后安装技能
 - [ ] 空闲 15 分钟（`EIDO_SANDBOX_IDLE_TTL=900`）后 user Pod 被回收、PVC 保留
 
-## 六、常见问题
+## 六、镜像升级与回滚
+
+### 推荐方式：换 tag（避开 :latest 缓存陷阱）
+
+```bash
+# 1. 构建推送新 tag（amd64 集群为例）
+docker buildx build --platform linux/amd64 -f docker/gateway.Dockerfile \
+  -t 192.168.98.65/molt-dev/eido-gateway:v1.1 --push .
+docker buildx build --platform linux/amd64 -f docker/user.Dockerfile \
+  -t 192.168.98.65/molt-dev/eido-user:v1.1 --push .
+
+# 2. 修改 40-gateway.yaml 两处 tag（image: 与 EIDO_USER_IMAGE）
+
+# 3. 应用并观察（Recreate 策略：先删旧 Pod 再起新 Pod，秒级中断）
+kubectl apply -f k8s-testenv/40-gateway.yaml
+kubectl rollout status deploy/eido-gateway -n eido-system
+```
+
+快捷方式（不推荐，会造成清单与实际状态漂移）：
+`kubectl set image deployment/eido-gateway eido-gateway=<新镜像> -n eido-system`
+
+**user 沙盒镜像的生效时机**：`EIDO_USER_IMAGE` 变更只影响**之后新建**的沙盒
+Pod，已运行的不热升级。等 idle GC（15 分钟）自然回收，或手动删除，用户下次
+访问时以新镜像重建（PVC 保留，数据不丢）：
+
+```bash
+kubectl delete pod eido-user-<用户名> -n eido-system
+```
+
+### 若坚持沿用 :latest
+
+先把 `40-gateway.yaml` 的 `imagePullPolicy` 改为 `Always` 并 apply，之后每次
+推完新镜像执行：
+
+```bash
+kubectl rollout restart deployment/eido-gateway -n eido-system
+```
+
+> ⚠ `IfNotPresent` 下 `rollout restart` **不会**重新拉镜像（节点有缓存直接
+> 用旧版），这就是推荐换 tag 的原因。
+
+### 回滚
+
+```bash
+kubectl rollout undo deployment/eido-gateway -n eido-system
+```
+
+> gateway 单副本 + Recreate：更新期间秒级中断；运行中的用户沙盒 Pod 不受
+> 影响，但其间经 gateway 的请求会失败。
+
+## 七、常见问题
 
 | 现象 | 原因与处理 |
 |---|---|

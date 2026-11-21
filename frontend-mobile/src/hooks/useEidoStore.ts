@@ -127,7 +127,10 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
         try {
             const user = await api.checkAuth();
             if (!user) {
-                const loginUrl = `${BACKEND_URL}/api/v1/auth/login`;
+                // 登录成功后要回到当前页面而不是桌面版首页（后端校验 next 必须是站内相对路径）
+                const loginUrl = extensionMode
+                    ? `${BACKEND_URL}/api/v1/auth/login`
+                    : `${BACKEND_URL}/api/v1/auth/login?next=${encodeURIComponent(window.location.pathname)}`;
                 if (extensionMode) {
                     setAuthRequired(true);
                     setAuthChecked(true);
@@ -476,8 +479,11 @@ export function useEidoStore(options: UseEidoStoreOptions = {}): EidoStore {
     }, []);
     const logout = useCallback(() => {
         removeStorage(ACTIVE_SESSION_KEY);
-        window.location.href = `${BACKEND_URL}/api/v1/auth/logout`;
-    }, []);
+        const url = extensionMode
+            ? `${BACKEND_URL}/api/v1/auth/logout`
+            : `${BACKEND_URL}/api/v1/auth/logout?next=${encodeURIComponent(window.location.pathname)}`;
+        window.location.href = url;
+    }, [extensionMode]);
     return {
         authChecked,
         authRequired,

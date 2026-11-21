@@ -5,7 +5,7 @@ Configuration management for the application.
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 # 工作区根目录（backend/app/core/ → backend/app/ → backend/ → workspace/）
@@ -38,6 +38,12 @@ class Settings(BaseSettings):
 
     # CAS / Session
     AUTH_DISABLED: bool = False
+    # 认证模式：cas（默认，跳转 CAS 单点登录）| local（本地账号密码，无需 CAS 服务）
+    AUTH_MODE: Literal["cas", "local"] = "cas"
+    # AUTH_MODE=local 的静态账号；密码仅存 PBKDF2 哈希
+    # （格式 pbkdf2:sha256:<iter>$<salt-hex>$<hash-hex>，见 app.core.local_auth）
+    LOCAL_AUTH_USERNAME: str = ""
+    LOCAL_AUTH_PASSWORD_HASH: SecretStr = SecretStr("")
     DEFAULT_DEV_USER_ID: str = "dev-local"
     # 须含 /cas 路径；末尾必须有 /，否则 python-cas 用 urljoin 会错误拼成 http://host/login
     CAS_SERVER_URL: str = "http://localhost:3331/cas/"
@@ -273,6 +279,18 @@ class Settings(BaseSettings):
         if not isinstance(v, str) or not v.strip():
             return v
         return v.rstrip("/") + "/"
+
+    @model_validator(mode="after")
+    def local_auth_must_be_configured(self) -> "Settings":
+        if self.AUTH_MODE == "local":
+            if (
+                not self.LOCAL_AUTH_USERNAME.strip()
+                or not self.LOCAL_AUTH_PASSWORD_HASH.get_secret_value().strip()
+            ):
+                raise ValueError(
+                    "AUTH_MODE=local 需要同时配置 LOCAL_AUTH_USERNAME 与 LOCAL_AUTH_PASSWORD_HASH"
+                )
+        return self
 
     class Config:
         env_file = ".env"

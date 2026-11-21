@@ -2,12 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "dce-console",
-      "url": "https://localhost:8888"
-    },
-    {
-      "name": "eido-frontend",
-      "url": "http://localhost:19080"
+      "name": "eido-mobile",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/tmp/serve-eido-mobile.py"],
+      "port": 4173
     }
   ]
 }

@@ -1,6 +1,6 @@
 """Single-flight behavior for session-scoped agent executions."""
 
-from app.services.chat_execution_guard import ChatExecutionGuard
+from app.services.chat.execution_guard import ChatExecutionGuard
 
 
 def test_guard_rejects_same_session_until_release_but_allows_other_sessions():

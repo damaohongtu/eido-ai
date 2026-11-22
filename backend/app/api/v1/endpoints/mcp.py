@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.auth import get_current_user_id
-from app.services.mcp_config_store import get_mcp_config_store
+from app.services.mcp.config_store import get_mcp_config_store
 
 router = APIRouter()
 _NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -140,8 +140,8 @@ class McpConfigFile(BaseModel):
 
 
 def _invalidate_user(user_id: str) -> None:
-    from app.services.claude_runtime import get_claude_runtime
-    from app.services.mcp_status_service import clear_mcp_status_cache
+    from app.services.claude.runtime import get_claude_runtime
+    from app.services.mcp.status import clear_mcp_status_cache
 
     clear_mcp_status_cache(user_id)
     service = get_claude_runtime()
@@ -189,7 +189,7 @@ async def list_servers(user_id: str = Depends(get_current_user_id)):
 
 @router.get("/status")
 async def server_statuses(refresh: bool = False, user_id: str = Depends(get_current_user_id)):
-    from app.services.mcp_status_service import get_mcp_server_statuses
+    from app.services.mcp.status import get_mcp_server_statuses
 
     return await get_mcp_server_statuses(user_id, refresh=refresh)
 

@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user_id
-from app.services.chat_execution_guard import get_chat_execution_guard
-from app.services.chat_session_store import get_chat_session_store
-from app.services.script_runner import run_script
-from app.services.session_workspace import get_session_workspace_manager
+from app.services.chat.execution_guard import get_chat_execution_guard
+from app.services.chat.session_store import get_chat_session_store
+from app.services.chat.session_workspace import get_session_workspace_manager
+from app.services.tasks.script_runner import run_script
 
 router = APIRouter()
 

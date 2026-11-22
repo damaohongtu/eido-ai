@@ -10,10 +10,10 @@ from pydantic import SecretStr
 
 from app.core.config import settings
 from app.core.logging_context import reset_session_id, set_session_id
-from app.services.claude_event_adapter import ClaudeEventAdapter
-from app.services.claude_prompt import auth_error, auth_summary, build_agent_env, build_prompt
-from app.services.claude_runtime import ClaudeRuntime
-from app.services.project_context import ProjectContext
+from app.services.claude.event_adapter import ClaudeEventAdapter
+from app.services.claude.prompt import auth_error, auth_summary, build_agent_env, build_prompt
+from app.services.claude.runtime import ClaudeRuntime
+from app.services.projects.context import ProjectContext
 
 
 def test_sdk_message_logging_keeps_complete_content(
@@ -72,8 +72,8 @@ def test_sdk_message_logging_keeps_complete_content(
 
     session_token = set_session_id("session-log-test")
     try:
-        with caplog.at_level(logging.DEBUG, logger="app.services.claude_event_adapter"):
-            ClaudeEventAdapter()._log_message(assistant)
+        with caplog.at_level(logging.DEBUG, logger="app.services.claude.event_adapter"):
+            ClaudeEventAdapter().log_message(assistant)
     finally:
         reset_session_id(session_token)
 
@@ -99,7 +99,7 @@ def test_skill_scan_caches_parsed_metadata_and_refreshes_on_change(
     skills_root = tmp_path / "skills"
     skill_dir = _write_skill(skills_root / "system", "demo", name="Demo", description="first")
     service = ClaudeRuntime(skills_root, tmp_path)
-    original = service._load_skill
+    original = service.catalog.read_metadata
     calls = 0
 
     def counted(*args, **kwargs):
@@ -107,24 +107,24 @@ def test_skill_scan_caches_parsed_metadata_and_refreshes_on_change(
         calls += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(service, "_load_skill", counted)
+    monkeypatch.setattr(service.catalog, "read_metadata", counted)
 
-    assert service.scan_skills()[0].description == "first"
+    assert service.catalog.scan_skills()[0].description == "first"
     assert calls == 1
-    assert service.scan_skills()[0].description == "first"
+    assert service.catalog.scan_skills()[0].description == "first"
     assert calls == 1
 
     # TTL 到期但 stat 指纹未变化时，仍不重新读取正文。
-    service._skill_cache[""].expires_at = 0
-    assert service.scan_skills()[0].description == "first"
+    service.catalog._skill_cache[""].expires_at = 0
+    assert service.catalog.scan_skills()[0].description == "first"
     assert calls == 1
 
     (skill_dir / "SKILL.md").write_text(
         "---\nname: Demo\ndescription: second and longer\n---\n",
         encoding="utf-8",
     )
-    service._skill_cache[""].expires_at = 0
-    assert service.scan_skills()[0].description == "second and longer"
+    service.catalog._skill_cache[""].expires_at = 0
+    assert service.catalog.scan_skills()[0].description == "second and longer"
     assert calls == 2
 
 
@@ -143,7 +143,7 @@ def test_native_skill_mapping_preserves_user_override(tmp_path: Path):
     cwd = tmp_path / "session"
     service = ClaudeRuntime(skills_root, tmp_path)
 
-    revision, count = service._materialize_native_skills(cwd, user_id="u1")
+    revision, count = service.catalog.materialize_native_view(cwd, user_id="u1")
 
     native_root = cwd / ".claude" / "skills"
     assert count == 2
@@ -157,12 +157,12 @@ def test_native_skill_mapping_preserves_user_override(tmp_path: Path):
     assert manifest["demo"] == str(private_demo.resolve())
     manifest_path = cwd / ".claude" / ".eido-native-skills.json"
     manifest_mtime = manifest_path.stat().st_mtime_ns
-    assert service._materialize_native_skills(cwd, user_id="u1") == (revision, count)
+    assert service.catalog.materialize_native_view(cwd, user_id="u1") == (revision, count)
     assert manifest_path.stat().st_mtime_ns == manifest_mtime
 
     (private_demo / "SKILL.md").unlink()
-    service.invalidate_skill_cache(user_id="u1")
-    service._materialize_native_skills(cwd, user_id="u1")
+    service.catalog.invalidate_skill_cache(user_id="u1")
+    service.catalog.materialize_native_view(cwd, user_id="u1")
     assert (native_root / "demo").resolve() == system_demo.resolve()
 
 
@@ -179,7 +179,7 @@ def test_resume_prompt_does_not_repeat_project_or_skill_catalog(tmp_path: Path):
     )
 
     first = build_prompt(
-        skills_dir=service.skills_dir,
+        skills_dir=service.catalog.skills_dir,
         fallback_skills_index="",
         cwd=tmp_path,
         latest_user_text="first request",
@@ -190,7 +190,7 @@ def test_resume_prompt_does_not_repeat_project_or_skill_catalog(tmp_path: Path):
         native_skills=True,
     )
     resumed = build_prompt(
-        skills_dir=service.skills_dir,
+        skills_dir=service.catalog.skills_dir,
         fallback_skills_index="",
         cwd=tmp_path,
         latest_user_text="follow up",

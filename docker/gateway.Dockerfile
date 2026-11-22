@@ -6,36 +6,16 @@
 # - 仍然内置 nginx 用于静态前端 + /api 反代到本机 8000（gateway 进程）
 # - 需要访问 docker daemon：运行时挂载 /var/run/docker.sock
 
-ARG REGISTRY=docker.1ms.run
-FROM ${REGISTRY}/python:3.12-slim
+ARG BASE_IMAGE=eido-base
+FROM ${BASE_IMAGE}
 
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl \
-        ca-certificates \
-        nginx \
-        supervisor \
-        logrotate \
-        fonts-dejavu-core \
-        fonts-noto-cjk \
-        libmagic1 \
-        poppler-utils \
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends nginx supervisor logrotate \
     && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    -i https://mirrors.aliyun.com/pypi/simple/ \
-    --extra-index-url https://pypi.org/simple \
-    --trusted-host mirrors.aliyun.com
 
 COPY backend/ .
 
 COPY frontend/dist /var/www/ai-eido
-# 移动端 H5 静态资源（base=/ai-eido/m/），需在 PC 端 COPY 之后，避免被覆盖
-COPY frontend-mobile/dist /var/www/ai-eido/m
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default

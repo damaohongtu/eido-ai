@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.core.auth import get_current_user_id
-from app.services.chat_session_store import get_chat_session_store
+from app.services.chat.session_store import get_chat_session_store
 
 router = APIRouter()
 

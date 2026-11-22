@@ -1,16 +1,6 @@
-"""
-API router aggregator for v1 endpoints.
+"""Register public, proxied and sandbox-only routes for the current role."""
 
-布局思路：
-- gateway / 单租户模式（默认）：聚合所有路由 — auth, chat, sessions, workspace, skills, tasks
-- sandbox 模式（gateway 启用 docker|k8s 编排）：
-  gateway 进程把 chat/sessions/workspace/upload 替换成 router_user 反代到用户沙盒；
-  其余路由（auth, skills, tasks）继续走 gateway 自身。
-
-user 沙箱容器内：路由聚合走 _user_only_router()，仅保留 chat / sessions / workspace。
-"""
-
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.api.v1.endpoints import (
     auth,
@@ -25,55 +15,44 @@ from app.api.v1.endpoints import (
 )
 from app.core.config import settings
 
-
-def _is_user_sandbox_runtime() -> bool:
-    """user 容器以 EIDO_TRUST_GATEWAY=1 启动；该开关为 True 即视为 user runtime。"""
-    return bool(settings.EIDO_TRUST_GATEWAY)
-
-
-def _is_gateway_sandbox_mode() -> bool:
-    """docker / k8s 两种沙盒编排模式下，gateway 进程都以反代路由对外。"""
-    return settings.is_gateway_role
-
-
 api_router = APIRouter()
 
+if not settings.EIDO_TRUST_GATEWAY:
+    api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+    api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
+    api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 
-if _is_user_sandbox_runtime():
-    from app.gateway.runtime import router as runtime_router
-
-    api_router.include_router(runtime_router, tags=["internal"])
-    # eido-user 容器：仅暴露业务执行路由
-    api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
-    api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
-    api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
-    api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
-    api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
-    api_router.include_router(search.router, prefix="/search", tags=["search"])
-elif _is_gateway_sandbox_mode():
-    # eido-gateway：业务路由用反代，其它路由直连
-    from app.gateway import provider
+if settings.is_gateway_role:
+    from app.gateway import provider, router_user
 
     api_router.include_router(provider.router, tags=["provider"])
-    from app.gateway import router_user  # 延迟导入，避免单镜像部署时强依赖 docker SDK
-
-    api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-    api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
-    api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
     api_router.include_router(router_user.router, tags=["sandbox-proxy"])
+    api_router.add_api_route(
+        "/chat/models",
+        chat.list_models,
+        methods=["GET"],
+        tags=["sandbox-proxy"],
+        dependencies=[Depends(router_user.resolve_user_id)],
+    )
+    legacy_chat_endpoint = router_user.proxy_chat_chat
 else:
-    # 默认/单租户：保留原有聚合
-    api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-    api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
-    api_router.include_router(sessions.router, prefix="/sessions", tags=["sessions"])
-    api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
-    api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
-    api_router.include_router(skills.router, prefix="/skills", tags=["skills"])
-    api_router.include_router(workspace.router, prefix="/workspace", tags=["workspace"])
-    api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
-    api_router.include_router(search.router, prefix="/search", tags=["search"])
+    legacy_chat_endpoint = chat.chat_completion
+    for prefix, endpoints in (
+        ("chat", chat),
+        ("sessions", sessions),
+        ("projects", projects),
+        ("workspace", workspace),
+        ("mcp", mcp),
+        ("search", search),
+    ):
+        api_router.include_router(endpoints.router, prefix=f"/{prefix}", tags=[prefix])
 
-    # 让单租户也支持 sandbox/warmup（no-op）以便前端代码逻辑统一
-    @api_router.post("/sandbox/warmup", tags=["sandbox"])
-    async def _warmup_local():
-        return {"ready": True, "mode": "local"}
+    if settings.EIDO_TRUST_GATEWAY:
+        from app.gateway.runtime import router as runtime_router
+
+        api_router.include_router(runtime_router, tags=["internal"])
+    else:
+
+        @api_router.post("/sandbox/warmup", tags=["sandbox"])
+        async def _warmup_local():
+            return {"ready": True, "mode": "local"}

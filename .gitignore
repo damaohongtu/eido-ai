@@ -1,11 +1,10 @@
 __MACOSX
 node_modules
 .env
+.env.local
+.env.test
 .DS_Store
 dist
-frontend-extension/release/
-frontend-extension/*.crx
-frontend-extension/*.pem
 
 # Python
 __pycache__/

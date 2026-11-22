@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.services.mcp_config_store import SECRET_SENTINEL, McpConfigStore
+from app.services.mcp.config_store import SECRET_SENTINEL, McpConfigStore
 
 
 def test_mcp_store_encrypts_redacts_and_restores_secrets(tmp_path: Path):

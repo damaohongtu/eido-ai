@@ -3,8 +3,7 @@ Gateway → user 沙箱 反代路由。
 
 当 EIDO_SANDBOX_MODE=docker|k8s 时，main 应用会改用本路由代替原来的
 chat / sessions / workspace 直连业务逻辑：
-- 入口仍解析 user_id（CAS session / Token / 受信网关头都不适用，但 gateway 自身
-  以 CAS session 为准）
+- 入口根据登录会话、API Key 或任务 Token 解析 user_id
 - ensure_running(user_id) 后获得沙盒内部地址（容器名或 Pod IP）
 - proxy_request 透传请求与响应（含 SSE）
 """
@@ -44,6 +43,12 @@ async def resolve_user_id(user_id: str = Depends(get_current_user_id)) -> str:
 async def proxy_chat_chat(request: Request, user_id: str = Depends(resolve_user_id)):
     handle = await get_sandbox_manager().ensure_running(user_id)
     return await proxy_request(request, handle, upstream_path="/api/v1/chat/chat")
+
+
+@router.post("/chat/completions")
+async def proxy_chat_completions(request: Request, user_id: str = Depends(resolve_user_id)):
+    handle = await get_sandbox_manager().ensure_running(user_id)
+    return await proxy_request(request, handle, upstream_path="/api/v1/chat/completions")
 
 
 @router.post("/chat/upload")
@@ -171,11 +176,3 @@ async def sandbox_status(user_id: str = Depends(resolve_user_id)):
         "container": row["container_name"],
         "last_active_at": row["last_active_at"],
     }
-
-
-@router.get("/chat/models")
-async def proxy_models(user_id: str = Depends(resolve_user_id)):
-    # Catalog is configuration, so opening the selector need not boot a container.
-    from app.api.v1.endpoints.chat import list_models
-
-    return await list_models(user_id)

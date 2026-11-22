@@ -6,35 +6,23 @@
 
 ## 目录结构
 
-```
-backend/
-├── app/
-│   ├── main.py                     # FastAPI 应用入口、启动事件
-│   ├── api/v1/
-│   │   ├── api.py                  # 路由注册
-│   │   └── endpoints/
-│   │       ├── chat.py             # POST /chat/chat — 对话与技能执行
-│   │       ├── skills.py           # GET  /skills/   — 技能列表与详情
-│   │       └── mcp.py              # MCP Server 配置与状态
-│   ├── core/
-│   │   └── config.py               # Pydantic Settings（读取 .env）
-│   ├── schemas/
-│   │   └── chat.py                 # 请求/响应 Pydantic 模型
-│   └── services/
-│       ├── claude_runtime.py       # Claude Code 单轮执行编排
-│       ├── claude_session_pool.py  # 常驻 SDK 会话生命周期
-│       ├── claude_sdk_session.py   # 单个 ClaudeSDKClient owner task
-│       ├── claude_event_adapter.py # SDK 消息到 SSE 的转换
-│       ├── claude_prompt.py        # prompt、环境变量与认证检查
-│       └── skill_catalog.py        # 技能扫描与原生 Skills 映射
-├── alembic/                        # 数据库迁移（保留备用）
-├── scripts/                        # 辅助脚本
-├── requirements.txt
-├── run.py                          # 开发启动入口
-└── .env.example                    # 环境变量模板
-```
+- `app/main.py` 组装 FastAPI 应用、中间件和路由。
+- `app/lifecycle.py` 按部署角色启动和关闭存储、Claude 会话池、调度器及沙盒管理器。
+- `app/api/v1/` 定义 HTTP 请求、响应和 SSE。
+- `app/services/` 按功能划分，具体目录见下表。
+- `app/gateway/` 负责沙盒编排、业务转发和模型代理。
+- `app/core/` 提供配置、认证、租户标识和日志。
+- `requirements.txt` 是应用和镜像共用的依赖声明，`run.py` 是开发启动入口。
 
----
+| 服务目录 | 职责 |
+| --- | --- |
+| `chat/` | 对话执行、队列、会话存储和会话工作区 |
+| `claude/` | 模型目录、提示词、原生会话和 SDK 执行 |
+| `skills/` | 技能目录、导入和文件管理 |
+| `mcp/` | MCP 配置存储和状态查询 |
+| `projects/` | 项目上下文和共享资料工作区 |
+| `tasks/` | 定时任务存储、调度和执行 |
+| `files/` | 文件预览和文件类型规则 |
 
 ## 快速启动
 
@@ -82,39 +70,42 @@ python run.py
 
 ## API 说明
 
-### POST `/api/v1/chat/chat`
+### POST `/api/v1/chat/completions`
 
-统一对话入口，根据 `skill_id` 决定执行模式。
+通过 CAS 登录后获取的固定 API Key 调用。传入 `session_id` 时自动创建不存在的会话，
+已有会话继续对话；省略时生成新的 ID。响应头 `X-Session-Id` 返回实际会话 ID。
+ID 允许 1–64 位字母、数字、下划线、连字符；其他用户占用的 ID 返回 404，
+会话正在执行时返回 409。同一个 ID 的并发创建只保留一个会话。
 
-**携带 `skill_id`（技能执行模式）：**
-```json
-{
-  "messages": [
-    {"role": "user", "content": "@A股财报点评 分析中望软件2024年报"}
-  ],
-  "skill_id": "financial-report-analyst",
-  "context": "（可选）上一步技能的输出，用于多技能流水线",
-  "stream": true
-}
+```bash
+curl -iN 'http://localhost:19080/ai-eido/api/v1/chat/completions' \
+  -H "X-API-Key: $EIDO_API_KEY" \
+  -H 'Accept: text/event-stream' \
+  --json '{"session_id":"external-chat-001","messages":[{"role":"user","content":"你好"}]}'
 ```
 
-响应为 SSE 流，事件类型：
+`assistant_message_id` 可选，省略时自动生成。`model`、`runtime_mode` 可选，
+新会话使用服务端默认值，已有会话保留当前设置；显式传入时切换设置。
+`context` 可传入额外上下文。技能通过消息中的 `@技能名` 调用。
+
+响应为 SSE 流，以 `data: [DONE]` 结束，常见事件类型如下。
 
 | type | 说明 |
 |------|------|
 | `thinking` | 执行状态提示 |
-| `workflow_start` | 技能开始执行 |
 | `content` | 正文增量内容 |
 | `tool_use` | 工具调用信息 |
-| `workflow_complete` | 执行完成 |
 | `error` | 执行错误 |
 
-**不携带 `skill_id`（普通对话模式）：**
+### POST `/api/v1/chat/chat`
+
+原有接口继续使用已创建的会话，必须传入 `session_id` 和 `assistant_message_id`。
+
 ```json
 {
-  "messages": [{"role": "user", "content": "你好"}],
-  "stream": true,
-  "temperature": 0.7
+  "session_id": "已有会话ID",
+  "assistant_message_id": "assistant-001",
+  "messages": [{"role": "user", "content": "你好"}]
 }
 ```
 
@@ -142,25 +133,8 @@ python run.py
 
 ---
 
-## 技能服务（ClaudeRuntime）
+## 技能和对话执行
 
-核心服务位于 `app/services/claude_runtime.py`：
+`SkillCatalog` 读取技能元数据并生成 Claude Code 的原生技能视图。创建、修改和导入由 `SkillManagementService` 处理。目录变更会使相应用户的常驻 Claude 客户端失效。
 
-- **`scan_skills()`** — 扫描 `SKILLS_DIR`，解析每个子目录的 `SKILL.md` frontmatter
-- **`get_skill(skill_id)`** — 按目录名加载单个技能
-- **`execute_stream(messages, context, ...)`** — 构建 prompt，优先复用 session 级 `ClaudeSDKClient`，以 SSE 格式流式返回
-
-Prompt 结构：
-```
-{技能 SKILL.md 全文}
-
----
-
-## 对话历史
-
-**用户**: ...
-**助手**: ...（较旧的截断至 300 字符）
-**用户**: 当前请求（完整保留）
-
-[## 上一步执行结果  ← 仅多技能流水线时附加]
-```
+`ClaudeRuntime.stream_events()` 编排会话续接和恢复，`claude/turn.py` 驱动单轮 SDK 执行。HTTP 对话、排队消息和定时任务都消费结构化事件。HTTP 路由将事件编码为 SSE。

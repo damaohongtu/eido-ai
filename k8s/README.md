@@ -45,8 +45,7 @@ kubectl config use-context kind-eido-dce
 
 ```bash
 # 仓库根目录
-docker build -f docker/gateway.Dockerfile -t damaohongtu/eido-gateway:latest .
-docker build -f docker/user.Dockerfile    -t damaohongtu/eido-user:latest .
+docker buildx bake -f docker/docker-bake.hcl --load
 
 kind load docker-image damaohongtu/eido-gateway:latest --name eido-dce
 kind load docker-image damaohongtu/eido-user:latest    --name eido-dce

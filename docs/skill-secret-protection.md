@@ -138,7 +138,7 @@ def skill_secret_values(self) -> set[str]:
 
 #### 3.1.3 运行时注入
 
-`claude_runtime.py` 的 `execute_stream` 在构建 `agent_env` 时注入：
+`claude/runtime.py` 的 `stream_events` 在构建 `agent_env` 时注入：
 
 ```python
 agent_env: dict[str, str] = {}
@@ -169,7 +169,7 @@ options = ClaudeAgentOptions(
 
 #### 3.2.1 Agent Prompt 安全指令
 
-在 `execute_stream` 构建的 prompt 中增加强制安全规则：
+在 `stream_events` 构建的 prompt 中增加强制安全规则：
 
 ```
 ## 安全规则（必须遵守）
@@ -327,7 +327,7 @@ flowchart LR
 1. **技能开发者** 在 SKILL.md 的 frontmatter `metadata.requires.env` 中声明需要的环境变量名
 2. **技能脚本** 通过 `os.environ.get("VAR_NAME")` 读取，缺失时打印错误并退出
 3. **系统管理员** 在 `backend/.env` 中添加 `SKILL_SECRET__VAR_NAME=实际值`
-4. **后端** `execute_stream` 自动提取 `SKILL_SECRET__` 前缀的条目，注入到 Agent 子进程环境
+4. **后端** `stream_events` 自动提取 `SKILL_SECRET__` 前缀的条目，注入到 Agent 子进程环境
 5. **技能脚本** 无感知地从 `os.environ` 获取到密钥值
 
 ### 4.5 密钥轮换流程
@@ -420,7 +420,7 @@ def load_config(config_path: str = None) -> Dict:
 |------|------|
 | `backend/app/core/config.py` | 增加 `skill_secrets` / `skill_secret_values` 属性 |
 | `backend/app/core/secret_filter.py` | **新增** — 密钥脱敏过滤器 |
-| `backend/app/services/claude_runtime.py` | 注入密钥到 `agent_env`、prompt 安全规则、SSE/日志脱敏 |
+| `backend/app/services/claude/runtime.py` | 注入密钥到 `agent_env`、prompt 安全规则、SSE/日志脱敏 |
 | `backend/.env` | 增加 `SKILL_SECRET__*` 条目 |
 
 ### 技能脚本（2 个文件）

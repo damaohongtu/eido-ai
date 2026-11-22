@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.services.chat_session_store import ChatSessionStore
+from app.services.chat.session_store import ChatSessionStore
 
 
 def test_search_navigation_finds_projects_titles_and_message_content(tmp_path: Path):

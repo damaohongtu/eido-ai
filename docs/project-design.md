@@ -221,7 +221,7 @@ Project schema 版本沿用单调递增规则：v1 为 Project、Session 归属�
 2. 发布新版 user image。
 3. 发布支持 `/projects/**` 反代的 gateway/backend。
 4. 执行 Project CRUD、历史会话和重启持久化 smoke。
-5. 最后发布 PC、移动端和 Chrome extension。
+5. 最后发布桌面 Web。
 
 Sandbox 模式下，已运行的旧 `eido-user-*` 容器不会自动变成新镜像。升级时应 stop/remove 旧
 user 容器但保留同名 volume，随后由 gateway 懒启动新容器并执行迁移。长期应给 user 容器增加

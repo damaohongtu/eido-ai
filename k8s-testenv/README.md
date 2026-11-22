@@ -95,10 +95,8 @@ kubectl get svc -A | grep 30080
 前置检查第 1 项）：
 
 ```bash
-docker buildx build --platform linux/amd64 -f docker/gateway.Dockerfile \
-  -t 192.168.98.65/molt-dev/eido-gateway:latest --push .
-docker buildx build --platform linux/amd64 -f docker/user.Dockerfile \
-  -t 192.168.98.65/molt-dev/eido-user:latest --push .
+IMAGE_REPOSITORY=192.168.98.65/molt-dev \
+  docker buildx bake -f docker/docker-bake.hcl --set '*.platform=linux/amd64' --push
 ```
 
 若仓库需要认证：gateway Deployment 的 `spec.template.spec` 加
@@ -108,10 +106,7 @@ docker buildx build --platform linux/amd64 -f docker/user.Dockerfile \
 ### 备选：无仓库时逐节点导入（每个节点都要执行）
 
 ```bash
-docker buildx build --platform linux/amd64 -f docker/gateway.Dockerfile \
-  -t damaohongtu/eido-gateway:latest --load .
-docker buildx build --platform linux/amd64 -f docker/user.Dockerfile \
-  -t damaohongtu/eido-user:latest --load .
+docker buildx bake -f docker/docker-bake.hcl --set '*.platform=linux/amd64' --load
 docker save damaohongtu/eido-gateway:latest damaohongtu/eido-user:latest \
   | gzip > eido-images.tar.gz
 # 拷到每个节点后执行：
@@ -213,10 +208,8 @@ kubectl logs -n eido-system deploy/eido-gateway --tail=100
 
 ```bash
 # 1. 构建推送新 tag（amd64 集群为例）
-docker buildx build --platform linux/amd64 -f docker/gateway.Dockerfile \
-  -t 192.168.98.65/molt-dev/eido-gateway:v1.1 --push .
-docker buildx build --platform linux/amd64 -f docker/user.Dockerfile \
-  -t 192.168.98.65/molt-dev/eido-user:v1.1 --push .
+IMAGE_REPOSITORY=192.168.98.65/molt-dev IMAGE_TAG=v1.1 \
+  docker buildx bake -f docker/docker-bake.hcl --set '*.platform=linux/amd64' --push
 
 # 2. 修改 40-gateway.yaml 两处 tag（image: 与 EIDO_USER_IMAGE）
 

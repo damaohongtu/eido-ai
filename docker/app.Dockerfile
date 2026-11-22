@@ -1,50 +1,18 @@
 # Frontend static files must be built locally before building this image:
 #   cd frontend && npm run build
-#   cd frontend-mobile && npm run build   # 移动端 H5
 
-# ARG REGISTRY allows overriding the base image registry
-# Default uses a Chinese mirror; international: --build-arg REGISTRY=
-ARG REGISTRY=docker.1ms.run
-FROM ${REGISTRY}/python:3.12-slim
+ARG BASE_IMAGE=eido-base
+FROM ${BASE_IMAGE}
 
-# Use Aliyun apt mirror for faster package downloads in China
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        curl \
-        ca-certificates \
-        nginx \
-        supervisor \
-        logrotate \
-        fonts-dejavu-core \
-        fonts-noto-cjk \
-        libmagic1 \
-        poppler-utils \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends nginx supervisor logrotate \
     && rm -rf /var/lib/apt/lists/*
 
-# Install claude CLI via npmmirror (Taobao)
-
-# Install Python dependencies via Aliyun PyPI mirror
-WORKDIR /app
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    -i https://mirrors.aliyun.com/pypi/simple/ \
-    --extra-index-url https://pypi.org/simple \
-    --trusted-host mirrors.aliyun.com
-# Expose the SDK's bundled CLI; one pinned dependency owns both SDK and CLI.
-RUN ln -sf $(python -c 'import claude_agent_sdk,pathlib; print(pathlib.Path(claude_agent_sdk.__file__).parent / "_bundled" / "claude")') /usr/local/bin/claude
-
-# Copy backend source
 COPY backend/ .
 
 # Copy pre-built frontend static files
 # Must be at /var/www/ai-eido/ so nginx root /var/www works correctly
 COPY frontend/dist /var/www/ai-eido
-# 移动端 H5 静态资源（base=/ai-eido/m/），需在 PC 端 COPY 之后，避免被覆盖
-COPY frontend-mobile/dist /var/www/ai-eido/m
 
 # nginx & supervisor config
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

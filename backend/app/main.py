@@ -2,106 +2,27 @@
 Main FastAPI application entrypoint.
 """
 
-import asyncio
-import shutil
+import logging
+import time
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from app.core.config import settings
-from app.api.v1.api import api_router
-import logging
-from logging.handlers import TimedRotatingFileHandler
-import time
-from pathlib import Path
 
+from app.api.v1.api import api_router, legacy_chat_endpoint
+from app.core.config import settings
 from app.core.logging_context import (
     TRACE_ID_HEADER,
-    TraceIdFilter,
+    configure_logging,
     reset_session_id,
     reset_trace_id,
     resolve_trace_id,
     set_session_id,
     set_trace_id,
 )
+from app.lifecycle import application_lifespan
 
-
-def _migrate_legacy_skills(skills_dir: Path) -> None:
-    """把旧的扁平 SKILLS_DIR/<id> 目录迁移到 SKILLS_DIR/system/<id>。
-
-    幂等：仅迁移 SKILLS_DIR 顶层中含 SKILL.md 的子目录；system/、users/、
-    其他非技能文件保持原状。
-    """
-    if not skills_dir.exists():
-        return
-    system_dir = skills_dir / "system"
-    users_dir = skills_dir / "users"
-    try:
-        system_dir.mkdir(parents=True, exist_ok=True)
-        users_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as e:
-        logging.getLogger(__name__).warning("准备 skills 子目录失败: %s", e)
-        return
-
-    moved = 0
-    for entry in skills_dir.iterdir():
-        if entry.name in ("system", "users"):
-            continue
-        if not entry.is_dir():
-            continue
-        if not (entry / "SKILL.md").exists():
-            continue
-        target = system_dir / entry.name
-        if target.exists():
-            logging.getLogger(__name__).info("跳过迁移（system 区已存在同名）: %s", entry.name)
-            continue
-        try:
-            shutil.move(str(entry), str(target))
-            moved += 1
-        except Exception as e:
-            logging.getLogger(__name__).warning("迁移技能失败 %s: %s", entry.name, e)
-    if moved:
-        logging.getLogger(__name__).info("已迁移 %d 个旧技能目录到 %s", moved, system_dir)
-
-
-log_dir = Path(settings.LOG_DIR)
-log_dir.mkdir(parents=True, exist_ok=True)
-
-detailed_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - [traceId=%(trace_id)s] - "
-    "[sessionId=%(session_id)s] - "
-    "[%(filename)s:%(lineno)d] - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-trace_id_filter = TraceIdFilter()
-
-root_logger = logging.getLogger()
-root_logger.setLevel(settings.LOG_LEVEL)
-
-console_handler = logging.StreamHandler()
-console_handler.setLevel(settings.LOG_LEVEL)
-console_handler.setFormatter(detailed_formatter)
-console_handler.addFilter(trace_id_filter)
-
-file_handler = TimedRotatingFileHandler(
-    log_dir / "app.log", when="midnight", backupCount=7, encoding="utf-8"
-)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(detailed_formatter)
-file_handler.addFilter(trace_id_filter)
-file_handler.suffix = "%Y-%m-%d"
-
-error_handler = TimedRotatingFileHandler(
-    log_dir / "error.log", when="midnight", backupCount=7, encoding="utf-8"
-)
-error_handler.setLevel(logging.ERROR)
-error_handler.setFormatter(detailed_formatter)
-error_handler.addFilter(trace_id_filter)
-error_handler.suffix = "%Y-%m-%d"
-
-root_logger.addHandler(console_handler)
-root_logger.addHandler(file_handler)
-root_logger.addHandler(error_handler)
+configure_logging(settings.LOG_DIR, settings.LOG_LEVEL)
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +32,7 @@ def create_application() -> FastAPI:
 
     app = FastAPI(
         title=settings.PROJECT_NAME,
+        lifespan=application_lifespan,
         version=settings.VERSION,
         openapi_url=f"{settings.API_V1_STR}/openapi.json",
         docs_url=f"{settings.API_V1_STR}/docs",
@@ -124,6 +46,7 @@ def create_application() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["X-Session-Id"],
     )
 
     app.add_middleware(
@@ -178,22 +101,7 @@ def create_application() -> FastAPI:
     # Include API router
     app.include_router(api_router, prefix=settings.API_V1_STR)
 
-    # Legacy route for backward compatibility
-    @app.post("/api/chat")
-    async def legacy_chat_endpoint(raw_request: Request):
-        """Legacy chat endpoint for backward compatibility."""
-        from app.api.v1.endpoints.chat import chat_completion
-        from app.schemas.chat import ChatRequest
-        from app.core.auth import get_current_user_id
-
-        if settings.is_gateway_role:
-            from app.gateway.router_user import proxy_chat_chat
-
-            return await proxy_chat_chat(raw_request, user_id=get_current_user_id(raw_request))
-        body = await raw_request.json()
-        chat_request = ChatRequest(**body)
-        user_id = get_current_user_id(raw_request)
-        return await chat_completion(chat_request, raw_request, user_id=user_id)
+    app.add_api_route("/api/chat", legacy_chat_endpoint, methods=["POST"])
 
     @app.get("/")
     async def root():
@@ -207,187 +115,13 @@ def create_application() -> FastAPI:
     @app.get("/health")
     async def health():
         """Health check endpoint."""
-        from app.services.chat_execution_guard import get_chat_execution_guard
+        from app.services.chat.execution_guard import get_chat_execution_guard
 
         return {
             "status": "healthy",
             "version": settings.VERSION,
             "active_runs": get_chat_execution_guard().active_count(),
         }
-
-    @app.on_event("startup")
-    async def startup_event():
-        """应用启动事件：根据运行模式初始化对应组件。
-
-        三种角色：
-        - user-runtime（EIDO_TRUST_GATEWAY=1）：仅初始化技能服务、会话存储与工作区
-        - gateway（EIDO_SANDBOX_MODE=docker|k8s）：初始化 sandbox manager + 调度器（gateway 自身负责触发），
-          技能服务用于跨用户共享只读
-        - 单租户/local：保留原有完整初始化
-        """
-        from pathlib import Path
-        from app.services.claude_runtime import init_claude_runtime
-        from app.services.skill_management_service import init_skill_management_service
-        from app.services.scheduled_task_store import ScheduledTaskStore
-        from app.services.chat_session_store import init_chat_session_store
-        from app.services.project_workspace import (
-            get_project_workspace_manager,
-            retry_pending_storage_cleanup,
-        )
-        from app.services.session_workspace import get_session_workspace_manager
-        from app.services import scheduler_service
-        from app.api.v1.endpoints import tasks as tasks_ep
-
-        is_user_runtime = bool(settings.EIDO_TRUST_GATEWAY)
-        is_gateway = settings.is_gateway_role
-
-        logger.info("=" * 60)
-        if is_user_runtime:
-            logger.info(f"启动为 USER 沙箱容器 user_id={settings.EIDO_USER_ID}")
-        elif is_gateway:
-            logger.info(f"启动为 GATEWAY 进程（EIDO_SANDBOX_MODE={settings.sandbox_orchestrator_mode}）")
-        else:
-            logger.info("启动为单租户/兼容模式（EIDO_SANDBOX_MODE=local）")
-        logger.info("=" * 60)
-
-        # ---------- 技能服务（user / gateway / local 都需要）---------- #
-        try:
-            skills_dir = Path(settings.SKILLS_DIR)
-            workspace_root = Path(settings.WORKSPACE_ROOT)
-            # gateway / local 角色负责数据迁移；user 容器内技能目录是只读的
-            if not is_user_runtime:
-                _migrate_legacy_skills(skills_dir)
-            svc = init_claude_runtime(skills_dir, workspace_root)
-            init_skill_management_service(skills_dir, workspace_root, svc)
-            skill_count = len(svc.scan_skills())
-            logger.info(f"✓ 技能服务初始化完成: 发现 {skill_count} 个 system 技能")
-        except Exception as e:
-            logger.error(f"✗ 技能服务初始化失败: {e}", exc_info=True)
-            raise
-
-        # ---------- 会话工作区 / 会话存储（user 与 local 需要；gateway 不需要）---------- #
-        if not is_gateway:
-            try:
-                ws = get_session_workspace_manager()
-                logger.info(f"✓ 会话工作区根目录: {ws.root}")
-            except Exception as e:
-                logger.error(f"✗ 会话工作区初始化失败: {e}", exc_info=True)
-                raise
-
-            try:
-                project_ws = get_project_workspace_manager()
-                logger.info(f"✓ 项目资料根目录: {project_ws.root}")
-            except Exception as e:
-                logger.error(f"✗ 项目资料工作区初始化失败: {e}", exc_info=True)
-                raise
-
-            try:
-                chat_store = init_chat_session_store()
-                logger.info("✓ 会话存储 (ChatSessionStore) 初始化完成")
-                cleanup = retry_pending_storage_cleanup(chat_store)
-                if cleanup["completed"] or cleanup["failed"] or cleanup["missing"]:
-                    logger.info(
-                        "项目存储对账: completed=%s failed=%s missing=%s",
-                        cleanup["completed"],
-                        cleanup["failed"],
-                        cleanup["missing"],
-                    )
-
-                async def project_cleanup_loop() -> None:
-                    while True:
-                        await asyncio.sleep(300)
-                        try:
-                            result = await asyncio.to_thread(
-                                retry_pending_storage_cleanup,
-                                chat_store,
-                                reconcile_orphans=False,
-                            )
-                            if result["completed"] or result["failed"]:
-                                logger.info(
-                                    "项目存储周期清理: completed=%s failed=%s",
-                                    result["completed"],
-                                    result["failed"],
-                                )
-                        except asyncio.CancelledError:
-                            raise
-                        except Exception:
-                            logger.exception("项目存储周期清理异常")
-
-                app.state.project_storage_cleanup_task = asyncio.create_task(project_cleanup_loop())
-            except Exception as e:
-                logger.error(f"✗ 会话存储初始化失败: {e}", exc_info=True)
-                raise
-
-        # ---------- 定时任务调度（gateway 与 local 需要；user 容器不跑调度）---------- #
-        if not is_user_runtime:
-            try:
-                store = ScheduledTaskStore()
-                store.connect()
-                tasks_ep.set_store(store)
-                scheduler_service.init_scheduler(store)
-                logger.info("✓ 定时任务调度器初始化完成")
-            except Exception as e:
-                logger.error(f"✗ 定时任务调度器初始化失败: {e}", exc_info=True)
-
-        # ---------- gateway 专属：sandbox 编排 ---------- #
-        if is_gateway:
-            try:
-                from app.gateway.sandbox_manager import init_sandbox_manager
-
-                mgr = init_sandbox_manager(mode=settings.EIDO_SANDBOX_MODE)
-                await mgr.start_idle_gc()
-                logger.info(f"✓ SandboxManager 初始化完成 mode={mgr.mode}")
-            except Exception as e:
-                logger.error(f"✗ SandboxManager 初始化失败: {e}", exc_info=True)
-                raise
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        cleanup_task = getattr(app.state, "project_storage_cleanup_task", None)
-        if cleanup_task is not None:
-            cleanup_task.cancel()
-            try:
-                await cleanup_task
-            except asyncio.CancelledError:
-                pass
-
-        from app.services import scheduler_service
-
-        scheduler_service.shutdown_scheduler()
-        logger.info("Scheduler stopped")
-
-        try:
-            from app.services.claude_runtime import get_claude_runtime
-
-            claude_runtime = get_claude_runtime()
-            if claude_runtime is not None:
-                await claude_runtime.shutdown()
-        except Exception:
-            logger.exception("关闭 Claude SDK session pool 失败")
-
-        try:
-            from app.services.mcp_config_store import close_mcp_config_store
-
-            close_mcp_config_store()
-        except Exception:
-            logger.exception("关闭 MCP 配置存储失败")
-
-        # gateway 关停 sandbox idle gc + httpx client
-        if settings.is_gateway_role:
-            try:
-                from app.gateway.sandbox_manager import get_sandbox_manager
-
-                mgr = get_sandbox_manager()
-                await mgr.stop_idle_gc()
-                mgr.close()
-            except Exception:
-                pass
-            try:
-                from app.gateway.proxy import close_proxy_client
-
-                await close_proxy_client()
-            except Exception:
-                pass
 
     logger.info(f"Application {settings.PROJECT_NAME} v{settings.VERSION} initialized")
 

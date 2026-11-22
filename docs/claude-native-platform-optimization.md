@@ -79,9 +79,9 @@ EIDO_USER_TMPFS_SIZE=512m
 
 ```sh
 # 在仓库根构建
- docker build -f docker/user.Dockerfile -t eido-user:verify .
+ IMAGE_TAG=verify docker buildx bake -f docker/docker-bake.hcl --load user
 # 在 backend 目录运行
- EIDO_TEST_USER_IMAGE=eido-user:verify python -m pytest tests/test_docker_isolation.py -v -s
+ EIDO_TEST_USER_IMAGE=damaohongtu/eido-user:verify python -m pytest tests/test_docker_isolation.py -v -s
 ```
 
 后续生产量化应分别记录容器启动、SDK 连接、first_text_ms、总时长和模型 cache usage，按模型/冷暖启动统计 P50/P95。本轮未引入预热用户池，避免为未活跃用户持续消耗容器资源。

@@ -17,18 +17,20 @@ from fastapi.testclient import TestClient as FastAPITestClient
 from app.api.v1.endpoints import chat, projects, sessions, workspace
 from app.core.auth import get_current_user_id
 from app.core.config import settings
-from app.services import chat_session_store as store_module
-from app.services import claude_runtime as claude_runtime_module
-from app.services import project_context as project_context_module
-from app.services import project_workspace as project_workspace_module
-from app.services.chat_execution_guard import get_chat_execution_guard
-from app.services.chat_session_store import ChatSessionStore
-from app.services.project_context import ProjectContext
-from app.services.project_workspace import (
+from app.services.chat import session_store as store_module
+from app.services.chat import turn as chat_turn
+from app.services.chat.events import StreamSignal
+from app.services.chat.execution_guard import get_chat_execution_guard
+from app.services.chat.session_store import ChatSessionStore
+from app.services.chat.session_workspace import SessionWorkspaceManager
+from app.services.claude import runtime as claude_runtime_module
+from app.services.projects import context as project_context_module
+from app.services.projects import workspace as project_workspace_module
+from app.services.projects.context import ProjectContext
+from app.services.projects.workspace import (
     ProjectWorkspaceManager,
     retry_pending_storage_cleanup,
 )
-from app.services.session_workspace import SessionWorkspaceManager
 
 
 class CapturingChatService:
@@ -62,7 +64,7 @@ class CapturingChatService:
         self.steered_messages.append((user_id, session_id, content))
         return True
 
-    async def execute_stream(
+    async def stream_events(
         self,
         messages: list,
         context: str | None = None,
@@ -78,8 +80,8 @@ class CapturingChatService:
         self.messages = list(messages)
         self.model = model
         self.runtime_mode = runtime_mode
-        yield 'data: {"type":"content","content":"context received"}\n\n'
-        yield "data: [DONE]\n\n"
+        yield {"type": "content", "content": "context received"}
+        yield StreamSignal.DONE
 
 
 @dataclass
@@ -110,6 +112,7 @@ def project_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(projects, "get_session_workspace_manager", lambda: session_workspaces)
     monkeypatch.setattr(projects, "get_project_workspace_manager", lambda: project_workspaces)
     monkeypatch.setattr(chat, "get_session_workspace_manager", lambda: session_workspaces)
+    monkeypatch.setattr(chat_turn, "get_session_workspace_manager", lambda: session_workspaces)
     monkeypatch.setattr(workspace, "get_session_workspace_manager", lambda: session_workspaces)
     monkeypatch.setattr(
         project_context_module,
@@ -504,6 +507,86 @@ def _send_context_chat(
     )
 
 
+def test_chat_completions_creates_external_session_and_reuses_it(project_api: ProjectApiHarness):
+    payload = {
+        "session_id": "external-order-123",
+        "model": "glm",
+        "runtime_mode": "qa",
+        "messages": [{"role": "user", "content": "first"}],
+    }
+    first = project_api.client.post("/api/v1/chat/completions", json=payload)
+    assert first.status_code == 200, first.text
+    assert first.headers["x-session-id"] == payload["session_id"]
+    assert "data: [DONE]" in first.text
+    session = project_api.store.get_session("user-a", payload["session_id"])
+    project_api.store.update_session("user-a", session["id"], title="Retained title")
+
+    second = project_api.client.post(
+        "/api/v1/chat/completions",
+        json={"session_id": session["id"], "messages": [{"role": "user", "content": "second"}]},
+    )
+    assert second.status_code == 200, second.text
+    retained = project_api.store.get_session("user-a", session["id"])
+    assert retained["created_at"] == session["created_at"]
+    assert retained["title"] == "Retained title"
+    assert retained["runtime_mode"] == "qa"
+    assert retained["model"] == "glm"
+    assert len(project_api.store.list_sessions("user-a")) == 1
+    messages = project_api.store.list_messages(session["id"], user_id="user-a")
+    assert [message["content"] for message in messages] == [
+        "first",
+        "context received",
+        "second",
+        "context received",
+    ]
+    assert len({message["id"] for message in messages}) == 4
+
+
+def test_chat_completions_generates_session_id(project_api: ProjectApiHarness):
+    response = project_api.client.post(
+        "/api/v1/chat/completions", json={"messages": [{"role": "user", "content": "hello"}]}
+    )
+    assert response.status_code == 200, response.text
+    session_id = response.headers["x-session-id"]
+    session = project_api.store.get_session("user-a", session_id)
+    assert session["runtime_mode"] == settings.CLAUDE_DEFAULT_RUNTIME_MODE
+    assert project_api.session_workspaces.session_root(session_id, create=False).is_dir()
+
+
+def test_chat_completions_rejects_foreign_and_busy_sessions(project_api: ProjectApiHarness):
+    session = project_api.store.create_session("user-b", session_id="foreign-session")
+    payload = {"session_id": session["id"], "messages": [{"role": "user", "content": "hello"}]}
+    response = project_api.client.post("/api/v1/chat/completions", json=payload)
+    assert response.status_code == 404
+    assert project_api.store.list_sessions("user-a") == []
+    assert project_api.store.list_messages(session["id"], user_id="user-b") == []
+
+    project_api.login_as("user-b")
+    guard = get_chat_execution_guard()
+    assert guard.try_acquire(session["id"])
+    try:
+        response = project_api.client.post("/api/v1/chat/completions", json=payload)
+        assert response.status_code == 409
+        assert project_api.store.list_messages(session["id"], user_id="user-b") == []
+    finally:
+        guard.release(session["id"])
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"session_id": "../escape", "messages": [{"role": "user", "content": "hello"}]},
+        {"session_id": "empty-input", "messages": []},
+    ],
+)
+def test_chat_completions_rejects_bad_input_without_creating_sessions(
+    project_api: ProjectApiHarness, payload: dict
+):
+    response = project_api.client.post("/api/v1/chat/completions", json=payload)
+    assert response.status_code == 400
+    assert project_api.store.list_sessions("user-a") == []
+
+
 def _chat_control_payload(
     session_id: str,
     *,
@@ -555,7 +638,7 @@ def test_chat_control_queues_for_owned_active_session_and_reports_status(
             ],
         }
     finally:
-        from app.services.chat_execution_queue import get_chat_execution_queue
+        from app.services.chat.execution_queue import get_chat_execution_queue
 
         get_chat_execution_queue().remove("user-a", session["id"], "queued-user")
         guard.release(session["id"])
@@ -599,7 +682,7 @@ def test_chat_control_steer_injects_without_interrupting_and_persists_instructio
             "deliveryStatus": "applied",
         }
     finally:
-        from app.services.chat_execution_queue import get_chat_execution_queue
+        from app.services.chat.execution_queue import get_chat_execution_queue
 
         get_chat_execution_queue().remove("user-a", session_id, "steer-user")
         guard.release(session_id)
@@ -1282,7 +1365,7 @@ def test_model_catalog_and_rejection_do_not_start_a_run(project_api, monkeypatch
         "CLAUDE_MODEL_CATALOG_JSON",
         '{"default":"custom","models":['
         '{"id":"custom","label":"Custom","model":"custom-model"},'
-        '{"id":"sonnet","label":"Claude Sonnet","model":"sonnet"}]}'
+        '{"id":"sonnet","label":"Claude Sonnet","model":"sonnet"}]}',
     )
     response = project_api.client.get("/api/v1/chat/models")
     assert response.status_code == 200
@@ -1356,3 +1439,39 @@ def test_runtime_mode_switch_persists_clears_native_session_and_reaches_runtime(
     )
     assert response.status_code == 200, response.text
     assert project_api.chat_service.runtime_mode == "agent"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("disconnect_on", ["http.response.start", "http.response.body"])
+async def test_chat_disconnect_releases_execution_and_saves_partial_output(
+    project_api, disconnect_on
+):
+    from starlette.requests import ClientDisconnect, Request
+
+    from app.schemas.chat import ChatRequest
+
+    owner = project_api.identity["user_id"]
+    session_id = project_api.store.create_session(owner)["id"]
+    scope = {"type": "http", "asgi": {"spec_version": "2.4"}}
+    request = ChatRequest(
+        session_id=session_id,
+        assistant_message_id="assistant-test",
+        messages=[{"id": "user-test", "role": "user", "content": "hello"}],
+    )
+    response = await chat.chat_completion(request, Request(scope), owner)
+    assert get_chat_execution_guard().is_active(session_id)
+
+    async def send(message):
+        if message["type"] == disconnect_on:
+            raise OSError("client disconnected")
+
+    async def receive():
+        return {"type": "http.disconnect"}
+
+    with pytest.raises(ClientDisconnect):
+        await response(scope, receive, send)
+
+    assert not get_chat_execution_guard().is_active(session_id)
+    messages = project_api.store.list_messages(session_id, user_id=owner)
+    assistant = [item["content"] for item in messages if item["role"] == "assistant"]
+    assert assistant == (["context received"] if disconnect_on == "http.response.body" else [])

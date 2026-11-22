@@ -10,41 +10,12 @@
 # tini 作为 PID 1：docker 模式下等价 --init；K8s 无 --init 等价物，
 # Claude CLI 子进程退出后的僵尸进程必须由 init 进程回收
 
-ARG REGISTRY=docker.1ms.run
-FROM ${REGISTRY}/python:3.12-slim
-
-RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
+ARG BASE_IMAGE=eido-base
+FROM ${BASE_IMAGE}
 
 RUN apt-get -o Acquire::Retries=5 update \
-    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
-        curl \
-        ca-certificates \
-        fonts-dejavu-core \
-        fonts-noto-cjk \
-        libmagic1 \
-        poppler-utils \
-        git \
-        telnet \
-        vim \
-        tini \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && if ! command -v npm >/dev/null 2>&1; then \
-        apt-get -o Acquire::Retries=5 update \
-        && apt-get -o Acquire::Retries=5 install -y --no-install-recommends npm; \
-    fi \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends git telnet vim tini \
     && rm -rf /var/lib/apt/lists/*
-
-
-WORKDIR /app
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    -i https://mirrors.aliyun.com/pypi/simple/ \
-    --extra-index-url https://pypi.org/simple \
-    --trusted-host mirrors.aliyun.com
-# Expose the SDK's bundled CLI; one pinned dependency owns both SDK and CLI.
-RUN ln -sf $(python -c 'import claude_agent_sdk,pathlib; print(pathlib.Path(claude_agent_sdk.__file__).parent / "_bundled" / "claude")') /usr/local/bin/claude
 
 COPY backend/ .
 

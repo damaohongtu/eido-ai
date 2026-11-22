@@ -7,16 +7,55 @@ Every test uses a temporary database. Never point these tests at the repository'
 from __future__ import annotations
 
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
 from app.core.config import settings
-from app.services.chat_session_store import (
+from app.services.chat.session_store import (
     LATEST_SCHEMA_VERSION,
     ChatSessionStore,
     ProjectQuotaExceededError,
 )
+
+
+@pytest.mark.parametrize("owners", [("alice", "alice"), ("alice", "bob")])
+def test_get_or_create_session_handles_concurrent_creation(tmp_path, monkeypatch, owners):
+    stores = [ChatSessionStore(tmp_path / "sessions.db") for _ in owners]
+    barrier = Barrier(2)
+    for store in stores:
+        store.connect()
+        original = store.create_session
+
+        def create_after_both_reads(*args, _create=original, **kwargs):
+            barrier.wait(timeout=5)
+            return _create(*args, **kwargs)
+
+        monkeypatch.setattr(store, "create_session", create_after_both_reads)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(
+                    store.get_or_create_session,
+                    owner,
+                    "external-id",
+                    model="glm",
+                    runtime_mode="qa",
+                )
+                for store, owner in zip(stores, owners, strict=True)
+            ]
+            results = [future.result(timeout=10) for future in futures]
+        assert sum(result is not None for result in results) == (2 if owners[0] == owners[1] else 1)
+        assert stores[0].conn.execute("SELECT count(*) FROM chat_sessions").fetchone()[0] == 1
+        for result, owner in zip(results, owners, strict=True):
+            if result is not None:
+                assert result["user_id"] == owner
+                assert result["id"] == "external-id"
+    finally:
+        for store in stores:
+            store.close()
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> dict[str, sqlite3.Row]:

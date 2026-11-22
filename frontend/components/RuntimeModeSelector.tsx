@@ -1,7 +1,6 @@
 import React from 'react';
 import type { RuntimeMode } from '../types';
 
-/** Shared by desktop, mobile and the browser extension. */
 export default function RuntimeModeSelector({ value, onChange, disabled }: {
   value: RuntimeMode;
   onChange: (mode: RuntimeMode) => void;

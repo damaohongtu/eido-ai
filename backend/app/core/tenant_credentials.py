@@ -3,8 +3,23 @@
 import base64
 import hashlib
 import hmac
+import re
 
 from app.core.config import settings
+
+_USER_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+_SAFE_REPLACE_RE = re.compile(r"[^A-Za-z0-9_\-]")
+
+
+def safe_user_id(user_id: str) -> str:
+    """Return the stable tenant name used by storage paths and sandboxes."""
+    if not user_id:
+        raise ValueError("user_id 为空")
+    if _USER_ID_RE.fullmatch(user_id) and len(user_id) <= 48:
+        return user_id
+    base = _SAFE_REPLACE_RE.sub("-", user_id)[:32].strip("-") or "user"
+    suffix = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:8]
+    return f"{base}-{suffix}"
 
 
 def derive_secret(master: str, purpose: str, user_id: str) -> str:

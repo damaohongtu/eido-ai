@@ -3,15 +3,13 @@
 # 构建并推送镜像
 # =============================================================================
 
-# 构建前端（PC）
-cd /Users/mao/workspace/Eido/frontend && npm run build
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-# 构建移动端 H5
-cd /Users/mao/workspace/Eido/frontend-mobile && npm run build
+# 构建前端（PC）
+(cd frontend && npm run build) || exit 1
 
 # 构建镜像
-cd /Users/mao/workspace/Eido
-docker build -f docker/app.Dockerfile -t damaohongtu/eido:latest .
+docker buildx bake -f docker/docker-bake.hcl --load base app || exit 1
 
 docker images damaohongtu/eido
 

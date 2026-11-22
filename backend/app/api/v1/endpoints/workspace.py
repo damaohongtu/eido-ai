@@ -14,18 +14,18 @@ from fastapi.responses import FileResponse
 
 from app.core.auth import get_current_user_id
 from app.core.config import settings
-from app.services.chat_execution_guard import get_chat_execution_guard
-from app.services.chat_session_store import get_chat_session_store
-from app.services.file_preview import (
+from app.services.chat.execution_guard import get_chat_execution_guard
+from app.services.chat.session_store import get_chat_session_store
+from app.services.chat.session_workspace import (
+    get_session_workspace_manager,
+    validate_session_id,
+)
+from app.services.files.preview import (
     file_content_disposition,
     file_response_security_headers,
     markdown_preview_response,
 )
-from app.services.session_workspace import (
-    get_session_workspace_manager,
-    validate_session_id,
-)
-from app.services.supported_files import FORCE_ATTACHMENT_FILE_EXTENSIONS
+from app.services.files.supported_types import FORCE_ATTACHMENT_FILE_EXTENSIONS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

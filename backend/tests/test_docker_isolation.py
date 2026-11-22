@@ -112,6 +112,8 @@ def test_real_tenant_isolation_and_native_resume():
             else:
                 pytest.fail(gateway.logs(tail=50).decode())
             identities = [{"X-Eido-User-Token": token(user)} for user in users]
+            models = api.get("/api/v1/chat/models", headers=identities[0])
+            assert models.status_code == 200 and models.json()["default"] == "test"
             sessions = []
             for headers in identities:
                 response = api.post(
@@ -161,9 +163,9 @@ def test_real_tenant_isolation_and_native_resume():
             )
             assert forged.status_code == 401
 
-            def turn(text):
+            def turn(text, path="/api/v1/chat/chat"):
                 response = api.post(
-                    "/api/v1/chat/chat",
+                    path,
                     headers=identities[0],
                     json={
                         "session_id": sessions[0],
@@ -181,7 +183,9 @@ def test_real_tenant_isolation_and_native_resume():
                 return "".join(e.get("content", "") for e in events if e.get("type") == "content")
 
             assert "EIDO_MARKER_ALPHA742" in turn("Remember EIDO_MARKER_ALPHA742.")
-            assert "EIDO_MARKER_ALPHA742" in turn("Return the marker from our prior conversation.")
+            assert "EIDO_MARKER_ALPHA742" in turn(
+                "Return the marker from our prior conversation.", path="/api/chat"
+            )
             before = api.get(f"/api/v1/sessions/{sessions[0]}", headers=identities[0]).json()
             assert before["claude_session_id"]
             alice.stop(timeout=15)
@@ -191,7 +195,7 @@ def test_real_tenant_isolation_and_native_resume():
             assert restored.id != alice.id
             after = api.get(f"/api/v1/sessions/{sessions[0]}", headers=identities[0]).json()
             assert before["claude_session_id"] == after["claude_session_id"]
-            assert b"mode=resume" in restored.logs()
+            assert b"resume=True warm=False" in restored.logs()
             # The scheduler runs on gateway, but a script must run in the tenant.
             created = api.post(
                 "/api/v1/tasks/",

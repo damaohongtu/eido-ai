@@ -70,42 +70,9 @@ function buildMessageExtra(msg: Message): Record<string, any> {
   return extra;
 }
 
-interface AppProps {
-  browserContext?: string;
-  extensionMode?: boolean;
-  onAuthRequired?: (loginUrl: string) => void;
-}
-
-const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuthRequired }) => {
+const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
-  const [authRequired, setAuthRequired] = useState(false);
-  const [authChecking, setAuthChecking] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ user_id: string; username: string } | null>(null);
-
-  const checkAuthState = useCallback(async () => {
-    setAuthChecking(true);
-    try {
-      const user = await api.checkAuth();
-      if (!user) {
-        const loginUrl = `${BACKEND_URL}/api/v1/auth/login`;
-        if (extensionMode) {
-          setAuthRequired(true);
-          setAuthChecked(true);
-          onAuthRequired?.(loginUrl);
-          return false;
-        }
-        window.location.href = loginUrl;
-        return false;
-      }
-      setAuthRequired(false);
-      setCurrentUser(user);
-      setAuthChecked(true);
-      api.warmupSandbox().catch(() => undefined);
-      return true;
-    } finally {
-      setAuthChecking(false);
-    }
-  }, [extensionMode, onAuthRequired]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -115,23 +82,19 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
       window.history.replaceState({}, '', window.location.pathname + (clean ? `?${clean}` : ''));
     }
 
-    checkAuthState();
-  }, [checkAuthState]);
-
-  useEffect(() => {
-    if (!extensionMode || !authRequired) return;
-    const id = window.setInterval(() => {
-      checkAuthState();
-    }, 2500);
-    const onFocus = () => checkAuthState();
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
-    return () => {
-      window.clearInterval(id);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
-    };
-  }, [authRequired, checkAuthState, extensionMode]);
+    let active = true;
+    api.checkAuth().then(user => {
+      if (!active) return;
+      if (!user) {
+        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+        return;
+      }
+      setCurrentUser(user);
+      setAuthChecked(true);
+      api.warmupSandbox().catch(() => undefined);
+    });
+    return () => { active = false; };
+  }, []);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(new Set());
@@ -224,7 +187,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
 
   // 定时任务可能在页面打开期间创建会话；周期同步摘要，让新会话自动出现在左栏。
   useEffect(() => {
-    if (!authChecked || authRequired) return;
+    if (!authChecked) return;
     const refreshSessionSummaries = async () => {
       try {
         const summaries = (await api.listSessions()).map(summaryToSession);
@@ -251,7 +214,7 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     };
     const timer = window.setInterval(refreshSessionSummaries, 10_000);
     return () => window.clearInterval(timer);
-  }, [authChecked, authRequired]);
+  }, [authChecked]);
 
   useEffect(() => () => {
     taskSessionPollGenerationRef.current += 1;
@@ -273,9 +236,9 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
   }, []);
 
   useEffect(() => {
-    if (!authChecked || authRequired) return;
+    if (!authChecked) return;
     refreshProjects();
-  }, [authChecked, authRequired, refreshProjects]);
+  }, [authChecked, refreshProjects]);
 
   // 加载系统技能和用户技能
   useEffect(() => {
@@ -792,36 +755,6 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
     );
   }
 
-  if (authRequired) {
-    const loginUrl = `${BACKEND_URL}/api/v1/auth/login`;
-    return (
-      <div className="flex h-screen items-center justify-center bg-white px-6">
-        <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-lg font-black text-gray-700">E</div>
-          <h1 className="text-lg font-black text-gray-900">需要登录 Eido</h1>
-          <p className="mt-2 text-sm leading-relaxed text-gray-500">
-            插件侧边栏不能直接跳转到登录页。请在新标签页完成登录后，回到插件重新打开或刷新。
-          </p>
-          <button
-            type="button"
-            onClick={() => window.open(loginUrl, '_blank', 'noopener,noreferrer')}
-            className="mt-5 w-full rounded-lg bg-gray-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-900"
-          >
-            打开登录页
-          </button>
-          <button
-            type="button"
-            onClick={() => checkAuthState()}
-            disabled={authChecking}
-            className="mt-3 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {authChecking ? '正在检测...' : '我已完成登录，重新检测'}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-full overflow-hidden text-gray-900 font-sans">
       <Sidebar 
@@ -901,7 +834,6 @@ const App: React.FC<AppProps> = ({ browserContext, extensionMode = false, onAuth
                 onModelChange={updateSessionModel}
                 runtimeMode={activeSession?.runtimeMode || 'agent'}
                 onRuntimeModeChange={updateSessionRuntimeMode}
-                browserContext={browserContext}
              />
              {rightPanelOpen && (
              <ReferenceArea

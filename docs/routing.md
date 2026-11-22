@@ -55,7 +55,7 @@ sandbox_registry
 └── updated_at
 ```
 
-The `_safe_user_id()` function sanitizes the raw CAS identity into a Docker-compatible string (only `[A-Za-z0-9_-]` allowed, truncate + SHA1 suffix for collision avoidance).
+The `safe_user_id()` function sanitizes the raw CAS identity into a Docker-compatible string (only `[A-Za-z0-9_-]` allowed, truncate + SHA1 suffix for collision avoidance).
 
 ### Step 4 — Container Lifecycle (`ensure_running`)
 

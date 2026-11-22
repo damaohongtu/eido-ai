@@ -6,8 +6,8 @@ from fastapi.testclient import TestClient
 
 from app.api.v1.endpoints import mcp
 from app.core.auth import get_current_user_id
-from app.services import mcp_config_store as store_module
-from app.services.mcp_config_store import SECRET_SENTINEL, McpConfigStore
+from app.services.mcp import config_store as store_module
+from app.services.mcp.config_store import SECRET_SENTINEL, McpConfigStore
 
 
 @pytest.fixture

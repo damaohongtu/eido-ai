@@ -69,14 +69,19 @@ def test_runtime_images_include_pdf_tooling_and_cjk_fonts():
     ):
         assert package in requirements
 
+    docker = REPOSITORY_ROOT / "docker"
+    base = (docker / "base.Dockerfile").read_text(encoding="utf-8")
+    assert "poppler-utils" in base
+    assert "fonts-noto-cjk" in base
+
     for filename in ("app.Dockerfile", "gateway.Dockerfile", "user.Dockerfile"):
-        dockerfile = (REPOSITORY_ROOT / "docker" / filename).read_text(encoding="utf-8")
-        assert "poppler-utils" in dockerfile
-        assert "fonts-noto-cjk" in dockerfile
+        dockerfile = (docker / filename).read_text(encoding="utf-8")
+        assert "FROM ${BASE_IMAGE}" in dockerfile
+        assert "pip install" not in dockerfile
 
 
 def test_frontend_and_backend_share_the_same_rich_file_extensions():
-    from app.services.supported_files import SUPPORTED_FILE_EXTENSIONS
+    from app.services.files.supported_types import SUPPORTED_FILE_EXTENSIONS
 
     source = (REPOSITORY_ROOT / "frontend" / "utils" / "supportedFiles.ts").read_text(
         encoding="utf-8"
@@ -89,8 +94,3 @@ def test_frontend_and_backend_share_the_same_rich_file_extensions():
     assert frontend_extensions == {
         extension.removeprefix(".") for extension in SUPPORTED_FILE_EXTENSIONS
     }
-
-    mobile_source = (
-        REPOSITORY_ROOT / "frontend-mobile" / "src" / "utils" / "supportedFiles.ts"
-    ).read_text(encoding="utf-8")
-    assert "../../../frontend/utils/supportedFiles" in mobile_source

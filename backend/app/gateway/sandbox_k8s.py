@@ -151,7 +151,7 @@ class K8sSandboxClient:
             spec=k8s_client.V1PersistentVolumeClaimSpec(
                 access_modes=["ReadWriteOnce"],
                 storage_class_name=settings.EIDO_K8S_STORAGE_CLASS or None,
-                resources=k8s_client.V1ResourceRequirements(
+                resources=k8s_client.V1VolumeResourceRequirements(
                     requests={"storage": _parse_mem_limit(settings.EIDO_K8S_USER_STORAGE)}
                 ),
             ),
@@ -219,7 +219,7 @@ class K8sSandboxClient:
             ports=[k8s_client.V1ContainerPort(container_port=8000)],
             resources=k8s_client.V1ResourceRequirements(
                 requests={"cpu": "100m", "memory": "256Mi"},
-                limits={"cpu": cpus, "memory": mem},
+                limits={"cpu": str(cpus), "memory": mem},
             ),
             readiness_probe=k8s_client.V1Probe(
                 http_get=k8s_client.V1HTTPGetAction(path="/health", port=8000),

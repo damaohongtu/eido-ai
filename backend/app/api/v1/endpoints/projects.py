@@ -18,26 +18,26 @@ from starlette.datastructures import FormData, UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser
 
 from app.core.auth import get_current_user_id
-from app.services.chat_execution_guard import get_chat_execution_guard
-from app.services.chat_session_store import (
+from app.services.chat.execution_guard import get_chat_execution_guard
+from app.services.chat.session_store import (
     ProjectQuotaExceededError,
     get_chat_session_store,
 )
-from app.services.file_preview import (
+from app.services.chat.session_workspace import get_session_workspace_manager, validate_session_id
+from app.services.files.preview import (
     file_content_disposition,
     file_response_security_headers,
     markdown_preview_response,
 )
-from app.services.project_workspace import (
+from app.services.files.supported_types import (
+    FORCE_ATTACHMENT_FILE_EXTENSIONS,
+    SUPPORTED_FILE_MEDIA_TYPES,
+)
+from app.services.projects.workspace import (
     PROJECT_FILE_EXTENSIONS,
     get_project_workspace_manager,
     validate_project_file_id,
     validate_project_id,
-)
-from app.services.session_workspace import get_session_workspace_manager, validate_session_id
-from app.services.supported_files import (
-    FORCE_ATTACHMENT_FILE_EXTENSIONS,
-    SUPPORTED_FILE_MEDIA_TYPES,
 )
 
 router = APIRouter()
@@ -396,7 +396,7 @@ async def delete_project(project_id: str, user_id: str = Depends(get_current_use
                 project_id,
             )
         try:
-            from app.services.claude_runtime import get_claude_runtime
+            from app.services.claude.runtime import get_claude_runtime
 
             claude_runtime = get_claude_runtime()
             if claude_runtime is not None:

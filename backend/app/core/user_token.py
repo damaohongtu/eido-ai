@@ -4,8 +4,8 @@ Format: base64(user_id:expiry:hmac_hex)
 """
 
 import base64
-import hmac
 import hashlib
+import hmac
 import time
 
 from app.core.config import settings

@@ -2,9 +2,9 @@ from pathlib import Path
 
 import pytest
 
-from app.services import mcp_config_store as store_module
-from app.services import mcp_status_service as status_module
-from app.services.mcp_config_store import McpConfigStore
+from app.services.mcp import config_store as store_module
+from app.services.mcp import status as status_module
+from app.services.mcp.config_store import McpConfigStore
 
 
 @pytest.mark.asyncio

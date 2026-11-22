@@ -132,6 +132,35 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const displayName = currentUser.username?.trim() || currentUser.user_id || '用户';
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [apiKeyStatus, setApiKeyStatus] = useState('');
+  const [apiKeyLoading, setApiKeyLoading] = useState(false);
+  const apiKeyDialog = useRef<HTMLDialogElement>(null);
+
+  async function showApiKey() {
+    setUserMenuOpen(false);
+    setApiKey('');
+    setApiKeyStatus('');
+    setApiKeyLoading(true);
+    apiKeyDialog.current?.showModal();
+    try {
+      const key = await api.getApiKey();
+      if (apiKeyDialog.current?.open) setApiKey(key);
+    } catch (error) {
+      setApiKeyStatus(error instanceof Error ? error.message : '获取 API Key 失败');
+    } finally {
+      setApiKeyLoading(false);
+    }
+  }
+
+  async function copyApiKey() {
+    try {
+      await navigator.clipboard.writeText(apiKey);
+      setApiKeyStatus('已复制');
+    } catch {
+      setApiKeyStatus('请选择密钥并手动复制');
+    }
+  }
   const [collapsePreferences, setCollapsePreferences] = useState<SidebarCollapsePreferences>(loadCollapsePreferences);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -474,6 +503,39 @@ const Sidebar: React.FC<SidebarProps> = ({
         ) : null}
       </div>
 
+      <dialog
+        ref={apiKeyDialog}
+        aria-labelledby="api-key-title"
+        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-lg backdrop:bg-black/30"
+        onClose={() => setApiKey('')}
+      >
+        <h2 id="api-key-title" className="text-base font-semibold text-gray-900">API Key</h2>
+        {apiKey && (
+          <input
+            aria-label="API Key"
+            value={apiKey}
+            readOnly
+            onFocus={(event) => event.currentTarget.select()}
+            className="mt-3 w-full rounded border border-gray-200 p-2 font-mono text-sm"
+          />
+        )}
+        <p role="status" className="mt-2 text-sm text-gray-600">
+          {apiKeyLoading ? '正在获取 API Key…' : apiKeyStatus}
+        </p>
+        <div className="mt-4 flex justify-end gap-2">
+          <form method="dialog">
+            <button className="rounded px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100">
+              关闭
+            </button>
+          </form>
+          {apiKey && (
+            <button type="button" onClick={copyApiKey} className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white">
+              复制
+            </button>
+          )}
+        </div>
+      </dialog>
+
       {/* ---- Bottom: user section (shrink-0) ---- */}
       <div className="p-4 border-t border-gray-100 shrink-0">
         <div className="flex items-center gap-2 px-2 py-1">
@@ -493,6 +555,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                 role="menu"
                 className="absolute bottom-full left-0 mb-1 z-50 min-w-[7.5rem] rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
               >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  onClick={showApiKey}
+                  disabled={apiKeyLoading}
+                >
+                  API Key
+                </button>
                 <button
                   type="button"
                   role="menuitem"

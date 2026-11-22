@@ -1,4 +1,4 @@
-/** Keep this list aligned with backend/app/services/supported_files.py. */
+/** Keep this list aligned with backend/app/services/files/supported_types.py. */
 export const SUPPORTED_FILE_EXTENSIONS = [
   // Documents and text
   'md', 'pdf', 'txt', 'log', 'rtf', 'doc', 'docx', 'odt',

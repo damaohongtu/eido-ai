@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import settings
-from app.services.model_catalog import load_model_catalog
+from app.services.claude.models import load_model_catalog
 
 
 def _use_catalog(monkeypatch: pytest.MonkeyPatch, path: Path) -> None:

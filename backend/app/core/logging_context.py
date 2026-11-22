@@ -6,7 +6,8 @@ import logging
 import re
 import uuid
 from contextvars import ContextVar, Token
-
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 
 TRACE_ID_HEADER = "X-Trace-Id"
 _TRACE_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
@@ -58,3 +59,30 @@ class TraceIdFilter(logging.Filter):
         record.trace_id = get_trace_id()
         record.session_id = get_session_id()
         return True
+
+
+def configure_logging(log_dir: str, level: str) -> None:
+    directory = Path(log_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - [traceId=%(trace_id)s] - "
+        "[sessionId=%(session_id)s] - [%(filename)s:%(lineno)d] - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    root = logging.getLogger()
+    root.setLevel(level)
+    context = TraceIdFilter()
+    console = logging.StreamHandler()
+    files = [
+        TimedRotatingFileHandler(directory / name, when="midnight", backupCount=7, encoding="utf-8")
+        for name in ("app.log", "error.log")
+    ]
+    for handler in files:
+        handler.suffix = "%Y-%m-%d"
+    for handler, threshold in zip(
+        (console, *files), (level, logging.INFO, logging.ERROR), strict=True
+    ):
+        handler.setLevel(threshold)
+        handler.setFormatter(formatter)
+        handler.addFilter(context)
+        root.addHandler(handler)

@@ -7,18 +7,19 @@ from pathlib import Path
 
 import pytest
 
-from app.services import chat_session_store as store_module
-from app.services import claude_runtime as claude_runtime_module
-from app.services import session_workspace as workspace_module
-from app.services.chat_execution_guard import get_chat_execution_guard
-from app.services.chat_execution_queue import (
+from app.services.chat import session_store as store_module
+from app.services.chat import session_workspace as workspace_module
+from app.services.chat.events import StreamSignal
+from app.services.chat.execution_guard import get_chat_execution_guard
+from app.services.chat.execution_queue import (
     ChatExecutionQueue,
     QueuedChatRun,
 )
-from app.services.chat_session_store import ChatSessionStore
-from app.services.claude_runtime import ClaudeRuntime
-from app.services.claude_session_pool import ClaudeSessionEntry
-from app.services.session_workspace import SessionWorkspaceManager
+from app.services.chat.session_store import ChatSessionStore
+from app.services.chat.session_workspace import SessionWorkspaceManager
+from app.services.claude import runtime as claude_runtime_module
+from app.services.claude.runtime import ClaudeRuntime
+from app.services.claude.session_pool import ClaudeSessionEntry
 
 
 class QueueService:
@@ -26,14 +27,17 @@ class QueueService:
         self.started: list[tuple[str, str]] = []
         self.release_first = asyncio.Event()
 
-    async def execute_stream(self, messages, context=None, **kwargs):
+    def reset_session(self, session_id: str) -> None:
+        pass
+
+    async def stream_events(self, messages, context=None, **kwargs):
         session_id = kwargs["session_id"]
         prompt = next(message.content for message in reversed(messages) if message.role == "user")
         self.started.append((session_id, prompt))
         if prompt == "first":
             await self.release_first.wait()
-        yield f'data: {{"type":"content","content":"done:{prompt}"}}\n\n'
-        yield "data: [DONE]\n\n"
+        yield {"type": "content", "content": f"done:{prompt}"}
+        yield StreamSignal.DONE
 
 
 @pytest.fixture
@@ -118,6 +122,8 @@ def test_take_removes_only_the_promoted_message_and_preserves_order():
 
 
 def test_steer_writes_to_only_the_target_active_client_without_interrupt(tmp_path: Path):
+    from types import SimpleNamespace
+
     class Client:
         def __init__(self):
             self.interrupted = 0
@@ -134,10 +140,10 @@ def test_steer_writes_to_only_the_target_active_client_without_interrupt(tmp_pat
     other = Client()
     now = __import__("time").monotonic()
     service.sessions.entries[("u1", "s1")] = ClaudeSessionEntry(
-        active, ("u1", "s1"), "u1", (), now, now, busy=True
+        SimpleNamespace(sdk=active), ("u1", "s1"), (), now, now, busy=True
     )
     service.sessions.entries[("u1", "s2")] = ClaudeSessionEntry(
-        other, ("u1", "s2"), "u1", (), now, now, busy=True
+        SimpleNamespace(sdk=other), ("u1", "s2"), (), now, now, busy=True
     )
 
     assert service.can_steer_session("u1", "s1")

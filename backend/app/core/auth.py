@@ -3,16 +3,16 @@ Dependency helpers to resolve current user from:
 
 1. Trusted gateway headers (only when EIDO_TRUST_GATEWAY=1)：
    X-Eido-User-Id + X-Eido-Gateway-Secret，由 gateway 注入到 user 沙箱容器。
-2. Session cookie（CAS 颁发）。
-3. 自签短期 Token（X-Eido-User-Token），任务子进程使用。
-
-匹配优先级 1 > 2 > 3。
+2. 用户 API Key（X-API-Key），由网关或单机后端验证。
+3. Session cookie（CAS 颁发）。
+4. 自签短期 Token（X-Eido-User-Token），任务子进程使用。
 """
 
 import logging
 
 from fastapi import HTTPException, Request
 
+from app.core.api_key import API_KEY_HEADER, verify_api_key
 from app.core.config import settings
 from app.core.user_token import verify_user_token
 
@@ -56,10 +56,15 @@ def _resolve_trusted_gateway_user(request: Request) -> str | None:
 
 
 def get_current_user_id(request: Request) -> str:
-    """Resolve user_id: trusted gateway header > Session cookie > X-Eido-User-Token."""
     gateway_user = _resolve_trusted_gateway_user(request)
     if gateway_user:
         return gateway_user
+
+    if not settings.EIDO_TRUST_GATEWAY and API_KEY_HEADER in request.headers:
+        try:
+            return verify_api_key(request.headers[API_KEY_HEADER])
+        except ValueError as exc:
+            raise HTTPException(status_code=401, detail="API Key 无效") from exc
 
     user_id = request.session.get("user_id") if not settings.EIDO_TRUST_GATEWAY else None
     if user_id:
@@ -69,7 +74,7 @@ def get_current_user_id(request: Request) -> str:
     if token:
         try:
             return verify_user_token(token)
-        except ValueError:
-            raise HTTPException(status_code=401, detail="Token 无效或已过期")
+        except ValueError as exc:
+            raise HTTPException(status_code=401, detail="Token 无效或已过期") from exc
 
     raise HTTPException(status_code=401, detail="未登录")

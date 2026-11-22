@@ -3,6 +3,7 @@ Chat-related Pydantic schemas for request/response validation.
 """
 
 from typing import List, Literal, Optional
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -34,6 +35,16 @@ class ChatRequest(BaseModel):
     runtime_mode: Optional[Literal["qa", "agent"]] = None
 
 
+class ChatCompletionRequest(ChatRequest):
+    """Chat with an existing or automatically created session."""
+
+    session_id: str = Field(
+        default_factory=lambda: uuid4().hex[:12],
+        description="外部会话 ID；不存在时创建，省略时自动生成",
+    )
+    assistant_message_id: str = Field(default_factory=lambda: uuid4().hex[:12])
+
+
 class ChatControlRequest(BaseModel):
     """Additional input submitted while a session is already executing."""
 
@@ -44,19 +55,3 @@ class ChatControlRequest(BaseModel):
     context: Optional[str] = None
     model: Optional[str] = Field(None, max_length=200)
     runtime_mode: Optional[Literal["qa", "agent"]] = None
-
-
-class ChatResponse(BaseModel):
-    """Response schema for non-streaming chat completions."""
-
-    content: str
-    role: Literal["assistant"] = "assistant"
-    model: str = "unknown"
-    usage: Optional[dict] = None
-
-
-class ErrorResponse(BaseModel):
-    """Error response schema."""
-
-    error: str
-    detail: Optional[str] = None

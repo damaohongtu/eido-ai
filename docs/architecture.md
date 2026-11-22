@@ -2,7 +2,7 @@
 
 ## 一、整体架构
 
-Eido 是一个基于 Claude Code SDK 的可扩展技能助手，由 React 前端 + FastAPI 后端 + 本地技能库构成。
+Eido 是一个基于 Claude Agent SDK 的可扩展技能助手，由 React 前端 + FastAPI 后端 + 本地技能库构成。
 
 ```mermaid
 graph TB
@@ -27,16 +27,19 @@ graph TB
         end
 
         subgraph 服务层["services/"]
-            SVC_Skill["claude_runtime<br/>技能扫描 · Prompt 构建<br/>cwd=session 工作区"]
-            SVC_WS["session_workspace  ←  新增<br/>按 session_id 隔离目录"]
-            SVC_Store["chat_session_store  ←  新增<br/>SQLite 持久化"]
-            SVC_TaskStore["scheduled_task_store"]
-            SVC_Sched["scheduler_service<br/>APScheduler"]
+            SVC_Turn["chat/turn<br/>会话执行锁 · 项目上下文 · 消息持久化"]
+            SVC_Skill["claude/runtime<br/>原生会话续接 · 结构化事件"]
+            SVC_WS["chat/session_workspace<br/>按 session_id 隔离目录"]
+            SVC_Store["chat/session_store<br/>SQLite 持久化"]
+            SVC_Catalog["skills/catalog<br/>技能发现 · 原生技能视图"]
+            SVC_Skills["skills/management<br/>技能导入 · 文件管理"]
+            SVC_TaskStore["tasks/store"]
+            SVC_Sched["tasks/scheduler<br/>APScheduler"]
         end
     end
 
     subgraph 技能引擎["🤖 Claude Code SDK"]
-        SDK["claude_agent_sdk.query()<br/>cwd=.eido/workspaces/&lt;sid&gt;/<br/>SKILL.md 走绝对路径"]
+        SDK["ClaudeSDKClient<br/>cwd=.eido/workspaces/&lt;sid&gt;/<br/>SKILL.md 走绝对路径"]
     end
 
     subgraph 文件系统["🗂️ 本地文件系统"]
@@ -61,11 +64,16 @@ graph TB
     MW --> EP_Auth
     MW --> EP_Tasks
 
-    EP_Chat --> SVC_Skill
+    EP_Chat --> SVC_Turn
+    SVC_Turn --> SVC_Skill
+    SVC_Turn --> SVC_Store
     EP_Chat --> SVC_WS
     EP_Sessions --> SVC_Store
     EP_Sessions --> SVC_WS
     EP_Workspace --> SVC_WS
+    EP_Skills --> SVC_Skills
+    SVC_Skills --> SVC_Catalog
+    SVC_Skill --> SVC_Catalog
     EP_Tasks --> SVC_TaskStore
     EP_Tasks --> SVC_Sched
 
@@ -236,10 +244,10 @@ sequenceDiagram
 | 后端路由 | `backend/app/api/v1/endpoints/sessions.py` | `/sessions/...` 增删改查；`/messages` 仅用于非主聊天补充写入 |
 | 后端路由 | `backend/app/api/v1/endpoints/projects.py` | Project 元数据、项目文件与会话解绑语义 |
 | 后端路由 | `backend/app/api/v1/endpoints/workspace.py` | `/workspace/file` 隔离访问 |
-| 后端服务 | `backend/app/services/session_workspace.py` | 会话工作区管理（路径白名单 + 安全解析） |
-| 后端服务 | `backend/app/services/project_workspace.py` | 项目共享文件管理；不移动会话目录 |
-| 后端服务 | `backend/app/services/chat_session_store.py` | SQLite 持久化 |
-| 后端服务 | `backend/app/services/claude_runtime.py` | 切 cwd + 注入技能库绝对路径 |
+| 后端服务 | `backend/app/services/chat/session_workspace.py` | 会话工作区管理（路径白名单 + 安全解析） |
+| 后端服务 | `backend/app/services/projects/workspace.py` | 项目共享文件管理；不移动会话目录 |
+| 后端服务 | `backend/app/services/chat/session_store.py` | SQLite 持久化 |
+| 后端服务 | `backend/app/services/claude/runtime.py` | 切 cwd + 注入技能库绝对路径 |
 
 ---
 

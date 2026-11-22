@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "eido-mobile",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["/tmp/serve-eido-mobile.py"],
-      "port": 4173
+      "name": "eido-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--host", "127.0.0.1", "--strictPort"],
+      "port": 3000
     }
   ]
 }

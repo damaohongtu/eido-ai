@@ -46,7 +46,7 @@ CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
 - Docker ≥ 24（含 `docker compose` 子命令）
 - 沙箱模式额外要求宿主机能挂载 `/var/run/docker.sock`，且 gateway 进程 uid 在 `docker` 组内（或以 root 身份运行 gateway 容器）。
-- 本地开发要求 Python 3.11+ 与 Node.js 18+。
+- 本地运行后端需要 Python 3.11+。运行 Vite 或构建前端需要 Node.js。
 
 ### 1.4 仓库准备
 
@@ -65,9 +65,7 @@ $EDITOR docker/.env   # 至少填好 LLM 凭据
 
 ### 2.1 准备 Claude Code SDK
 
-```bash
-npm install -g @anthropic-ai/claude-code --registry https://registry.npmmirror.com
-```
+下一步安装的 Python 依赖包含 `claude-agent-sdk`。在支持的平台上，SDK 的 wheel 自带原生 Claude Code，后端通过 `ClaudeSDKClient` 启动它。
 
 ### 2.2 后端
 
@@ -199,17 +197,10 @@ EIDO_USER_PIDS_LIMIT=500
 
 ### 4.2 准备镜像
 
-仓库已提供两份 Dockerfile：
+从仓库根目录构建单容器版、网关和用户沙箱镜像。三个镜像共用基础依赖层。
 
 ```bash
-# 构建 Docker 镜像
-docker build -f docker/app.Dockerfile -t damaohongtu/eido:latest .
-
-# 构建 gateway 镜像
-docker build -f docker/gateway.Dockerfile -t damaohongtu/eido-gateway:latest .
-
-# 构建 user 沙箱镜像（gateway 通过 docker SDK 拉起）
-docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
+docker buildx bake -f docker/docker-bake.hcl --load default app
 ```
 
 如果使用上游官方镜像，跳过 build 即可。
@@ -448,7 +439,7 @@ eido-ai/
 │   ├── app/
 │   │   ├── api/v1/          路由：auth · chat · sessions · workspace · skills · tasks · sandbox
 │   │   ├── core/            config / auth / database
-│   │   ├── services/        skill / chat_session_store / session_workspace / scheduler
+│   │   ├── services/        chat / claude / skills / mcp / projects / tasks / files
 │   │   └── gateway/         sandbox_manager · proxy · router_user
 │   └── run.py
 ├── .claude/skills/          技能目录（SKILL.md）

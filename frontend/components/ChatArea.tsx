@@ -110,7 +110,6 @@ interface ChatAreaProps {
   onModelChange: (model: string) => void;
   runtimeMode: RuntimeMode;
   onRuntimeModeChange: (mode: RuntimeMode) => void;
-  browserContext?: string;
 }
 
 type ActiveExecution = {
@@ -165,7 +164,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   onModelChange,
   runtimeMode,
   onRuntimeModeChange,
-  browserContext,
 }) => {
   const [input, setInput] = useState('');
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(
@@ -503,9 +501,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
   const runSingleSkill = async (
     sessionId: string,
     msgs: Message[],
-    assistantId: string,
-    context?: string,
-    skillHint?: string
+    assistantId: string
   ) => {
     const controller = new AbortController();
     markSessionRunning(sessionId, { assistantId, controller, model });
@@ -515,8 +511,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         makeUpdater(sessionId, assistantId),
         sessionId,
         assistantId,
-        context,
-        skillHint ?? undefined,
+        undefined,
+        undefined,
         controller.signal,
         model,
         runtimeMode
@@ -566,7 +562,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           },
           sessionId,
           assistantId,
-          [browserContext, previousOutput].filter(Boolean).join('\n\n') || undefined,
+          previousOutput || undefined,
           skill.id,
           controller.signal,
           model,
@@ -666,7 +662,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         session_id: targetSessionId,
         message: { id: userMsg.id, role: 'user', content },
         assistant_message_id: assistantId,
-        context: browserContext || undefined,
         model: controlModel,
         runtime_mode: runtimeMode,
       });
@@ -767,7 +762,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           timestamp: Date.now(),
           references: []
         });
-        await runSingleSkill(targetSessionId, baseMessages, assistantId, browserContext || undefined);
+        await runSingleSkill(targetSessionId, baseMessages, assistantId);
       }
     } catch (err) {
       console.error('执行失败:', err);
@@ -821,7 +816,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
           m.id === messageId ? { ...m, pendingConfirmation: undefined, executionSteps: updatedSteps } : m
         ) || [];
         
-        await runSingleSkill(targetSessionId, updatedMessages, messageId, browserContext || undefined);
+        await runSingleSkill(targetSessionId, updatedMessages, messageId);
       }
     } else {
       onUpdateMessage(targetSessionId, messageId, {

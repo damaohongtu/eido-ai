@@ -1,8 +1,8 @@
 # Eido
 
-Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口，把网页内容、附件、工作区文件、可复用技能和定时任务连接起来，让智能体可以规划、执行、产出并沉淀结果。
+Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口，把附件、工作区文件、可复用技能和定时任务连接起来，让智能体可以规划、执行、产出并沉淀结果。
 
-项目包含桌面 Web、移动端 H5 和 Chrome 侧边栏插件三类入口，提供四种部署方式：本地开发、Docker 单租户、Docker 沙盒多用户，以及 K8s（DaoCloud DCE 5.0）沙盒多用户。
+Eido 提供桌面 Web 工作台，支持本地开发、Docker 单租户、Docker 沙盒多用户和 K8s 沙盒多用户部署。
 
 > English version: [README-EN.md](README-EN.md)
 
@@ -17,9 +17,7 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 - **项目知识沉淀**：Project 会话自动获得项目指令和共享资料；会话 `outputs/` 中的生成结果可一键复制为项目资料，供后续会话继续使用。
 - **持久记忆与 MCP**：Claude Code auto-memory 按用户及个人/Project 范围隔离持久化；用户可在界面配置私有 HTTP、SSE 或 Stdio MCP Server，敏感配置加密保存。
 - **统一检索**：桌面侧栏可检索 Project 元数据、会话标题和历史消息正文，并显示会话最近更新时间。
-- **网页上下文分析**：Chrome 插件在当前浏览器右侧 Side Panel 打开，可读取当前页内容，也可选择用户已打开的其他标签页加入分析。
 - **定时任务**：支持技能、脚本和对话类任务的创建、编辑、手动运行和周期调度，用于日报、监控、摘要生成等自动化场景。
-- **多端体验**：桌面 Web 适合完整工作台，移动端 H5 和 Chrome 插件复用核心 API 与数据模型，针对窄屏做了独立布局。
 - **认证与隔离**：支持本地开发免登录、CAS 登录、管理员用户、系统/用户技能隔离；多用户沙盒模式下 gateway 统一入口，按用户创建隔离的容器（Docker）或 Pod + PVC（K8s），闲置自动回收、数据持久保留。
 - **快速部署**：本地开发、Docker 单租户、Docker 沙盒多用户、K8s 四条部署路径；支持 Anthropic API 兼容模型服务。
 
@@ -53,8 +51,6 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 | Agent | Claude Agent SDK, Claude Code harness |
 | 文件处理 | PyMuPDF, pypdf, pdfplumber, ReportLab, fpdf2, python-docx, python-pptx, pandas/openpyxl |
 | 桌面前端 | React 19, Vite 6, TypeScript, Ant Design 6, Tailwind CSS, Mermaid, react-markdown |
-| 移动端 H5 | React 19, Vite 6, antd-mobile, Tailwind CSS, 共享桌面端 API/type 层 |
-| Chrome 插件 | Manifest V3, Chrome Side Panel API, React 19, antd-mobile, content/background scripts |
 | 部署 | Nginx, Supervisor, Docker Compose profiles, Kubernetes manifests, app / gateway / user 多镜像 |
 
 ## 架构概览
@@ -63,9 +59,6 @@ Eido 是一个面向真实工作流的 AI 智能体平台：以对话为入口�
 flowchart LR
   subgraph Entrances["用户入口"]
     Desktop["桌面 Web<br/>/ai-eido/"]
-    Mobile["移动端 H5<br/>/ai-eido/m/"]
-    Extension["Chrome 侧边栏插件"]
-    Pages["当前页 / 其他已打开标签页"]
   end
 
   subgraph Gateway["Eido Gateway（nginx + FastAPI，单副本）"]
@@ -94,9 +87,6 @@ flowchart LR
   end
 
   Desktop --> Nginx
-  Mobile --> Nginx
-  Extension --> Nginx
-  Extension --> Pages
   Nginx --> Auth
   Auth --> Router
   Router --> ApiA
@@ -128,12 +118,8 @@ flowchart LR
 | --- | --- |
 | `backend/` | FastAPI 后端、认证、会话、聊天、技能、任务、工作区和沙盒代理接口 |
 | `frontend/` | 桌面 Web 工作台，默认入口 `/ai-eido/` |
-| `frontend-mobile/` | 移动端 H5，默认入口 `/ai-eido/m/`，并为插件提供窄屏布局基础 |
-| `frontend-extension/` | Chrome Manifest V3 插件，在浏览器右侧 Side Panel 运行 |
 | `docker/` | Dockerfile、Compose profiles、Nginx/Supervisor 配置和部署说明 |
 | `k8s/` | K8s（DaoCloud DCE 5.0）沙盒多用户部署：清单（namespace / RBAC / 存储 / Secret / gateway / CAS）、kind 集群配置与部署手册 |
-| `extension-update-server/` | 独立的 Chrome 插件更新服务：托管 CRX 并为 Chrome 原生更新器返回 update manifest |
-| `deployment/` | 插件企业内网分发包（Windows AD/GPO 强装 + Nginx 静态托管更新清单） |
 | `docs/` | 架构、API、技能密钥保护、模型与沙盒等专题文档 |
 | `skill-example/` | 技能开发示例 |
 | `.agents/skills/` | 仓库内置/示例技能资产；运行时默认技能目录是 `.claude/skills/` |
@@ -202,37 +188,9 @@ npm run dev
 
 访问 `http://localhost:3000/ai-eido/`。Vite 会把 `/ai-eido/api` 代理到后端 `/api`。
 
-### 4. 启动移动端 H5
+### 4. 选择模型
 
-```bash
-cd frontend-mobile
-npm install
-npm run dev
-```
-
-访问 `http://localhost:3001/ai-eido/m/`。
-
-### 5. 构建 Chrome 插件
-
-```bash
-cd frontend-extension
-npm install
-npm run build
-```
-
-然后打开 Chrome `chrome://extensions`，启用开发者模式，选择“加载已解压的扩展程序”，目录选择 `frontend-extension/dist`。
-
-插件默认连接 `http://localhost:8000`。如需连接其他后端：
-
-```bash
-VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
-```
-
-插件会在当前浏览器右侧 Side Panel 打开；调试控制台入口在“我的设置”中，也可以从扩展详情页的 Inspect views 打开原生 DevTools。
-
-### 6. 选择模型
-
-桌面、移动端与插件都在聊天输入框下方切换当前会话模型。目录由 [`backend/config/models.yaml`](backend/config/models.yaml) 维护，选择结果随会话持久化；切换模型会清理旧的原生 SID，并从已有消息恢复到新模型。
+在聊天输入框下方可以切换当前会话模型。目录由 [`backend/config/models.yaml`](backend/config/models.yaml) 维护，选择结果随会话持久化；切换模型会清理旧的原生 SID，并从已有消息恢复到新模型。
 
 每个模型可以配置独立的 Anthropic 兼容 provider。推荐在 YAML 中引用环境变量，避免把密钥提交到仓库：
 
@@ -294,17 +252,29 @@ cd frontend
 npm install
 npm run build
 
-cd ../frontend-mobile
-npm install
-npm run build
-
 cd ..
-docker build -f docker/app.Dockerfile -t damaohongtu/eido:latest .
-docker build -f docker/gateway.Dockerfile -t damaohongtu/eido-gateway:latest .
-docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
+docker buildx bake -f docker/docker-bake.hcl --load default app
 ```
 
-`gateway` / `user` 镜像同时用于 Docker 沙盒与 K8s 部署。插件不打入 app 镜像，如需分发插件请单独构建 `frontend-extension/dist`。
+`gateway` / `user` 镜像同时用于 Docker 沙盒与 K8s 部署。
+
+### 通过 API Key 调用 Eido
+
+启用 CAS 登录，并配置部署专用的随机 `SESSION_SECRET_KEY`。登录后，在 Web 端左下角头像菜单选择 **API Key**。也可以携带登录 Cookie 调用 `GET /api/v1/auth/api-key` 获取。密钥按用户生成，在同一部署中跨登出、重新登录和服务重启保持一致。更换 `SESSION_SECRET_KEY` 会使现有密钥失效。
+
+外部服务使用 `X-API-Key` 请求头，后端按密钥所属用户处理请求。以下示例先创建会话，再通过 SSE 接收回复。将 `EIDO_URL` 设为实际服务地址（包括部署时的路径前缀，例如 `https://eido.example.com/ai-eido`），并从服务的密钥配置读取 `EIDO_API_KEY`。
+
+```bash
+session_id=$(curl -fsS -X POST "$EIDO_URL/api/v1/sessions/" \
+  -H "X-API-Key: $EIDO_API_KEY" -H 'Content-Type: application/json' \
+  -d '{}' | jq -er '.id')
+
+curl -fsSN "$EIDO_URL/api/v1/chat/chat" \
+  -H "X-API-Key: $EIDO_API_KEY" \
+  -H 'Accept: text/event-stream' \
+  --json "$(jq -nc --arg sid "$session_id" --arg mid "$(uuidgen)" \
+    '{session_id:$sid, assistant_message_id:$mid, messages:[{role:"user",content:"你好"}]}')"
+```
 
 ## K8s 部署（沙盒多用户 · DaoCloud DCE 5.0）
 
@@ -360,7 +330,8 @@ DCE 社区版安装（Apple Silicon 实测）、License 激活流程、生产环
 | `AUTH_DISABLED` | 本地开发免登录开关 |
 | `SESSION_SECRET_KEY` | 登录 session 加密密钥，生产环境必须修改 |
 | `FRONTEND_URL` | 后端认证回跳与 CORS 使用的前端地址 |
-| `CAS_SERVER_URL` | CAS 服务地址 |
+| `CAS_SERVER_URL` | 浏览器访问的 CAS 服务地址 |
+| `CAS_INTERNAL_URL` | 可选的 CAS 内网地址，用于后端验证 ticket |
 | `EIDO_ADMIN_USERS` | 管理员用户名列表，用于系统技能管理 |
 | `SKILLS_DIR` | 技能根目录，默认通常为 `.claude/skills` |
 | `EIDO_SANDBOX_MODE` | 沙盒模式：`local`（单进程本地）/ `docker`（per-user 容器）/ `k8s`（per-user Pod + PVC） |
@@ -377,7 +348,7 @@ DCE 社区版安装（Apple Silicon 实测）、License 激活流程、生产环
 | `EIDO_DNS_1` / `EIDO_DNS_2` | Compose 容器外网 DNS（解析上游 LLM 域名），默认 `223.5.5.5` / `114.114.114.114` |
 | `EIDO_PROJECT_MAX_FILES` / `EIDO_PROJECT_MAX_BYTES` | 单 Project 共享资料数量/字节上限，默认 100 / 512 MiB |
 | `EIDO_USER_PROJECT_MAX_FILES` / `EIDO_USER_PROJECT_MAX_BYTES` | 单用户项目资料数量/字节上限，默认 500 / 2 GiB |
-| `BACKEND_CORS_ORIGIN_REGEX` | 允许 Chrome 插件等动态 origin 的 CORS 正则 |
+| `BACKEND_CORS_ORIGIN_REGEX` | 允许的跨域来源正则，默认未设置 |
 
 ## 运行时数据
 
@@ -422,12 +393,6 @@ python -m pytest
 # 前端构建
 cd frontend
 npm run build
-
-cd ../frontend-mobile
-npm run build
-
-cd ../frontend-extension
-npm run build
 ```
 
 ## 参考文档
@@ -438,7 +403,5 @@ npm run build
 - `docs/api.md`：后端 API 说明。
 - `docs/project-design.md`：Project 数据、上下文、并发、文件与发布设计。
 - `docs/skill-secret-protection.md`：技能密钥保护方案。
-- `frontend-extension/README.md`：Chrome 插件构建、登录和空白页排查。
-- `extension-update-server/README.md`：Chrome 插件 CRX 更新服务。
 
 本次原生能力、性能、隔离与升级说明见 [Claude Code 平台优化记录](docs/claude-native-platform-optimization.md)。

@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from app.services import project_workspace as workspace_module
-from app.services.chat_session_store import ChatSessionStore
-from app.services.project_workspace import (
+from app.services.chat.session_store import ChatSessionStore
+from app.services.projects import workspace as workspace_module
+from app.services.projects.workspace import (
     ProjectWorkspaceManager,
     retry_pending_storage_cleanup,
 )

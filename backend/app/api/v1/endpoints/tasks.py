@@ -3,52 +3,25 @@ Task CRUD endpoints.
 User identity resolved from Session cookie or signed X-Eido-User-Token header.
 """
 
-import asyncio
 import logging
-from collections.abc import Coroutine
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user_id
-from app.services import scheduler_service
-from app.services.scheduled_task_store import ScheduledTaskStore
+from app.services.tasks import scheduler
+from app.services.tasks.executor import start_task_run
+from app.services.tasks.store import ScheduledTaskStore, get_scheduled_task_store
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_store: ScheduledTaskStore | None = None
-_running_task_runs: set[asyncio.Task[None]] = set()
-
-
-def _start_task_run(coroutine: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
-    """Keep a strong reference until a detached task run finishes."""
-    running = asyncio.create_task(coroutine)
-    _running_task_runs.add(running)
-
-    def finish(completed: asyncio.Task[None]) -> None:
-        _running_task_runs.discard(completed)
-        try:
-            completed.result()
-        except asyncio.CancelledError:
-            logger.info("自动任务执行已取消")
-        except Exception:
-            logger.exception("自动任务执行协程异常")
-
-    running.add_done_callback(finish)
-    return running
-
-
-def set_store(store: ScheduledTaskStore):
-    global _store
-    _store = store
-
-
 def _get_store() -> ScheduledTaskStore:
-    if _store is None:
+    store = get_scheduled_task_store()
+    if store is None:
         raise HTTPException(status_code=503, detail="任务存储未初始化")
-    return _store
+    return store
 
 
 class TaskCreate(BaseModel):
@@ -82,7 +55,7 @@ async def create_task(
 ):
     store = _get_store()
     task = store.create(user_id, body.name, body.schedule, body.type, body.params)
-    scheduler_service.add_job(task)
+    scheduler.add_job(task)
     logger.info(f"[{user_id}] 创建任务: {task['id']} name={task['name']}")
     return task
 
@@ -114,9 +87,9 @@ async def update_task(
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    scheduler_service.remove_job(task_id)
+    scheduler.remove_job(task_id)
     if task["enabled"]:
-        scheduler_service.add_job(task)
+        scheduler.add_job(task)
 
     logger.info(f"[{user_id}] 更新任务: {task_id}")
     return task
@@ -131,7 +104,7 @@ async def delete_task(
     ok = store.delete(user_id, task_id)
     if not ok:
         raise HTTPException(status_code=404, detail="任务不存在")
-    scheduler_service.remove_job(task_id)
+    scheduler.remove_job(task_id)
     logger.info(f"[{user_id}] 删除任务: {task_id}")
     return {"ok": True}
 
@@ -146,24 +119,7 @@ async def run_task(
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    from app.services.task_executor import create_task_conversation, execute_task
-
-    conversation = await create_task_conversation(task)
-    started = asyncio.Event()
-
-    async def execute_and_mark() -> None:
-        await execute_task(
-            task,
-            session_id=conversation["id"],
-            started_event=started,
-        )
-        store.update_last_run(task_id)
-
-    _start_task_run(execute_and_mark())
-    # Do not navigate the browser to an apparently idle empty conversation.
-    # The executor sets this after the user turn and assistant running
-    # placeholder are durable (or after an early failure has been recorded).
-    await started.wait()
+    conversation = await start_task_run(task, store)
     logger.info(
         "[%s] 手动触发任务: %s conversation=%s",
         user_id,

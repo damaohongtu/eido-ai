@@ -8,10 +8,7 @@
 所有写操作都要求登录；admin 通过 EIDO_ADMIN_USERS 白名单识别。
 """
 
-import io
 import logging
-import re
-import zipfile
 from pathlib import Path
 from typing import List, Optional
 
@@ -20,8 +17,10 @@ from pydantic import BaseModel
 
 from app.core.auth import get_current_user_id
 from app.core.config import settings
-from app.services.claude_runtime import get_claude_runtime
-from app.services.skill_management_service import get_skill_management_service
+from app.services.skills.management import (
+    SkillManagementService,
+    get_skill_management_service,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -97,6 +96,13 @@ class FileMkdirRequest(BaseModel):
 # ------------------------------------------------------------------ #
 
 
+def _skill_service() -> SkillManagementService:
+    service = get_skill_management_service()
+    if service is None:
+        raise HTTPException(status_code=503, detail="技能服务未初始化")
+    return service
+
+
 def _meta_to_response(meta, *, viewer_user_id: Optional[str] = None) -> SkillResponse:
     """把 SkillMeta 转成响应；is_owner 表示 viewer 是否对该技能有写权限。"""
     if meta.owner_type == "system":
@@ -143,11 +149,7 @@ async def list_skills(
     user_id: str = Depends(get_current_user_id),
 ):
     """获取技能列表：system 区 + 当前用户私有区。"""
-    svc = get_claude_runtime()
-    if svc is None:
-        raise HTTPException(status_code=503, detail="技能服务未初始化")
-
-    skills = svc.scan_skills(user_id=user_id)
+    skills = _skill_service().catalog.scan_skills(user_id=user_id)
 
     # 过滤
     if search:
@@ -175,42 +177,26 @@ async def upload_skill(
 
     admin 上传 → system/<id>；普通用户上传 → users/<self>/<id>。
     """
-    svc = get_claude_runtime()
-    mgmt_svc = get_skill_management_service()
-    if svc is None or mgmt_svc is None:
-        raise HTTPException(status_code=503, detail="技能服务未初始化")
-
-    ext = Path(file.filename or "").suffix.lower()
+    service = _skill_service()
+    filename = file.filename or ""
+    ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
             detail=f"不支持的文件格式，仅支持: {', '.join(ALLOWED_EXTENSIONS)}",
         )
 
-    content = await file.read()
+    content = await file.read(MAX_UPLOAD_SIZE + 1)
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=400, detail="文件大小超过 10 MB 限制")
 
     try:
-        target_root = mgmt_svc._resolve_owner_dir(user_id)
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
-
-    try:
-        if ext == ".zip" or ext == ".skill":
-            meta = _extract_zip_skill(content, file.filename or "skill.zip", target_root, user_id)
-        else:  # .md
-            meta = _save_md_skill(content, file.filename or "skill.md", target_root, user_id)
-        svc.invalidate_skill_cache(
-            user_id=user_id,
-            system=(meta.owner_type == "system"),
-        )
+        meta = service.import_skill(user_id, filename, content)
         return _meta_to_response(meta, viewer_user_id=user_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.exception("上传技能失败")
-        raise HTTPException(status_code=500, detail=f"上传失败: {e}")
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{skill_id}", response_model=SkillResponse)
@@ -219,14 +205,12 @@ async def get_skill(
     user_id: str = Depends(get_current_user_id),
 ):
     """获取单个技能详情（system 任意人可读，私有仅 owner 可读）。"""
-    svc = get_claude_runtime()
-    if svc is None:
-        raise HTTPException(status_code=503, detail="技能服务未初始化")
-
     try:
-        meta = svc.get_skill(skill_id, user_id=user_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}")
+        meta = _skill_service().catalog.get_skill(skill_id, user_id=user_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"技能不存在: {skill_id}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return _meta_to_response(meta, viewer_user_id=user_id)
 
@@ -237,9 +221,7 @@ async def delete_skill(
     user_id: str = Depends(get_current_user_id),
 ):
     """删除技能。系统技能仅 admin 可删；私有技能仅 owner 可删。"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
 
     try:
         mgmt_svc.delete_skill(user_id, skill_id)
@@ -257,9 +239,7 @@ async def create_skill(
     user_id: str = Depends(get_current_user_id),
 ):
     """创建新技能。admin → system/，普通用户 → 私有区。"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
     try:
         meta = mgmt_svc.create_skill(
             user_id=user_id,
@@ -285,9 +265,7 @@ async def update_skill(
     user_id: str = Depends(get_current_user_id),
 ):
     """更新技能元数据或正文。"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
     try:
         meta = mgmt_svc.update_skill(
             user_id=user_id,
@@ -312,9 +290,7 @@ async def list_files(
     user_id: str = Depends(get_current_user_id),
 ):
     """列出技能目录下的文件树"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
     try:
         return mgmt_svc.list_files(user_id, skill_id)
     except FileNotFoundError:
@@ -330,9 +306,7 @@ async def read_file(
     user_id: str = Depends(get_current_user_id),
 ):
     """读取技能目录下指定文件"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
     try:
         return mgmt_svc.read_file(user_id, skill_id, path)
     except FileNotFoundError:
@@ -348,9 +322,7 @@ async def write_file(
     user_id: str = Depends(get_current_user_id),
 ):
     """向技能目录写入文件"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
     try:
         mgmt_svc.write_file(user_id, skill_id, request.path, request.content)
     except FileNotFoundError:
@@ -368,9 +340,7 @@ async def delete_file(
     user_id: str = Depends(get_current_user_id),
 ):
     """删除技能目录下指定文件"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
     try:
         mgmt_svc.delete_file(user_id, skill_id, request.path)
     except FileNotFoundError:
@@ -390,9 +360,7 @@ async def mkdir(
     user_id: str = Depends(get_current_user_id),
 ):
     """在技能目录下创建子目录"""
-    mgmt_svc = get_skill_management_service()
-    if not mgmt_svc:
-        raise HTTPException(status_code=503, detail="SkillManagementService not initialized")
+    mgmt_svc = _skill_service()
     try:
         mgmt_svc.mkdir(user_id, skill_id, request.path)
     except FileNotFoundError:
@@ -401,103 +369,3 @@ async def mkdir(
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-def _slug(name: str) -> str:
-    """将名称转为目录名 slug"""
-    s = re.sub(r"[^\w\s-]", "", name)
-    s = re.sub(r"[-\s]+", "-", s).strip().lower()
-    return s or "skill"
-
-
-def _parse_name_from_frontmatter(content: bytes) -> Optional[str]:
-    """从 SKILL.md 的 frontmatter 解析 name"""
-    try:
-        text = content.decode("utf-8")
-        if text.startswith("---"):
-            end = text.find("\n---", 3)
-            if end > 0:
-                import yaml
-
-                meta = yaml.safe_load(text[4:end]) or {}
-                return meta.get("name")
-    except Exception:
-        pass
-    return None
-
-
-def _extract_zip_skill(content: bytes, filename: str, target_root: Path, user_id: str):
-    """从 zip 解压并安装技能到 target_root（owner 区域）"""
-    target_root.mkdir(parents=True, exist_ok=True)
-
-    with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
-        names = zf.namelist()
-        # 查找 SKILL.md
-        skill_md_path = None
-        for n in names:
-            nnorm = n.replace("\\", "/").strip("/")
-            if nnorm == "SKILL.md" or nnorm.endswith("/SKILL.md"):
-                skill_md_path = n
-                break
-        if not skill_md_path:
-            raise ValueError("ZIP 中未找到 SKILL.md")
-
-        # 优先从 SKILL.md frontmatter 解析技能名作为目录名，避免使用 Archive 等通用名
-        skill_md_content = zf.read(skill_md_path)
-        name_from_fm = _parse_name_from_frontmatter(skill_md_content)
-        if name_from_fm:
-            skill_id = _slug(name_from_fm) or "uploaded-skill"
-        else:
-            skill_id = None
-
-        # 确定解压前缀和 fallback 目录名
-        path_parts = skill_md_path.replace("\\", "/").split("/")
-        if len(path_parts) > 1:
-            prefix = path_parts[0] + "/"
-            fallback_id = _slug(path_parts[0]) or "uploaded-skill"
-        else:
-            prefix = ""
-            fallback_id = Path(filename).stem
-            if not re.match(r"^[\w-]+$", fallback_id):
-                fallback_id = "uploaded-skill"
-
-        if not skill_id:
-            skill_id = fallback_id
-
-        target_dir = target_root / skill_id
-        if target_dir.exists():
-            raise ValueError(f"技能目录已存在: {skill_id}")
-
-        target_dir.mkdir(parents=True)
-        for n in names:
-            if n.endswith("/"):
-                continue
-            if prefix and not n.replace("\\", "/").startswith(prefix):
-                continue
-            data = zf.read(n)
-            rel = n.replace("\\", "/")[len(prefix) :] if prefix else n
-            out = target_dir / rel
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_bytes(data)
-
-    svc = get_claude_runtime()
-    return svc.get_skill(skill_id, user_id=user_id)
-
-
-def _save_md_skill(content: bytes, filename: str, target_root: Path, user_id: str):
-    """将 .md 文件保存为技能到 target_root（owner 区域）"""
-    target_root.mkdir(parents=True, exist_ok=True)
-
-    skill_id = _slug(Path(filename).stem) or "uploaded-skill"
-    name = _parse_name_from_frontmatter(content) or skill_id
-    skill_id = _slug(name) or skill_id
-
-    target_dir = target_root / skill_id
-    if target_dir.exists():
-        raise ValueError(f"技能目录已存在: {skill_id}")
-
-    target_dir.mkdir(parents=True)
-    (target_dir / "SKILL.md").write_bytes(content)
-
-    svc = get_claude_runtime()
-    return svc.get_skill(skill_id, user_id=user_id)

@@ -8,7 +8,6 @@ export interface ModelOption {
   description: string;
 }
 
-/** Shared by desktop, mobile and the browser extension. */
 export default function ModelSelector({ value, onChange, disabled }: {
   value: string;
   onChange: (model: string) => void;

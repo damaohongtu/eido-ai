@@ -11,7 +11,7 @@ Sandbox Manager — 每用户独立 FastAPI 沙盒编排（docker / k8s 双后�
 - k8s：K8s API + per-user Pod/PVC（sandbox_k8s.K8sSandboxClient），Pod IP 寻址，
   registry 记录的 internal_host 在 Pod 重建后自动刷新
 
-沙盒命名规则：`eido-user-<safe_user_id>`，user_id 走 _safe_user_id 白名单后再拼接，
+沙盒命名规则：`eido-user-<safe_user_id>`，user_id 走 safe_user_id 白名单后再拼接，
 原始 user_id 仍记录在 registry.user_id 字段中。
 """
 
@@ -21,7 +21,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 import sqlite3
 import threading
 import time
@@ -31,28 +30,15 @@ from pathlib import Path
 from typing import Optional
 
 from app.core.config import settings
-from app.core.tenant_credentials import derive_secret, gateway_secret, provider_token, token_secret
+from app.core.tenant_credentials import (
+    derive_secret,
+    gateway_secret,
+    provider_token,
+    safe_user_id,
+    token_secret,
+)
 
 logger = logging.getLogger(__name__)
-
-
-_USER_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
-_SAFE_REPLACE_RE = re.compile(r"[^A-Za-z0-9_\-]")
-
-
-def _safe_user_id(user_id: str) -> str:
-    """把 CAS 用户 ID 规范化为 docker-friendly 字符集。
-    规则：仅保留 [A-Za-z0-9_-]，其余替换为 -，截断到 32 位，再追加 8 位 hash 后缀
-    避免冲突。"""
-    if not user_id:
-        raise ValueError("user_id 为空")
-    if _USER_ID_RE.fullmatch(user_id) and len(user_id) <= 48:
-        return user_id
-    base = _SAFE_REPLACE_RE.sub("-", user_id)[:32].strip("-") or "user"
-    import hashlib
-
-    suffix = hashlib.sha1(user_id.encode("utf-8")).hexdigest()[:8]
-    return f"{base}-{suffix}"
 
 
 @dataclass
@@ -227,20 +213,6 @@ class SandboxManager:
             return False
         return await asyncio.to_thread(self._stop_backend, user_id)
 
-    def list_active(self) -> list[SandboxHandle]:
-        rows = (
-            self._conn.execute(
-                "SELECT * FROM sandbox_registry WHERE status = 'running' ORDER BY last_active_at DESC"
-            ).fetchall()
-            if self._conn
-            else []
-        )
-        return [self._row_to_handle(r) for r in rows]
-
-    # -------------------------------------------------------------- #
-    #  Idle GC                                                         #
-    # -------------------------------------------------------------- #
-
     async def start_idle_gc(self) -> None:
         if self._mode not in ("docker", "k8s"):
             return
@@ -339,7 +311,7 @@ class SandboxManager:
     def _ensure_running_k8s(self, user_id: str) -> SandboxHandle:
         assert self._k8s is not None
         with self._docker_locks.setdefault(user_id, threading.RLock()):
-            safe = _safe_user_id(user_id)
+            safe = safe_user_id(user_id)
             name = f"eido-user-{safe}"
             env = self._build_user_env(user_id)
             # Pod 重建后 IP 会变化，registry 每次刷新
@@ -374,7 +346,7 @@ class SandboxManager:
                 settings.EIDO_GATEWAY_INTERNAL_URL.rstrip("/") + "/api/v1/provider"
             )
         env.update(provider_env)
-        from app.services.model_catalog import load_model_catalog
+        from app.services.claude.models import load_model_catalog
 
         env["CLAUDE_MODEL_CATALOG_JSON"] = json.dumps(
             load_model_catalog().sandbox(), ensure_ascii=False
@@ -388,7 +360,7 @@ class SandboxManager:
 
     def _ensure_running_locked(self, user_id: str) -> SandboxHandle:
         assert self._docker is not None
-        safe = _safe_user_id(user_id)
+        safe = safe_user_id(user_id)
         container_name = f"eido-user-{safe}"
 
         existing = self._find_container(container_name)

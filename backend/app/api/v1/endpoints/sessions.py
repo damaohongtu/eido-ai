@@ -14,15 +14,15 @@ from pydantic import BaseModel, Field
 
 from app.core.auth import get_current_user_id
 from app.core.config import settings
-from app.services.chat_execution_guard import get_chat_execution_guard
-from app.services.chat_session_store import get_chat_session_store
-from app.services.claude_execution_profile import RuntimeMode, resolve_runtime_mode
-from app.services.model_catalog import load_model_catalog
-from app.services.project_workspace import validate_project_id
-from app.services.session_workspace import (
+from app.services.chat.execution_guard import get_chat_execution_guard
+from app.services.chat.session_store import get_chat_session_store
+from app.services.chat.session_workspace import (
     get_session_workspace_manager,
     validate_session_id,
 )
+from app.services.claude.execution_profile import RuntimeMode, resolve_runtime_mode
+from app.services.claude.models import load_model_catalog
+from app.services.projects.workspace import validate_project_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -247,7 +247,7 @@ async def patch_session(
         if project_changed or model_changed or runtime_mode_changed:
             # 内存 engine / Claude 长连接含旧项目上下文或模型；切换后必须驱逐。
             try:
-                from app.services.claude_runtime import get_claude_runtime
+                from app.services.claude.runtime import get_claude_runtime
 
                 claude_runtime = get_claude_runtime()
                 if claude_runtime is not None:
@@ -281,7 +281,7 @@ async def delete_session(
         if not deleted:
             raise HTTPException(status_code=404, detail="会话不存在")
         try:
-            from app.services.claude_runtime import get_claude_runtime
+            from app.services.claude.runtime import get_claude_runtime
 
             claude_runtime = get_claude_runtime()
             if claude_runtime is not None:

@@ -17,11 +17,12 @@ from app.core.config import settings
 from app.core.tenant_credentials import (
     gateway_secret,
     provider_token,
+    safe_user_id,
     token_secret,
     verify_provider_token,
 )
 from app.core.user_token import create_user_token, verify_user_token
-from app.gateway.sandbox_manager import SandboxManager, _safe_user_id
+from app.gateway.sandbox_manager import SandboxManager
 
 
 @pytest.fixture
@@ -94,7 +95,7 @@ def test_provider_token_is_identity_and_purpose_bound(credentials):
 
 
 def test_long_user_ids_do_not_collide():
-    assert _safe_user_id("a" * 48 + "1") != _safe_user_id("a" * 48 + "2")
+    assert safe_user_id("a" * 48 + "1") != safe_user_id("a" * 48 + "2")
 
 
 def test_gc_preserves_active_streams_and_native_tasks(tmp_path, monkeypatch):
@@ -226,7 +227,8 @@ async def test_scheduled_script_is_forwarded_to_owner_container(monkeypatch):
     from unittest.mock import AsyncMock
 
     from app.gateway import proxy, sandbox_manager
-    from app.services import script_runner, task_executor
+    from app.services.tasks import executor as task_executor
+    from app.services.tasks import script_runner
 
     handle = object()
     manager = MagicMock()
@@ -239,7 +241,8 @@ async def test_scheduled_script_is_forwarded_to_owner_container(monkeypatch):
     )
     forwarded = AsyncMock(return_value=response)
     monkeypatch.setattr(proxy, "proxy_internal_post", forwarded)
-    monkeypatch.setattr(task_executor, "_is_docker_sandbox", lambda: True)
+    monkeypatch.setattr(settings, "EIDO_TRUST_GATEWAY", False)
+    monkeypatch.setattr(settings, "EIDO_SANDBOX_MODE", "docker")
     monkeypatch.setattr(task_executor, "_append_task_message", AsyncMock())
     local = AsyncMock(side_effect=AssertionError("must never execute on gateway"))
     monkeypatch.setattr(script_runner, "run_script", local)
@@ -257,3 +260,60 @@ async def test_scheduled_script_is_forwarded_to_owner_container(monkeypatch):
         "command": ["/bin/echo", "hello"],
     }
     local.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/api/v1/chat/chat", "/api/v1/chat/completions"])
+async def test_public_api_key_routes_chat_to_owner_without_forwarding_key(
+    credentials, monkeypatch, path
+):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.core.api_key import issue_api_key
+    from app.gateway import proxy, router_user, sandbox_manager
+
+    monkeypatch.setattr(settings, "AUTH_DISABLED", False)
+    key = issue_api_key("alice")
+    manager = MagicMock()
+    manager.ensure_running = AsyncMock(
+        return_value=SimpleNamespace(user_id="alice", base_url="http://alice-runtime")
+    )
+    monkeypatch.setattr(router_user, "get_sandbox_manager", lambda: manager)
+    monkeypatch.setattr(sandbox_manager, "get_sandbox_manager", lambda: manager)
+
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b'data: {"type":"content","content":"hello"}\n\ndata: [DONE]\n\n'
+
+    async def handler(request):
+        assert str(request.url) == f"http://alice-runtime{path}"
+        assert request.headers["x-eido-user-id"] == "alice"
+        assert request.headers["x-eido-gateway-secret"] == gateway_secret("alice")
+        assert "x-api-key" not in request.headers
+        assert await request.aread() == b"{}"
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream", "X-Session-Id": "external-id"},
+            stream=Stream(),
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as upstream:
+        monkeypatch.setattr(proxy, "get_proxy_client", lambda: upstream)
+        app = FastAPI()
+        app.include_router(router_user.router, prefix="/api/v1")
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://eido"
+        ) as client:
+            response = await client.post(
+                path,
+                headers={"X-API-Key": key, "X-Eido-User-Id": "bob"},
+                json={},
+            )
+
+    assert response.status_code == 200
+    assert response.headers["x-session-id"] == "external-id"
+    assert 'data: {"type":"content","content":"hello"}' in response.text
+    assert "data: [DONE]" in response.text
+    manager.ensure_running.assert_awaited_once_with("alice")
+    manager.release.assert_called_once_with("alice")

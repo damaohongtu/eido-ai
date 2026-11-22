@@ -1,8 +1,8 @@
 # Eido
 
-Eido is an AI agent platform for real-world workflows: starting from a conversation, it connects web content, attachments, workspace files, reusable skills, and scheduled tasks, letting the agent plan, execute, produce, and accumulate results.
+Eido is an AI agent platform for real-world workflows: starting from a conversation, it connects attachments, workspace files, reusable skills, and scheduled tasks, letting the agent plan, execute, produce, and accumulate results.
 
-The project ships three client surfaces — desktop web, mobile H5, and a Chrome side-panel extension — and four deployment options: local development, single-tenant Docker, multi-user Docker sandbox, and multi-user Kubernetes sandbox (DaoCloud DCE 5.0).
+Eido provides a desktop web workbench with local, single-tenant Docker, multi-user Docker sandbox, and multi-user Kubernetes sandbox deployments.
 
 > 中文版：[README.md](README.md)
 
@@ -17,9 +17,7 @@ The project ships three client surfaces — desktop web, mobile H5, and a Chrome
 - **Project knowledge**: Project sessions automatically receive project instructions and shared materials; generated results in a session's `outputs/` can be copied into project materials in one click for later sessions.
 - **Persistent memory & MCP**: Claude Code auto-memory is persisted per user and per personal/project scope; users can configure private HTTP, SSE, or stdio MCP servers from the UI, with sensitive values encrypted at rest.
 - **Unified search**: The desktop sidebar searches project metadata, session titles, and full message bodies, with last-updated timestamps.
-- **Web context analysis**: The Chrome extension opens in the browser's Side Panel, reads the current page, and can pull in other open tabs for analysis.
 - **Scheduled tasks**: Create, edit, run now, and schedule skill, script, and conversation tasks — for daily reports, monitoring, summarization, and other automation.
-- **Multi-surface experience**: Desktop web for the full workbench; mobile H5 and the Chrome extension reuse the core API and data model with layouts tuned for narrow screens.
 - **Auth & isolation**: Supports password-free local development, CAS login, admin users, and system/user skill separation; in multi-user sandbox mode the gateway is the single entry point and provisions isolated containers (Docker) or Pods + PVCs (Kubernetes) per user, with idle reclamation and persistent data.
 - **Fast deployment**: Four deployment paths — local, single-tenant Docker, multi-user Docker sandbox, and Kubernetes; works with any Anthropic-API-compatible model service.
 
@@ -53,8 +51,6 @@ The project ships three client surfaces — desktop web, mobile H5, and a Chrome
 | Agent | Claude Agent SDK, Claude Code harness |
 | File processing | PyMuPDF, pypdf, pdfplumber, ReportLab, fpdf2, python-docx, python-pptx, pandas/openpyxl |
 | Desktop frontend | React 19, Vite 6, TypeScript, Ant Design 6, Tailwind CSS, Mermaid, react-markdown |
-| Mobile H5 | React 19, Vite 6, antd-mobile, Tailwind CSS, shared desktop API/type layer |
-| Chrome extension | Manifest V3, Chrome Side Panel API, React 19, antd-mobile, content/background scripts |
 | Deployment | Nginx, Supervisor, Docker Compose profiles, Kubernetes manifests, app / gateway / user images |
 
 ## Architecture
@@ -63,9 +59,6 @@ The project ships three client surfaces — desktop web, mobile H5, and a Chrome
 flowchart LR
   subgraph Entrances["User Entrances"]
     Desktop["Desktop Web<br/>/ai-eido/"]
-    Mobile["Mobile H5<br/>/ai-eido/m/"]
-    Extension["Chrome Side-Panel Extension"]
-    Pages["Current page / other open tabs"]
   end
 
   subgraph Gateway["Eido Gateway (nginx + FastAPI, single replica)"]
@@ -94,9 +87,6 @@ flowchart LR
   end
 
   Desktop --> Nginx
-  Mobile --> Nginx
-  Extension --> Nginx
-  Extension --> Pages
   Nginx --> Auth
   Auth --> Router
   Router --> ApiA
@@ -128,12 +118,8 @@ The single-tenant mode is a simplified form of this architecture: drop the gatew
 | --- | --- |
 | `backend/` | FastAPI backend: auth, sessions, chat, skills, tasks, workspace, and sandbox proxy APIs |
 | `frontend/` | Desktop web workbench, entry `/ai-eido/` |
-| `frontend-mobile/` | Mobile H5, entry `/ai-eido/m/`; also the narrow-layout base for the extension |
-| `frontend-extension/` | Chrome Manifest V3 extension running in the Side Panel |
 | `docker/` | Dockerfiles, Compose profiles, Nginx/Supervisor configs, deployment notes |
 | `k8s/` | Kubernetes (DaoCloud DCE 5.0) multi-user sandbox deployment: manifests (namespace / RBAC / storage / Secret / gateway / CAS), kind cluster config, deployment guide |
-| `extension-update-server/` | Standalone Chrome extension update service: hosts CRX files and serves update manifests to Chrome's native updater |
-| `deployment/` | Enterprise intranet extension distribution package (Windows AD/GPO install + Nginx-hosted update manifest) |
 | `docs/` | Topic docs: architecture, API, skill secret protection, models, sandbox |
 | `skill-example/` | Skill development examples |
 | `.agents/skills/` | Built-in / example skill assets; the runtime default skill directory is `.claude/skills/` |
@@ -203,37 +189,9 @@ npm run dev
 
 Open `http://localhost:3000/ai-eido/`. Vite proxies `/ai-eido/api` to the backend `/api`.
 
-### 4. Start the mobile H5
+### 4. Choose a model
 
-```bash
-cd frontend-mobile
-npm install
-npm run dev
-```
-
-Open `http://localhost:3001/ai-eido/m/`.
-
-### 5. Build the Chrome extension
-
-```bash
-cd frontend-extension
-npm install
-npm run build
-```
-
-Then open `chrome://extensions`, enable developer mode, choose "Load unpacked", and select `frontend-extension/dist`.
-
-The extension connects to `http://localhost:8000` by default. To target another backend:
-
-```bash
-VITE_EIDO_BACKEND_URL=https://your-domain.example.com npm run build
-```
-
-The extension opens in the browser's Side Panel; the debug console entry is under "My Settings", and the native DevTools are available from the extension details page's Inspect views.
-
-### 6. Choose a model
-
-Desktop, mobile, and the extension all switch the session model below the chat input. The catalog is maintained in [`backend/config/models.yaml`](backend/config/models.yaml); the choice persists per session, switching clears the old native SID and resumes onto the new model from existing messages.
+Use the selector below the chat input to switch the session model. The catalog is maintained in [`backend/config/models.yaml`](backend/config/models.yaml); the choice persists per session, switching clears the old native SID and resumes onto the new model from existing messages.
 
 Each model can have its own Anthropic-compatible provider. Prefer referencing environment variables in the YAML to keep keys out of the repo:
 
@@ -295,17 +253,15 @@ cd frontend
 npm install
 npm run build
 
-cd ../frontend-mobile
-npm install
-npm run build
-
 cd ..
-docker build -f docker/app.Dockerfile -t damaohongtu/eido:latest .
-docker build -f docker/gateway.Dockerfile -t damaohongtu/eido-gateway:latest .
-docker build -f docker/user.Dockerfile -t damaohongtu/eido-user:latest .
+docker buildx bake -f docker/docker-bake.hcl --load default app
 ```
 
-The `gateway` / `user` images serve both the Docker sandbox and Kubernetes deployments. The extension is not baked into the app image; build `frontend-extension/dist` separately to distribute it.
+The `gateway` / `user` images serve both the Docker sandbox and Kubernetes deployments.
+
+### Calling Eido with an API key
+
+With CAS login enabled and a deployment-specific `SESSION_SECRET_KEY` configured, open **API Key** from the Web account menu. The browser session can also retrieve it from `GET /api/v1/auth/api-key`. External requests carry the key in the `X-API-Key` header and run under its owner's account. Keys survive logout and service restarts. Rotating `SESSION_SECRET_KEY` invalidates existing keys. See the [session and streaming chat example](README.md#通过-api-key-调用-eido).
 
 ## Kubernetes Deployment (Multi-User Sandbox · DaoCloud DCE 5.0)
 
@@ -362,7 +318,8 @@ See [k8s/README.md](k8s/README.md) (Chinese) for the DCE community-edition insta
 | `AUTH_DISABLED` | Skip login for local development |
 | `SESSION_SECRET_KEY` | Session encryption key; must be changed in production |
 | `FRONTEND_URL` | Frontend URL used for auth redirects and CORS |
-| `CAS_SERVER_URL` | CAS service URL |
+| `CAS_SERVER_URL` | Public CAS service URL |
+| `CAS_INTERNAL_URL` | Optional internal CAS URL for ticket validation |
 | `EIDO_ADMIN_USERS` | Admin username list, used for system skill management |
 | `SKILLS_DIR` | Skill root directory, usually `.claude/skills` |
 | `EIDO_SANDBOX_MODE` | Sandbox mode: `local` (single process) / `docker` (per-user containers) / `k8s` (per-user Pod + PVC) |
@@ -379,7 +336,7 @@ See [k8s/README.md](k8s/README.md) (Chinese) for the DCE community-edition insta
 | `EIDO_DNS_1` / `EIDO_DNS_2` | Public DNS for Compose containers (resolving upstream LLM domains), defaults `223.5.5.5` / `114.114.114.114` |
 | `EIDO_PROJECT_MAX_FILES` / `EIDO_PROJECT_MAX_BYTES` | Per-project shared material count/byte limits, default 100 / 512 MiB |
 | `EIDO_USER_PROJECT_MAX_FILES` / `EIDO_USER_PROJECT_MAX_BYTES` | Per-user project material count/byte limits, default 500 / 2 GiB |
-| `BACKEND_CORS_ORIGIN_REGEX` | CORS regex allowing dynamic origins such as the Chrome extension |
+| `BACKEND_CORS_ORIGIN_REGEX` | Optional regex for permitted cross-origin requests |
 
 ## Runtime Data
 
@@ -424,12 +381,6 @@ python -m pytest
 # Frontend builds
 cd frontend
 npm run build
-
-cd ../frontend-mobile
-npm run build
-
-cd ../frontend-extension
-npm run build
 ```
 
 ## Reference Documentation
@@ -440,7 +391,5 @@ npm run build
 - `docs/api.md`: backend API reference.
 - `docs/project-design.md`: Project data, context, concurrency, files, and publishing design.
 - `docs/skill-secret-protection.md`: skill secret protection.
-- `frontend-extension/README.md`: Chrome extension build, login, and blank-page troubleshooting.
-- `extension-update-server/README.md`: Chrome extension CRX update service.
 
 Notes on native capabilities, performance, isolation, and upgrades: [Claude Code Platform Optimization Notes](docs/claude-native-platform-optimization.md).

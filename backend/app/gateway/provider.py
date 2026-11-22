@@ -13,7 +13,7 @@ _ALLOWED = {("POST", "v1/messages"), ("POST", "v1/messages/count_tokens"), ("GET
 
 def _provider_target(path: str):
     """Resolve either the legacy default route or /provider/<model-id>/v1/..."""
-    from app.services.model_catalog import load_model_catalog
+    from app.services.claude.models import load_model_catalog
 
     if path.startswith("v1/"):
         return load_model_catalog().find(None), path

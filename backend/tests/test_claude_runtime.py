@@ -15,16 +15,16 @@ from pydantic import SecretStr
 
 from app.core.config import settings
 from app.schemas.chat import Message
-from app.services.chat_session_store import ChatSessionStore
-from app.services.claude_event_adapter import ClaudeEventAdapter
-from app.services.claude_prompt import build_prompt, build_qa_prompt
-from app.services.claude_runtime import ClaudeRuntime
-from app.services.conversation_context import format_recent_conversation, prepare_recovery_context
-from app.services.session_workspace import SessionWorkspaceManager
+from app.services.chat.session_store import ChatSessionStore
+from app.services.chat.session_workspace import SessionWorkspaceManager
+from app.services.claude.context import format_recent_conversation, prepare_recovery_context
+from app.services.claude.event_adapter import ClaudeEventAdapter
+from app.services.claude.prompt import build_prompt, build_qa_prompt
+from app.services.claude.runtime import ClaudeRuntime
 
 
 def payloads(events):
-    return [json.loads(e[6:]) for e in events if e.startswith("data: {")]
+    return [event for event in events if isinstance(event, dict)]
 
 
 def result(error=False, **kwargs):
@@ -50,23 +50,13 @@ def delta(text, parent=None):
 
 def test_partial_text_is_immediate_and_full_message_is_not_duplicated():
     converter = ClaudeEventAdapter()
-    assert payloads(converter._convert_message(delta("first"))) == [
-        {"type": "content", "content": "first"}
+    assert converter.events(delta("first")) == [{"type": "content", "content": "first"}]
+    assert converter.events(delta("child", "tool-1")) == []
+    assert converter.events(AssistantMessage(content=[TextBlock("first")], model="sonnet")) == []
+    assert converter.events(AssistantMessage(content=[TextBlock("second")], model="sonnet")) == [
+        {"type": "content", "content": "second"}
     ]
-    assert converter._convert_message(delta("child", "tool-1")) == []
-    assert not payloads(
-        converter._convert_message(AssistantMessage(content=[TextBlock("first")], model="sonnet"))
-    )
-    # Next message without partial events must still be displayed.
-    assert (
-        payloads(
-            converter._convert_message(
-                AssistantMessage(content=[TextBlock("second")], model="sonnet")
-            )
-        )[0]["content"]
-        == "second"
-    )
-    assert payloads(converter._convert_message(result(True, result="failed")))[0]["type"] == "error"
+    assert converter.events(result(True, result="failed"))[0]["type"] == "error"
 
 
 def test_recovery_keeps_early_goal_and_retrieves_old_evidence(tmp_path):
@@ -83,11 +73,11 @@ def test_recovery_keeps_early_goal_and_retrieves_old_evidence(tmp_path):
     assert "中间工作 80" in archive.read_text()
 
 
-def test_large_browser_context_keeps_the_tail_on_disk(tmp_path):
+def test_large_context_keeps_the_tail_on_disk(tmp_path):
     service = ClaudeRuntime(tmp_path / "skills", tmp_path)
     context = "网页正文 " * 5000 + "TAIL-IMPORTANT"
     prompt = build_prompt(
-        skills_dir=service.skills_dir,
+        skills_dir=service.catalog.skills_dir,
         fallback_skills_index="",
         cwd=tmp_path,
         latest_user_text="分析",
@@ -112,7 +102,9 @@ def test_qa_prompt_truncates_context_without_unreadable_file_reference(tmp_path)
 
 @pytest.fixture
 def runtime(tmp_path, monkeypatch):
-    from app.services import chat_session_store, mcp_config_store, session_workspace
+    from app.services.chat import session_store as chat_session_store
+    from app.services.chat import session_workspace
+    from app.services.mcp import config_store as mcp_config_store
 
     store = ChatSessionStore(tmp_path / "db.sqlite")
     store.connect()
@@ -179,7 +171,7 @@ def test_runtime_uses_native_options_persists_init_and_switches_model(runtime, m
             store.append_message("u1", "session1", message_id=f"u{i}", role="user", content=text)
             events = [
                 e
-                async for e in service.execute_stream(
+                async for e in service.stream_events(
                     [Message(role="user", content=text)],
                     user_id="u1",
                     session_id="session1",
@@ -232,7 +224,7 @@ def test_qa_profile_is_one_turn_text_only(runtime, monkeypatch):
     async def exercise():
         events = [
             event
-            async for event in service.execute_stream(
+            async for event in service.stream_events(
                 [Message(role="user", content="hi")],
                 user_id="u1",
                 session_id="session1",
@@ -299,7 +291,7 @@ def test_rate_limit_resumes_without_replaying_the_original_task(runtime, monkeyp
         store.append_message("u1", "session1", message_id="u1", role="user", content="执行唯一任务")
         events = [
             e
-            async for e in service.execute_stream(
+            async for e in service.stream_events(
                 [Message(role="user", content="执行唯一任务")], user_id="u1", session_id="session1"
             )
         ]
@@ -344,11 +336,11 @@ def test_cancelling_a_stream_closes_the_client_and_releases_pool(runtime, monkey
     monkeypatch.setattr(claude_agent_sdk, "ClaudeSDKClient", Client)
 
     async def exercise():
-        stream = service.execute_stream(
+        stream = service.stream_events(
             [Message(role="user", content="test")], user_id="u1", session_id="session1"
         )
         async for event in stream:
-            if '"type": "content"' in event:
+            if isinstance(event, dict) and event["type"] == "content":
                 break
         await asyncio.wait_for(stream.aclose(), 2)
         assert disconnected and not service.sessions.entries

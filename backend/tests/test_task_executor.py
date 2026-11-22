@@ -9,13 +9,15 @@ from pathlib import Path
 import pytest
 
 from app.api.v1.endpoints import tasks as tasks_endpoint
-from app.services import chat_session_store as store_module
-from app.services import claude_runtime as claude_runtime_module
-from app.services import scheduler_service, task_executor
-from app.services import session_workspace as workspace_module
-from app.services.chat_session_store import ChatSessionStore
-from app.services.scheduled_task_store import ScheduledTaskStore
-from app.services.session_workspace import SessionWorkspaceManager
+from app.services.chat import session_store as store_module
+from app.services.chat import session_workspace as workspace_module
+from app.services.chat.events import StreamSignal
+from app.services.chat.session_store import ChatSessionStore
+from app.services.chat.session_workspace import SessionWorkspaceManager
+from app.services.claude import runtime as claude_runtime_module
+from app.services.tasks import executor as task_executor
+from app.services.tasks import scheduler as scheduler_service
+from app.services.tasks.store import ScheduledTaskStore
 
 
 class CapturingTaskService:
@@ -26,7 +28,7 @@ class CapturingTaskService:
         self.release = asyncio.Event()
         self.pause = False
 
-    async def execute_stream(
+    async def stream_events(
         self,
         messages: list[dict],
         context: str | None = None,
@@ -39,11 +41,11 @@ class CapturingTaskService:
         self.messages.append(list(messages))
         if self.failure:
             raise RuntimeError(self.failure)
-        yield 'data: {"type":"thinking","content":"正在执行"}\n\n'
+        yield {"type": "thinking", "content": "正在执行"}
         if self.pause:
             await self.release.wait()
-        yield 'data: {"type":"content","content":"任务完成"}\n\n'
-        yield "data: [DONE]\n\n"
+        yield {"type": "content", "content": "任务完成"}
+        yield StreamSignal.DONE
 
 
 @dataclass
@@ -63,7 +65,8 @@ def task_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(store_module, "_instance", store)
     monkeypatch.setattr(workspace_module, "_instance", workspaces)
     monkeypatch.setattr(claude_runtime_module, "get_claude_runtime", lambda: service)
-    monkeypatch.setattr(task_executor, "_is_docker_sandbox", lambda: False)
+    monkeypatch.setattr(task_executor.settings, "EIDO_TRUST_GATEWAY", False)
+    monkeypatch.setattr(task_executor.settings, "EIDO_SANDBOX_MODE", "local")
 
     yield TaskHarness(store=store, service=service, workspaces=workspaces)
     store.close()
@@ -130,11 +133,11 @@ def test_run_now_returns_new_conversation_and_executes_inside_it(
         "chat",
         {"messages": [{"role": "user", "content": "立即生成简报"}]},
     )
-    monkeypatch.setattr(tasks_endpoint, "_store", scheduled_store)
+    monkeypatch.setattr(tasks_endpoint, "get_scheduled_task_store", lambda: scheduled_store)
 
     async def run_and_wait() -> dict:
         result = await tasks_endpoint.run_task(scheduled["id"], user_id="user-a")
-        running = tuple(tasks_endpoint._running_task_runs)
+        running = tuple(task_executor._running_task_runs)
         if running:
             await asyncio.gather(*running)
         return result
@@ -164,7 +167,7 @@ def test_run_now_returns_only_after_running_placeholder_is_visible(
         "chat",
         {"messages": [{"role": "user", "content": "生成耗时简报"}]},
     )
-    monkeypatch.setattr(tasks_endpoint, "_store", scheduled_store)
+    monkeypatch.setattr(tasks_endpoint, "get_scheduled_task_store", lambda: scheduled_store)
     task_harness.service.pause = True
 
     async def exercise() -> None:
@@ -180,11 +183,11 @@ def test_run_now_returns_only_after_running_placeholder_is_visible(
             "正在执行",
         }
 
-        from app.services.chat_execution_guard import get_chat_execution_guard
+        from app.services.chat.execution_guard import get_chat_execution_guard
 
         assert get_chat_execution_guard().is_active(result["session_id"])
         task_harness.service.release.set()
-        running = tuple(tasks_endpoint._running_task_runs)
+        running = tuple(task_executor._running_task_runs)
         if running:
             await asyncio.gather(*running)
         completed = task_harness.store.list_messages(result["session_id"], user_id="user-a")[-1]

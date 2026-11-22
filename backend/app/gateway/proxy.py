@@ -15,10 +15,11 @@ from typing import AsyncIterator, Optional
 
 import httpx
 from fastapi import HTTPException, Request
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import Response, StreamingResponse
 
-from app.core.tenant_credentials import gateway_secret
+from app.core.api_key import API_KEY_HEADER
 from app.core.logging_context import TRACE_ID_HEADER, get_trace_id
+from app.core.tenant_credentials import gateway_secret
 from app.gateway.sandbox_manager import SandboxHandle
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ async def close_proxy_client() -> None:
 
 _STRIP_INCOMING = {
     "cookie",
+    API_KEY_HEADER.lower(),
     # 防客户端伪造受信网关头：必须由 gateway 重新注入
     "x-eido-user-id",
     "x-eido-gateway-secret",

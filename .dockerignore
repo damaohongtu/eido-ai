@@ -22,3 +22,5 @@ output
 **/*.pem
 **/*.key
 **/settings.local.json
+
+**/.venv

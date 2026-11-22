@@ -4,15 +4,21 @@
 
 ```bash
 # 1. 构建前端
-cd frontend && npm run build && cd ..
+(cd frontend && npm run build)
 
 # 2. 构建 Docker 镜像
-docker build -f docker/app.Dockerfile -t damaohongtu/eido:latest .
+docker buildx bake -f docker/docker-bake.hcl --load base app
 
 # 构建amd和arm版
-docker buildx build -f docker/app.Dockerfile --platform linux/amd64,linux/arm64 -t damaohongtu/eido:latest .
+docker buildx bake -f docker/docker-bake.hcl --set '*.platform=linux/amd64,linux/arm64' --push base app
 
 ```
+
+Gateway 和 user 镜像通过 Bake 共用同一个基础镜像构建任务。基础镜像包含 Python 依赖、SDK 自带的原生 Claude CLI 和文档处理依赖。可用 `BASE_TAG` 标记基础镜像版本，应用版本通过 `IMAGE_TAG` 设置。镜像源和 Debian 软件源分别通过 `PYTHON_IMAGE` 和 `DEBIAN_MIRROR` 覆盖。
+
+Node.js 用于构建 Web 静态资源。后端镜像直接使用 Python SDK 自带的 Claude CLI。
+
+如需在独立流水线复用已发布的基础镜像，先用 `docker buildx bake -f docker/docker-bake.hcl --push base` 构建并发布基础镜像，再用 `--build-arg BASE_IMAGE=<仓库>/eido-base:<版本>` 构建 `docker/gateway.Dockerfile` 或 `docker/user.Dockerfile`。基础依赖更新时，发布新的基础镜像版本。
 
 ---
 

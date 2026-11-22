@@ -1,5 +1,10 @@
 import { Message, Skill, ExecutionStep, Tool, Agent, Reference, ScheduledTask, ChatSession, Project, ProjectFile, RuntimeMode } from "../types";
-import { BACKEND_URL, INITIAL_CHAT_STATE } from "../constants";
+import { BACKEND_URL, INITIAL_CHAT_STATE, LOGIN_URL } from "../constants";
+
+export interface LoginProvider {
+  id: string;
+  name: string;
+}
 
 /** 工作区文件 URL，支持预览或下载；传入 sessionId 时只允许访问该会话工作区。 */
 export function getWorkspaceFileUrl(
@@ -185,8 +190,11 @@ export class ApiService {
   private async _fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const response = await fetch(input, { ...init, credentials: 'include' });
     if (response.status === 401) {
-      const next = encodeURIComponent(window.location.pathname);
-      window.location.href = `${BACKEND_URL}/api/v1/auth/login?next=${next}`;
+      // 已经在登录页时只抛出错误，避免未登录请求反复整页重载。
+      const normalize = (path: string) => path.replace(/\/+$/, '');
+      if (normalize(window.location.pathname) !== normalize(LOGIN_URL)) {
+        window.location.href = LOGIN_URL;
+      }
       throw new Error('未登录，正在跳转登录页');
     }
     return response;
@@ -265,6 +273,12 @@ export class ApiService {
       method: 'DELETE',
     });
     if (!response.ok && response.status !== 404) throw new Error(`删除 MCP 配置失败: ${response.status}`);
+  }
+
+  async listLoginProviders(): Promise<LoginProvider[]> {
+    const response = await fetch(`${BACKEND_URL}/api/v1/auth/providers`, { credentials: 'include' });
+    if (!response.ok) throw new Error('暂时无法加载登录方式，请稍后重试');
+    return response.json();
   }
 
   async checkAuth(): Promise<{ user_id: string; username: string } | null> {

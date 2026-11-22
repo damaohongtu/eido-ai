@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { ViewType, Skill, Message, ChatSession, Reference, SkillAction, Project, ProjectFile, CreateSessionOptions, RuntimeMode } from './types';
 import { INITIAL_CHAT_STATE } from './constants';
 import Sidebar from './components/Sidebar';
+import LoginView from './components/LoginView';
 import ChatArea from './components/ChatArea';
 import ReferenceArea from './components/ReferenceArea';
 import HomeView from './components/HomeView';
@@ -72,6 +73,7 @@ function buildMessageExtra(msg: Message): Record<string, any> {
 
 const App: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<{ user_id: string; username: string } | null>(null);
 
   useEffect(() => {
@@ -85,13 +87,10 @@ const App: React.FC = () => {
     let active = true;
     api.checkAuth().then(user => {
       if (!active) return;
-      if (!user) {
-        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
-        return;
-      }
       setCurrentUser(user);
-      setAuthChecked(true);
-      api.warmupSandbox().catch(() => undefined);
+      setAuthChecked(Boolean(user));
+      setAuthLoading(false);
+      if (user) api.warmupSandbox().catch(() => undefined);
     });
     return () => { active = false; };
   }, []);
@@ -240,8 +239,9 @@ const App: React.FC = () => {
     refreshProjects();
   }, [authChecked, refreshProjects]);
 
-  // 加载系统技能和用户技能
+  // 加载系统技能和用户技能（未登录时不请求，避免 401 触发登录页重载循环）
   useEffect(() => {
+    if (!currentUser) return;
     const loadSkills = async () => {
       setLoading(true);
       try {
@@ -258,7 +258,7 @@ const App: React.FC = () => {
       }
     };
     loadSkills();
-  }, []);
+  }, [currentUser]);
 
   const activeSession = useMemo(() =>
     sessions.find(s => s.id === activeSessionId) || null
@@ -744,7 +744,7 @@ const App: React.FC = () => {
     setExecutingAction(null);
   };
 
-  if (!authChecked) {
+  if (authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
         <div className="text-center">
@@ -754,6 +754,8 @@ const App: React.FC = () => {
       </div>
     );
   }
+
+  if (!currentUser) return <LoginView />;
 
   return (
     <div className="flex h-screen w-full overflow-hidden text-gray-900 font-sans">

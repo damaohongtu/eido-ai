@@ -22,7 +22,7 @@ import {
   CloseOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { BACKEND_URL } from '../constants';
+import { BACKEND_URL, LOGIN_URL } from '../constants';
 
 interface FileNode {
   name: string;
@@ -105,7 +105,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
         { credentials: 'include' }
       );
       if (res.status === 401) {
-        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+        window.location.href = LOGIN_URL;
         return;
       }
       if (!res.ok) {
@@ -139,7 +139,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
         { credentials: 'include' }
       );
       if (res.status === 401) {
-        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+        window.location.href = LOGIN_URL;
         return;
       }
       if (!res.ok) {
@@ -201,7 +201,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
         }
       );
       if (res.status === 401) {
-        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+        window.location.href = LOGIN_URL;
         return;
       }
       if (!res.ok) {
@@ -236,7 +236,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
         }
       );
       if (res.status === 401) {
-        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+        window.location.href = LOGIN_URL;
         return;
       }
       if (!res.ok) {
@@ -276,7 +276,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
         }
       );
       if (res.status === 401) {
-        window.location.href = `${BACKEND_URL}/api/v1/auth/login`;
+        window.location.href = LOGIN_URL;
         return;
       }
       if (!res.ok) {

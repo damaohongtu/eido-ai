@@ -103,7 +103,7 @@ interface SidebarProps {
   onDeleteSession: (id: string) => void;
   /** 当前登录用户（来自 /api/v1/auth/me） */
   currentUser: { user_id: string; username: string };
-  /** 登出：清本地会话并跳转后端 /auth/logout（CAS 会再跳回前端） */
+  /** 登出：清本地会话并跳转后端 /auth/logout。 */
   onLogout: () => void;
 }
 

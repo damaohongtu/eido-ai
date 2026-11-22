@@ -13,6 +13,7 @@ COPY backend/ .
 # Copy pre-built frontend static files
 # Must be at /var/www/ai-eido/ so nginx root /var/www works correctly
 COPY frontend/dist /var/www/ai-eido
+COPY frontend/dist-mobile /var/www/h5/ai-eido
 
 # nginx & supervisor config
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

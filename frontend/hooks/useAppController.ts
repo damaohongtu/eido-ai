@@ -1,0 +1,928 @@
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import {
+  ViewType,
+  Skill,
+  Message,
+  ChatSession,
+  Reference,
+  SkillAction,
+  Project,
+  ProjectFile,
+  CreateSessionOptions,
+  RuntimeMode,
+} from '../types';
+import { INITIAL_CHAT_STATE, BACKEND_URL } from '../constants';
+import { api, hydrateSession, summaryToSession } from '../services/api';
+
+const STORAGE_ACTIVE_SESSION_KEY = 'eido_active_session_id';
+
+function readStorage<T>(key: string, fallback: T): T {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorage(key: string, value: unknown) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
+function removeStorage(key: string) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
+/** 修复从缓存恢复时处于 running 状态的步骤（连接已断开，不会再更新） */
+function fixStaleRunningSteps(sessions: ChatSession[]): ChatSession[] {
+  return sessions.map((session) => ({
+    ...session,
+    messages: session.messages.map((msg) => ({
+      ...msg,
+      executionSteps: msg.streaming
+        ? msg.executionSteps
+        : msg.executionSteps?.map((step) =>
+            step.status === 'running'
+              ? { ...step, status: 'waiting' as const }
+              : step,
+          ),
+    })),
+  }));
+}
+
+/** 从前端 Message 中抽取需要持久化的 extra 字段。 */
+function buildMessageExtra(msg: Message): Record<string, any> {
+  const extra: Record<string, any> = {};
+  if (msg.thinking) extra.thinking = msg.thinking;
+  if (msg.thinkingLog && msg.thinkingLog.length)
+    extra.thinkingLog = msg.thinkingLog;
+  if (msg.executionSteps && msg.executionSteps.length)
+    extra.executionSteps = msg.executionSteps;
+  if (msg.workflowMermaid) extra.workflowMermaid = msg.workflowMermaid;
+  if (msg.references && msg.references.length)
+    extra.references = msg.references;
+  if (msg.pendingConfirmation)
+    extra.pendingConfirmation = msg.pendingConfirmation;
+  if (msg.deliveryMode) extra.deliveryMode = msg.deliveryMode;
+  if (msg.deliveryStatus) extra.deliveryStatus = msg.deliveryStatus;
+  if (msg.queuePosition) extra.queuePosition = msg.queuePosition;
+  if (msg.streaming !== undefined) extra.streaming = msg.streaming;
+  return extra;
+}
+
+export function useAppController(options: { referencesOpen?: boolean } = {}) {
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{
+    user_id: string;
+    username: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('login')) {
+      params.delete('login');
+      const clean = params.toString();
+      window.history.replaceState(
+        {},
+        '',
+        window.location.pathname + (clean ? `?${clean}` : ''),
+      );
+    }
+
+    let active = true;
+    api.checkAuth().then((user) => {
+      if (!active) return;
+      setCurrentUser(user);
+      setAuthChecked(Boolean(user));
+      setAuthLoading(false);
+      if (user) api.warmupSandbox().catch(() => undefined);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
+  const [projectFilesLoading, setProjectFilesLoading] = useState(false);
+  const [projectFilesProjectId, setProjectFilesProjectId] = useState<
+    string | null
+  >(null);
+  const projectFilesRequestRef = useRef(0);
+  const projectsRequestRef = useRef(0);
+  const navigationRequestRef = useRef(0);
+  const taskSessionPollTimerRef = useRef<number | null>(null);
+  const taskSessionPollGenerationRef = useRef(0);
+  const [createProjectOpen, setCreateProjectOpen] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(() =>
+    readStorage<string | null>(STORAGE_ACTIVE_SESSION_KEY, null),
+  );
+  const activeSessionIdRef = useRef<string | null>(activeSessionId);
+  activeSessionIdRef.current = activeSessionId;
+
+  const [activeView, setActiveView] = useState<ViewType>(() => {
+    const cachedId = readStorage<string | null>(
+      STORAGE_ACTIVE_SESSION_KEY,
+      null,
+    );
+    return cachedId ? ViewType.CHAT : ViewType.HOME;
+  });
+  const [userSkills, setUserSkills] = useState<Skill[]>([]);
+  const [systemSkills, setSystemSkills] = useState<Skill[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(
+    options.referencesOpen ?? true,
+  );
+  // Skill page view state
+  const [detailSkill, setDetailSkill] = useState<Skill | null>(null);
+
+  // Workspace (Report Editor) State
+  const [executingAction, setExecutingAction] = useState<SkillAction | null>(
+    null,
+  );
+  const [workspaceContent, setWorkspaceContent] = useState('');
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  // 持久化当前激活 session ID（仅作"上次打开"记忆，不再缓存全部消息）
+  useEffect(() => {
+    if (activeSessionId) {
+      writeStorage(STORAGE_ACTIVE_SESSION_KEY, activeSessionId);
+    } else {
+      removeStorage(STORAGE_ACTIVE_SESSION_KEY);
+    }
+  }, [activeSessionId]);
+
+  // 鉴权完成后从后端拉取会话列表
+  useEffect(() => {
+    if (!authChecked) return;
+    (async () => {
+      const requestId = ++navigationRequestRef.current;
+      try {
+        const list = await api.listSessions();
+        const summaries = list.map(summaryToSession);
+        setSessions((prev) => {
+          if (navigationRequestRef.current === requestId) return summaries;
+          const known = new Set(prev.map((session) => session.id));
+          return [
+            ...prev,
+            ...summaries.filter((session) => !known.has(session.id)),
+          ];
+        });
+
+        if (navigationRequestRef.current !== requestId) return;
+
+        const cachedId = readStorage<string | null>(
+          STORAGE_ACTIVE_SESSION_KEY,
+          null,
+        );
+        const target =
+          cachedId && summaries.find((s) => s.id === cachedId)
+            ? cachedId
+            : null;
+        if (target) {
+          try {
+            const detail = await api.getSession(target);
+            const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+            setSessions((prev) =>
+              prev.map((s) => (s.id === target ? hydrated : s)),
+            );
+            if (navigationRequestRef.current !== requestId) return;
+            setActiveSessionId(target);
+            setActiveProjectId(hydrated.projectId);
+            setActiveView(ViewType.CHAT);
+          } catch (err) {
+            console.warn('恢复上次会话失败:', err);
+            if (navigationRequestRef.current === requestId) {
+              setActiveSessionId(null);
+              removeStorage(STORAGE_ACTIVE_SESSION_KEY);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('加载会话列表失败:', err);
+      }
+    })();
+  }, [authChecked]);
+
+  // 定时任务可能在页面打开期间创建会话；周期同步摘要，让新会话自动出现在左栏。
+  useEffect(() => {
+    if (!authChecked) return;
+    const refreshSessionSummaries = async () => {
+      try {
+        const summaries = (await api.listSessions()).map(summaryToSession);
+        setSessions((previous) => {
+          const existing = new Map<string, ChatSession>(
+            previous.map((session) => [session.id, session] as const),
+          );
+          return summaries.map((summary) => {
+            const current = existing.get(summary.id);
+            return current
+              ? {
+                  ...current,
+                  title: summary.title,
+                  projectId: summary.projectId,
+                  skillId: summary.skillId,
+                  updatedAt: summary.updatedAt,
+                }
+              : summary;
+          });
+        });
+      } catch (err) {
+        console.warn('同步自动任务会话失败:', err);
+      }
+    };
+    const timer = window.setInterval(refreshSessionSummaries, 10_000);
+    return () => window.clearInterval(timer);
+  }, [authChecked]);
+
+  useEffect(
+    () => () => {
+      taskSessionPollGenerationRef.current += 1;
+      if (taskSessionPollTimerRef.current !== null) {
+        window.clearInterval(taskSessionPollTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const refreshProjects = useCallback(async () => {
+    const requestId = ++projectsRequestRef.current;
+    try {
+      // 已归档项目的既有会话仍可继续使用项目上下文，因此导航也要保留它们。
+      const list = await api.listProjects({ include_archived: true });
+      if (projectsRequestRef.current === requestId) setProjects(list);
+    } catch (err) {
+      // Project 是增量能力；旧后端不可用时不能阻塞原有聊天。
+      console.warn('加载项目列表失败:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked) return;
+    refreshProjects();
+  }, [authChecked, refreshProjects]);
+
+  // 加载系统技能和用户技能（未登录时不请求，避免 401 触发登录页重载循环）
+  useEffect(() => {
+    if (!currentUser) return;
+    const loadSkills = async () => {
+      setLoading(true);
+      try {
+        const [systemResult, userResult] = await Promise.all([
+          api.getSkills({ is_system: true, limit: 100 }),
+          api.getSkills({ is_system: false, limit: 100 }),
+        ]);
+        setSystemSkills(systemResult.items);
+        setUserSkills(userResult.items);
+      } catch (error) {
+        console.error('加载技能失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSkills();
+  }, [currentUser]);
+
+  const activeSession = useMemo(
+    () => sessions.find((s) => s.id === activeSessionId) || null,
+    [sessions, activeSessionId],
+  );
+
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === activeProjectId) || null,
+    [projects, activeProjectId],
+  );
+
+  const activeSessionProject = useMemo(
+    () =>
+      projects.find((project) => project.id === activeSession?.projectId) ||
+      null,
+    [projects, activeSession?.projectId],
+  );
+
+  const allSkills = useMemo(
+    () => [...systemSkills, ...userSkills],
+    [systemSkills, userSkills],
+  );
+
+  const refreshSkills = async () => {
+    try {
+      const [systemResult, userResult] = await Promise.all([
+        api.getSkills({ is_system: true, limit: 100 }),
+        api.getSkills({ is_system: false, limit: 100 }),
+      ]);
+      setSystemSkills(systemResult.items);
+      setUserSkills(userResult.items);
+    } catch (error) {
+      console.error('刷新技能失败:', error);
+    }
+  };
+
+  // Sync editor content with last assistant output
+  useEffect(() => {
+    if (executingAction && activeSession) {
+      const lastAssistantMessage = [...activeSession.messages]
+        .reverse()
+        .find((m) => m.role === 'assistant');
+      setWorkspaceContent(lastAssistantMessage?.content || '');
+    }
+  }, [executingAction, activeSessionId]);
+
+  /** 轮询服务端持久化消息，直到自动任务写入最终 assistant 回复。 */
+  const pollTaskSession = (id: string) => {
+    const generation = ++taskSessionPollGenerationRef.current;
+    if (taskSessionPollTimerRef.current !== null) {
+      window.clearInterval(taskSessionPollTimerRef.current);
+    }
+    let attempts = 0;
+    taskSessionPollTimerRef.current = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const detail = await api.getSession(id);
+        if (taskSessionPollGenerationRef.current !== generation) return;
+        const current = hydrateSession(detail);
+        setSessions((previous) =>
+          previous.map((session) => (session.id === id ? current : session)),
+        );
+        // hydrateSession 会为空会话补一条前端欢迎语；结束判断必须只看后端消息。
+        const latest = detail.messages[detail.messages.length - 1];
+        if (latest?.role === 'assistant' && latest.extra?.streaming !== true) {
+          if (taskSessionPollTimerRef.current !== null) {
+            window.clearInterval(taskSessionPollTimerRef.current);
+            taskSessionPollTimerRef.current = null;
+          }
+        }
+      } catch {
+        if (
+          taskSessionPollGenerationRef.current === generation &&
+          taskSessionPollTimerRef.current !== null
+        ) {
+          window.clearInterval(taskSessionPollTimerRef.current);
+          taskSessionPollTimerRef.current = null;
+        }
+      }
+      if (
+        attempts >= 60 &&
+        taskSessionPollGenerationRef.current === generation &&
+        taskSessionPollTimerRef.current !== null
+      ) {
+        window.clearInterval(taskSessionPollTimerRef.current);
+        taskSessionPollTimerRef.current = null;
+      }
+    }, 1500);
+  };
+
+  /** 切换激活会话；若该会话尚未拉取过完整消息则按需拉取一次。 */
+  const selectSession = async (id: string) => {
+    const requestId = ++navigationRequestRef.current;
+    let target = sessions.find((s) => s.id === id);
+    if (!target) return;
+    if (target && target.messages.length === 0) {
+      try {
+        const detail = await api.getSession(id);
+        const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+        setSessions((prev) => prev.map((s) => (s.id === id ? hydrated : s)));
+        target = hydrated;
+      } catch (err) {
+        console.error('加载会话消息失败:', err);
+        return;
+      }
+    }
+    if (navigationRequestRef.current !== requestId) return;
+    setActiveSessionId(id);
+    setActiveProjectId(target?.projectId ?? null);
+    setActiveView(ViewType.CHAT);
+    if (target?.title.startsWith('[自动任务]')) {
+      pollTaskSession(id);
+    } else if (taskSessionPollTimerRef.current !== null) {
+      taskSessionPollGenerationRef.current += 1;
+      window.clearInterval(taskSessionPollTimerRef.current);
+      taskSessionPollTimerRef.current = null;
+    }
+  };
+
+  /** 自动任务会在服务端先创建会话；刷新列表后立即打开，并短期轮询执行结果。 */
+  const openTaskSession = async (id: string) => {
+    const requestId = ++navigationRequestRef.current;
+    try {
+      const [detail, list] = await Promise.all([
+        api.getSession(id),
+        api.listSessions(),
+      ]);
+      if (navigationRequestRef.current !== requestId) return;
+      const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+      const summaries = list.map(summaryToSession);
+      setSessions([
+        hydrated,
+        ...summaries.filter((session) => session.id !== id),
+      ]);
+      setActiveSessionId(id);
+      setActiveProjectId(hydrated.projectId);
+      setActiveView(ViewType.CHAT);
+
+      // 后端执行与页面跳转并行；定时刷新让用户能在新会话里看到结果出现。
+      pollTaskSession(id);
+    } catch (err) {
+      console.error('打开自动任务会话失败:', err);
+      window.alert(err instanceof Error ? err.message : '打开自动任务会话失败');
+    }
+  };
+
+  const createNewSession = async (options: CreateSessionOptions = {}) => {
+    const requestId = ++navigationRequestRef.current;
+    try {
+      const created = await api.createSession({
+        skill_id: options.skillId ?? null,
+        project_id: options.projectId ?? null,
+      });
+      // 初始欢迎语是前端 UI 状态，不写入后端；id 按会话生成，避免本地渲染 key 冲突
+      const initialMessages: Message[] = INITIAL_CHAT_STATE.map((m, i) => ({
+        ...m,
+        id: `${created.id}-init-${i}`,
+        timestamp: Date.now(),
+      }));
+      const newSession: ChatSession = {
+        id: created.id,
+        title: created.title || '新建会话',
+        projectId: created.project_id ?? options.projectId ?? null,
+        skillId: created.skill_id || options.skillId,
+        model: created.model || undefined,
+        runtimeMode: created.runtime_mode || 'agent',
+        messages: initialMessages,
+        updatedAt: Date.parse(created.updated_at) || Date.now(),
+      };
+      setSessions((prev) => [newSession, ...prev]);
+      if (navigationRequestRef.current === requestId) {
+        setActiveSessionId(newSession.id);
+        setActiveProjectId(newSession.projectId);
+        setActiveView(ViewType.CHAT);
+      }
+      refreshProjects();
+    } catch (err) {
+      console.error('创建会话失败:', err);
+    }
+  };
+
+  const deleteSession = async (id: string) => {
+    const navigationVersion = navigationRequestRef.current;
+    const deletedSession = sessions.find((session) => session.id === id);
+    try {
+      await api.deleteSession(id);
+    } catch (err) {
+      console.error('删除会话失败:', err);
+      return;
+    }
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    refreshProjects();
+    if (
+      activeSessionIdRef.current === id &&
+      navigationRequestRef.current === navigationVersion
+    ) {
+      navigationRequestRef.current += 1;
+      setActiveSessionId(null);
+      if (
+        deletedSession?.projectId &&
+        projects.some((project) => project.id === deletedSession.projectId)
+      ) {
+        setActiveProjectId(deletedSession.projectId);
+        setActiveView(ViewType.PROJECT);
+      } else {
+        setActiveProjectId(null);
+        setActiveView(ViewType.HOME);
+      }
+    }
+  };
+
+  /** 按明确会话写入，避免流式执行期间切换侧栏后把结果写进另一项目。 */
+  const addMessageToSession = (sessionId: string, msg: Message) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          const messages = [...s.messages, msg];
+          let title = s.title;
+          const isFirstUserMsg =
+            msg.role === 'user' && (s.title === '新建会话' || !s.title);
+          if (isFirstUserMsg) {
+            const cleaned = msg.content
+              .replace(/`@[\u4e00-\u9fa5\w\-]+`/g, '')
+              .replace(/@[\u4e00-\u9fa5\w\-]+/g, '')
+              .trim();
+            title = cleaned.slice(0, 24) + (cleaned.length > 24 ? '…' : '');
+            if (!title) title = '新建会话';
+          }
+          if (title !== s.title) {
+            api
+              .patchSession(sessionId, { title })
+              .catch((err) => console.warn('更新会话标题失败:', err));
+          }
+          return { ...s, messages, title, updatedAt: Date.now() };
+        }
+        return s;
+      }),
+    );
+
+    // 非聊天系统消息仍可通过 sessions API 直接追加；user/assistant 由 /chat/chat 统一保存。
+    if (msg.role === 'system') {
+      api
+        .appendMessage(sessionId, {
+          id: msg.id,
+          role: msg.role,
+          content: msg.content,
+          extra: buildMessageExtra(msg),
+        })
+        .catch((err) => console.warn('追加消息失败:', err));
+    }
+  };
+
+  const updateAssistantMessage = (
+    sessionId: string,
+    id: string,
+    updates: Partial<Message>,
+  ) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          const messages = s.messages.map((m) =>
+            m.id === id ? { ...m, ...updates } : m,
+          );
+          return { ...s, messages };
+        }
+        return s;
+      }),
+    );
+  };
+
+  const refreshSessionMessages = async (sessionId: string) => {
+    const detail = await api.getSession(sessionId);
+    const hydrated = fixStaleRunningSteps([hydrateSession(detail)])[0];
+    setSessions((previous) =>
+      previous.map((session) => {
+        if (session.id !== sessionId) return session;
+        const persistedIds = new Set(
+          hydrated.messages.map((message) => message.id),
+        );
+        const locallyQueued = session.messages.filter(
+          (message) =>
+            !persistedIds.has(message.id) && !message.id.includes('-init-'),
+        );
+        return {
+          ...hydrated,
+          messages: [...hydrated.messages, ...locallyQueued],
+        };
+      }),
+    );
+  };
+
+  const updateSessionSkill = (skillId: string) => {
+    if (!activeSessionId) return;
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === activeSessionId) {
+          return { ...s, skillId, updatedAt: Date.now() };
+        }
+        return s;
+      }),
+    );
+    api
+      .patchSession(activeSessionId, { skill_id: skillId })
+      .catch((err) => console.warn('更新会话 skill_id 失败:', err));
+  };
+
+  const updateSessionModel = (modelId: string) => {
+    if (!activeSessionId) return;
+    const sessionId = activeSessionId;
+    const previousModel = activeSession?.model;
+    const model = modelId || undefined;
+    setSessions((prev) =>
+      prev.map((session) =>
+        session.id === activeSessionId
+          ? { ...session, model, updatedAt: Date.now() }
+          : session,
+      ),
+    );
+    api
+      .patchSession(sessionId, { model: modelId || null })
+      .then((updated) =>
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === sessionId && session.model === model
+              ? { ...session, model: updated.model || undefined }
+              : session,
+          ),
+        ),
+      )
+      .catch((err) => {
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === sessionId && session.model === model
+              ? { ...session, model: previousModel }
+              : session,
+          ),
+        );
+        console.warn('更新会话模型失败:', err);
+      });
+  };
+
+  const updateSessionRuntimeMode = (runtimeMode: RuntimeMode) => {
+    if (!activeSessionId) return;
+    const sessionId = activeSessionId;
+    const previousMode = activeSession?.runtimeMode || 'agent';
+    setSessions((prev) =>
+      prev.map((session) =>
+        session.id === sessionId
+          ? { ...session, runtimeMode, updatedAt: Date.now() }
+          : session,
+      ),
+    );
+    api
+      .patchSession(sessionId, { runtime_mode: runtimeMode })
+      .then((updated) =>
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === sessionId && session.runtimeMode === runtimeMode
+              ? { ...session, runtimeMode: updated.runtime_mode || 'agent' }
+              : session,
+          ),
+        ),
+      )
+      .catch((err) => {
+        setSessions((prev) =>
+          prev.map((session) =>
+            session.id === sessionId && session.runtimeMode === runtimeMode
+              ? { ...session, runtimeMode: previousMode }
+              : session,
+          ),
+        );
+        console.warn('更新会话模式失败:', err);
+      });
+  };
+
+  const loadProjectFiles = useCallback(async (projectId: string) => {
+    const requestId = ++projectFilesRequestRef.current;
+    setProjectFilesLoading(true);
+    setProjectFilesProjectId(projectId);
+    try {
+      const files = await api.listProjectFiles(projectId);
+      if (projectFilesRequestRef.current === requestId) setProjectFiles(files);
+    } catch (err) {
+      console.warn('加载项目资料失败:', err);
+      if (projectFilesRequestRef.current === requestId) setProjectFiles([]);
+    } finally {
+      if (projectFilesRequestRef.current === requestId)
+        setProjectFilesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      projectFilesRequestRef.current += 1;
+      setProjectFiles([]);
+      setProjectFilesProjectId(null);
+      setProjectFilesLoading(false);
+      return;
+    }
+    loadProjectFiles(activeProjectId);
+  }, [activeProjectId, loadProjectFiles]);
+
+  const openProject = (projectId: string) => {
+    navigationRequestRef.current += 1;
+    setActiveProjectId(projectId);
+    setActiveView(ViewType.PROJECT);
+  };
+
+  const createProject = async (input: {
+    name: string;
+    description?: string;
+    instructions?: string;
+  }) => {
+    setCreatingProject(true);
+    try {
+      const created = await api.createProject(input);
+      setProjects((prev) => [
+        created,
+        ...prev.filter((project) => project.id !== created.id),
+      ]);
+      setCreateProjectOpen(false);
+      openProject(created.id);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '创建项目失败');
+    } finally {
+      setCreatingProject(false);
+    }
+  };
+
+  const saveProject = async (patch: {
+    name: string;
+    description: string;
+    instructions: string;
+  }) => {
+    if (!activeProjectId) return;
+    setSavingProject(true);
+    try {
+      const updated = await api.patchProject(activeProjectId, patch);
+      setProjects((prev) =>
+        prev.map((project) => (project.id === updated.id ? updated : project)),
+      );
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '保存项目失败');
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
+  const deleteProject = async () => {
+    if (!activeProjectId) return;
+    const deletedId = activeProjectId;
+    try {
+      await api.deleteProject(deletedId);
+      setProjects((prev) => prev.filter((project) => project.id !== deletedId));
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.projectId === deletedId
+            ? { ...session, projectId: null }
+            : session,
+        ),
+      );
+      setActiveProjectId(null);
+      setActiveView(ViewType.HOME);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '删除项目失败');
+    }
+  };
+
+  const moveSession = async (sessionId: string, projectId: string | null) => {
+    try {
+      await api.patchSession(sessionId, { project_id: projectId });
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId
+            ? { ...session, projectId, updatedAt: Date.now() }
+            : session,
+        ),
+      );
+      if (activeView === ViewType.CHAT && activeSessionId === sessionId)
+        setActiveProjectId(projectId);
+      await refreshProjects();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '移动会话失败');
+    }
+  };
+
+  const uploadProjectFile = async (file: File) => {
+    if (!activeProjectId) return;
+    try {
+      await api.uploadProjectFile(activeProjectId, file);
+      await loadProjectFiles(activeProjectId);
+      await refreshProjects();
+    } catch (err) {
+      window.alert(
+        err instanceof Error ? err.message : `上传 ${file.name} 失败`,
+      );
+    }
+  };
+
+  const deleteProjectFile = async (fileId: string) => {
+    if (!activeProjectId) return;
+    if (!window.confirm('删除这份项目资料？')) return;
+    try {
+      await api.deleteProjectFile(activeProjectId, fileId);
+      await loadProjectFiles(activeProjectId);
+      await refreshProjects();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : '删除项目资料失败');
+    }
+  };
+
+  const importSessionFileToProject = async (
+    path: string,
+    displayName: string,
+  ) => {
+    const sessionId = activeSession?.id;
+    const projectId = activeSession?.projectId;
+    if (!sessionId || !projectId) {
+      throw new Error('当前会话未归属项目，不能加入项目资料');
+    }
+    await api.importProjectFile(projectId, {
+      session_id: sessionId,
+      path,
+      display_name: displayName,
+    });
+    await Promise.all([loadProjectFiles(projectId), refreshProjects()]);
+  };
+
+  const { activeReferences, activeThinkingLog } = useMemo(() => {
+    if (!activeSession)
+      return {
+        activeReferences: [] as Reference[],
+        activeThinkingLog: [] as string[],
+      };
+
+    const msgs = activeSession.messages;
+    let references: Reference[] = [];
+    let thinkingLog: string[] = [];
+
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (m.role !== 'assistant') continue;
+      if (!references.length && m.references?.length) {
+        references = m.references.filter(
+          (v, i, a) => a.findIndex((t) => t.url === v.url) === i,
+        );
+      }
+      if (!thinkingLog.length && m.thinkingLog?.length) {
+        thinkingLog = m.thinkingLog;
+      }
+      if (references.length && thinkingLog.length) break;
+    }
+
+    return { activeReferences: references, activeThinkingLog: thinkingLog };
+  }, [activeSession?.messages]);
+
+  const handleLogout = () => {
+    removeStorage(STORAGE_ACTIVE_SESSION_KEY);
+    window.location.href = `${BACKEND_URL}/api/v1/auth/logout`;
+  };
+
+  const handleCommitWorkspace = () => {
+    if (!activeSessionId) return;
+    const commitMsg: Message = {
+      id: Date.now().toString(),
+      role: 'system',
+      content: `Finalized draft in **${executingAction?.label}**. Intelligence record updated.`,
+      timestamp: Date.now(),
+    };
+    addMessageToSession(activeSessionId, commitMsg);
+    setExecutingAction(null);
+  };
+
+  return {
+    authLoading,
+    currentUser,
+    navigationRequestRef,
+    activeView,
+    setActiveView,
+    sessions,
+    projects,
+    activeSession,
+    activeProjectId,
+    activeSessionId,
+    runningSessionIds,
+    selectSession,
+    createNewSession,
+    setCreateProjectOpen,
+    openProject,
+    deleteSession,
+    handleLogout,
+    loading,
+    systemSkills,
+    activeProject,
+    projectFilesProjectId,
+    projectFiles,
+    projectFilesLoading,
+    savingProject,
+    moveSession,
+    saveProject,
+    deleteProject,
+    uploadProjectFile,
+    deleteProjectFile,
+    loadProjectFiles,
+    allSkills,
+    addMessageToSession,
+    updateAssistantMessage,
+    rightPanelOpen,
+    setRightPanelOpen,
+    setExecutingAction,
+    updateSessionSkill,
+    activeSessionProject,
+    importSessionFileToProject,
+    refreshSessionMessages,
+    setRunningSessionIds,
+    updateSessionModel,
+    updateSessionRuntimeMode,
+    activeReferences,
+    activeThinkingLog,
+    refreshSkills,
+    setDetailSkill,
+    detailSkill,
+    openTaskSession,
+    executingAction,
+    handleCommitWorkspace,
+    workspaceContent,
+    setWorkspaceContent,
+    createProjectOpen,
+    creatingProject,
+    createProject,
+  };
+}

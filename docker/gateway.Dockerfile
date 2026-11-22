@@ -16,6 +16,7 @@ RUN apt-get -o Acquire::Retries=5 update \
 COPY backend/ .
 
 COPY frontend/dist /var/www/ai-eido
+COPY frontend/dist-mobile /var/www/h5/ai-eido
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default

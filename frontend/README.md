@@ -2,6 +2,8 @@
 
 基于 React 19 + TypeScript 的前端应用。
 
+PC 与移动端 H5 使用独立入口，共享 `/ai-eido/` 访问路径和 API；生产环境由 Nginx 按设备分流。开发、构建与部署说明见 [PC 与移动端 H5](../docs/mobile-h5.md)。
+
 ---
 
 ## 技术栈
@@ -42,14 +44,17 @@ frontend/
 cd frontend
 npm install
 npm run dev
-# http://localhost:5173
+# PC: http://localhost:3000/ai-eido/
+
+npm run dev:mobile
+# H5: http://localhost:3001/ai-eido/
 ```
 
 构建生产版本：
 
 ```bash
 npm run build
-# 输出到 dist/
+# 同时输出 PC dist/ 与 H5 dist-mobile/
 ```
 
 ---

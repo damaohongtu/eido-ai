@@ -5,8 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev:mobile": "vite --config vite.mobile.config.ts",
+    "build": "npm run build:pc && npm run build:mobile",
+    "build:pc": "vite build",
+    "build:mobile": "vite build --config vite.mobile.config.ts",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "preview:mobile": "vite preview --config vite.mobile.config.ts --port 3001",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
@@ -18,6 +24,7 @@
     "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

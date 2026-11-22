@@ -5,6 +5,7 @@ node_modules
 .env.test
 .DS_Store
 dist
+dist-mobile
 
 # Python
 __pycache__/
@@ -65,3 +66,7 @@ config.json
 k8s/30-secret.yaml
 # 测试环境部署包生成的凭据（k8s-testenv/gen-secret.sh 产出）
 k8s-testenv/30-secret.yaml
+
+# Frontend browser regression artifacts
+frontend/test-results/
+frontend/playwright-report/

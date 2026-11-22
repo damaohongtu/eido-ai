@@ -3,7 +3,7 @@
 ## 构建镜像
 
 ```bash
-# 1. 构建前端
+# 1. 构建前端（同时生成 PC dist/ 与 H5 dist-mobile/，镜像需要两份产物）
 (cd frontend && npm run build)
 
 # 2. 构建 Docker 镜像
@@ -17,6 +17,8 @@ docker buildx bake -f docker/docker-bake.hcl --set '*.platform=linux/amd64,linux
 Gateway 和 user 镜像通过 Bake 共用同一个基础镜像构建任务。基础镜像包含 Python 依赖、SDK 自带的原生 Claude CLI 和文档处理依赖。可用 `BASE_TAG` 标记基础镜像版本，应用版本通过 `IMAGE_TAG` 设置。镜像源和 Debian 软件源分别通过 `PYTHON_IMAGE` 和 `DEBIAN_MIRROR` 覆盖。
 
 Node.js 用于构建 Web 静态资源。后端镜像直接使用 Python SDK 自带的 Claude CLI。
+
+PC 和 H5 统一通过 `/ai-eido/` 访问，由镜像中的 Nginx 按 User-Agent 分流；API 与登录回调保持原路径。app 与 gateway 镜像均携带两套前端，详见 [PC 与移动端 H5](../docs/mobile-h5.md)。
 
 如需在独立流水线复用已发布的基础镜像，先用 `docker buildx bake -f docker/docker-bake.hcl --push base` 构建并发布基础镜像，再用 `--build-arg BASE_IMAGE=<仓库>/eido-base:<版本>` 构建 `docker/gateway.Dockerfile` 或 `docker/user.Dockerfile`。基础依赖更新时，发布新的基础镜像版本。
 

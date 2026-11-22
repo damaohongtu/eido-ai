@@ -5,7 +5,7 @@
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
-# 构建前端（PC）
+# 构建前端（PC + H5）
 (cd frontend && npm run build) || exit 1
 
 # 构建镜像

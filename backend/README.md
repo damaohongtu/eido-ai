@@ -16,6 +16,7 @@
 
 | 服务目录 | 职责 |
 | --- | --- |
+| `auth/` | CAS、GitHub OAuth 和通用 OIDC 认证提供方 |
 | `chat/` | 对话执行、队列、会话存储和会话工作区 |
 | `claude/` | 模型目录、提示词、原生会话和 SDK 执行 |
 | `skills/` | 技能目录、导入和文件管理 |
@@ -69,6 +70,9 @@ python run.py
 ---
 
 ## API 说明
+
+CAS 与 GitHub/OIDC 共用登录会话和固定 API Key。配置与扩展方式见
+[认证接入](../docs/authentication.md)。
 
 ### POST `/api/v1/chat/completions`
 

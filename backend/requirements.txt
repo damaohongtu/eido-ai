@@ -48,6 +48,7 @@ requests
 cos-python-sdk-v5
 
 # CAS & scheduling
+Authlib==1.6.11
 python-cas>=1.6.0
 apscheduler>=3.10.0
 itsdangerous>=2.0

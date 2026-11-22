@@ -35,8 +35,11 @@ class Settings(BaseSettings):
     SKILLS_DIR: str = str(_WORKSPACE_ROOT / ".claude" / "skills")
     WORKSPACE_ROOT: str = str(_WORKSPACE_ROOT)
 
-    # CAS / Session
+    # Login providers / Session
     AUTH_DISABLED: bool = False
+    AUTH_ALLOWED_USER_IDS: str = ""
+    # GitHub 账号白名单（匹配资料里的 login），逗号分隔、大小写不敏感；留空不限制。
+    AUTH_ALLOWED_GITHUB_USERS: str = ""
     DEFAULT_DEV_USER_ID: str = "dev-local"
     # 须含 /cas 路径；末尾必须有 /，否则 python-cas 用 urljoin 会错误拼成 http://host/login
     CAS_SERVER_URL: str = "http://localhost:3331/cas/"
@@ -46,6 +49,11 @@ class Settings(BaseSettings):
     CAS_VERSION: str = "2"
     FRONTEND_URL: str = "http://localhost:3000/ai-eido/"
     SESSION_SECRET_KEY: str = "dev-secret-change-in-production"
+    GITHUB_CLIENT_ID: str = ""
+    GITHUB_CLIENT_SECRET: SecretStr = SecretStr("")
+    GITHUB_REDIRECT_URI: str = ""
+    # OIDC 提供方数组；包含 client_secret，避免在配置日志中暴露。
+    OIDC_PROVIDERS_JSON: SecretStr = SecretStr("[]")
 
     # Scheduled tasks & signed token
     SCHEDULED_TASKS_DB: str = ""

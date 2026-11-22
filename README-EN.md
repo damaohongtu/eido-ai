@@ -18,7 +18,7 @@ Eido provides a desktop web workbench with local, single-tenant Docker, multi-us
 - **Persistent memory & MCP**: Claude Code auto-memory is persisted per user and per personal/project scope; users can configure private HTTP, SSE, or stdio MCP servers from the UI, with sensitive values encrypted at rest.
 - **Unified search**: The desktop sidebar searches project metadata, session titles, and full message bodies, with last-updated timestamps.
 - **Scheduled tasks**: Create, edit, run now, and schedule skill, script, and conversation tasks — for daily reports, monitoring, summarization, and other automation.
-- **Auth & isolation**: Supports password-free local development, CAS login, admin users, and system/user skill separation; in multi-user sandbox mode the gateway is the single entry point and provisions isolated containers (Docker) or Pods + PVCs (Kubernetes) per user, with idle reclamation and persistent data.
+- **Auth & isolation**: Supports CAS, GitHub OAuth and configurable OIDC providers alongside password-free local development, admin users, and system/user skill separation; in multi-user sandbox mode the gateway provisions isolated containers (Docker) or Pods + PVCs (Kubernetes) per user, with idle reclamation and persistent data. See [authentication configuration](docs/authentication.md).
 - **Fast deployment**: Four deployment paths — local, single-tenant Docker, multi-user Docker sandbox, and Kubernetes; works with any Anthropic-API-compatible model service.
 
 ## UI Tour
@@ -63,7 +63,7 @@ flowchart LR
 
   subgraph Gateway["Eido Gateway (nginx + FastAPI, single replica)"]
     Nginx["Nginx static assets & reverse proxy"]
-    Auth["Authentication<br/>CAS / Session"]
+    Auth["Authentication<br/>CAS / OAuth / OIDC"]
     Router["User routing<br/>sandbox discovery & forwarding"]
     Orchestrator["Sandbox orchestration<br/>create / warm / idle GC"]
     Relay["Provider Relay<br/>sole custodian of model keys"]
@@ -261,7 +261,7 @@ The `gateway` / `user` images serve both the Docker sandbox and Kubernetes deplo
 
 ### Calling Eido with an API key
 
-With CAS login enabled and a deployment-specific `SESSION_SECRET_KEY` configured, open **API Key** from the Web account menu. The browser session can also retrieve it from `GET /api/v1/auth/api-key`. External requests carry the key in the `X-API-Key` header and run under its owner's account. Keys survive logout and service restarts. Rotating `SESSION_SECRET_KEY` invalidates existing keys. See the [session and streaming chat example](README.md#通过-api-key-调用-eido).
+With CAS, GitHub or OIDC login enabled and a deployment-specific `SESSION_SECRET_KEY` configured, open **API Key** from the Web account menu. The browser session can also retrieve it from `GET /api/v1/auth/api-key`. External requests carry the key in the `X-API-Key` header and run under its owner's account. Keys survive logout and service restarts. Rotating `SESSION_SECRET_KEY` invalidates existing keys. See the [session and streaming chat example](README.md#通过-api-key-调用-eido).
 
 ## Kubernetes Deployment (Multi-User Sandbox · DaoCloud DCE 5.0)
 
@@ -320,6 +320,9 @@ See [k8s/README.md](k8s/README.md) (Chinese) for the DCE community-edition insta
 | `FRONTEND_URL` | Frontend URL used for auth redirects and CORS |
 | `CAS_SERVER_URL` | Public CAS service URL |
 | `CAS_INTERNAL_URL` | Optional internal CAS URL for ticket validation |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth App credentials; CAS remains available |
+| `GITHUB_REDIRECT_URI` | GitHub callback URL; defaults to a URL under `FRONTEND_URL` |
+| `OIDC_PROVIDERS_JSON` | Additional OIDC providers, including Auth0, Keycloak and Entra ID |
 | `EIDO_ADMIN_USERS` | Admin username list, used for system skill management |
 | `SKILLS_DIR` | Skill root directory, usually `.claude/skills` |
 | `EIDO_SANDBOX_MODE` | Sandbox mode: `local` (single process) / `docker` (per-user containers) / `k8s` (per-user Pod + PVC) |

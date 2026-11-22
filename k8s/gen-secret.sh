@@ -32,10 +32,16 @@ fi
 
 kubectl -n eido-system create secret generic eido-secrets \
   --from-literal=SESSION_SECRET_KEY="$SESSION_SECRET_KEY" \
+  --from-literal=AUTH_ALLOWED_USER_IDS="${AUTH_ALLOWED_USER_IDS:-}" \
+  --from-literal=AUTH_ALLOWED_GITHUB_USERS="${AUTH_ALLOWED_GITHUB_USERS:-}" \
   --from-literal=EIDO_GATEWAY_SECRET="$EIDO_GATEWAY_SECRET" \
   --from-literal=ANTHROPIC_BASE_URL="$ANTHROPIC_BASE_URL" \
   --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   --from-literal=ANTHROPIC_AUTH_TOKEN="$ANTHROPIC_AUTH_TOKEN" \
+  --from-literal=GITHUB_CLIENT_ID="${GITHUB_CLIENT_ID:-}" \
+  --from-literal=GITHUB_CLIENT_SECRET="${GITHUB_CLIENT_SECRET:-}" \
+  --from-literal=GITHUB_REDIRECT_URI="${GITHUB_REDIRECT_URI:-}" \
+  --from-literal=OIDC_PROVIDERS_JSON="${OIDC_PROVIDERS_JSON:-[]}" \
   --dry-run=client -o yaml > "$(dirname "$0")/30-secret.yaml"
 
 echo "✓ 已生成 k8s/30-secret.yaml（含敏感凭据，勿提交 git）"

@@ -303,6 +303,7 @@ test.describe('H5 navigation and layout', () => {
       await page.setViewportSize({ width, height });
       await page.goto('/ai-eido/');
       await expect(page.locator('.h5-tabs')).toHaveCount(0);
+      await expect(page.locator('.h5-header').getByRole('button')).toHaveCount(1);
       await expect(page.locator('.h5-header .eido-brand')).toHaveCount(1);
       await expect(page.locator('img[src*="images/logo.png"]')).toHaveCount(0);
       await page.getByRole('button', { name: '打开会话与项目' }).click();

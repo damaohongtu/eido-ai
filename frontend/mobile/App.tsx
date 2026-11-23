@@ -134,22 +134,13 @@ export default function App() {
         >
           <Icon name="menu" />
         </button>
-        <button
-          className="h5-header-title"
-          onClick={() => navigate(ViewType.HOME)}
-        >
+        <div className="h5-header-title">
           {!isChat && app.activeView !== ViewType.PROJECT && <Brand />}
           {(isChat || app.activeView === ViewType.PROJECT) && (
             <span>{title}</span>
           )}
-        </button>
-        <button
-          className="h5-icon-button"
-          aria-label="新建对话"
-          onClick={newChat}
-        >
-          <Icon name="plus" />
-        </button>
+        </div>
+        <span className="h5-icon-button" aria-hidden="true" />
       </header>
       <main className="h5-main">
         {app.activeView === ViewType.HOME && (

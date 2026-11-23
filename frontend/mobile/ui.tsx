@@ -95,14 +95,10 @@ export function Empty({ children }: { children: React.ReactNode }) {
 export function Drawer({
   title,
   onClose,
-  header,
-  footer,
   children,
 }: {
   title: string;
   onClose: () => void;
-  header: React.ReactNode;
-  footer: React.ReactNode;
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -132,21 +128,15 @@ export function Drawer({
           onClose();
       }}
     >
-      <header className="h5-drawer-header">
-        <div className="h5-drawer-title">
-          <h2>{title}</h2>
-          <button
-            className="h5-icon-button"
-            aria-label="关闭抽屉"
-            onClick={onClose}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-        {header}
-      </header>
-      <div className="h5-drawer-body">{children}</div>
-      <footer className="h5-drawer-footer">{footer}</footer>
+      <button
+        type="button"
+        className="h5-icon-button h5-drawer-close"
+        aria-label="关闭抽屉"
+        onClick={onClose}
+      >
+        <Icon name="close" />
+      </button>
+      {children}
     </dialog>
   );
 }

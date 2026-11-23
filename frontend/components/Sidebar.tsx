@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ViewType, ChatSession, Project } from '../types';
 import { getAssetUrl } from '../config';
 import { api, NavigationSearchResult } from '../services/api';
+import Brand from './Brand';
 
 const SIDEBAR_COLLAPSE_STORAGE_KEY = 'eido_sidebar_collapse_v1';
 
@@ -235,6 +236,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     <button
       type="button"
       onClick={() => onNavigate(view)}
+      aria-current={activeView === view ? "page" : undefined}
       className={`flex items-center space-x-3 px-4 py-2 rounded-lg transition-all w-full text-left ${activeView === view ? 'bg-gray-200 text-gray-900' : 'hover:bg-gray-100 text-gray-600'
         }`}
     >
@@ -281,11 +283,8 @@ const Sidebar: React.FC<SidebarProps> = ({
     <>
     <aside className="w-64 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col h-full">
       {/* ---- Top: logo + new chat + nav (shrink-0) ---- */}
-      <div className="p-6 pb-2 shrink-0">
-        <div className="flex items-center space-x-2 mb-8">
-          <div className="w-8 h-8 bg-gray-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">E</div>
-          <h1 className="text-xl font-bold tracking-tight text-gray-900">ido</h1>
-        </div>
+      <div className="sidebar-header p-6 pb-2 shrink-0">
+        <div className="sidebar-brand mb-8"><Brand /></div>
 
         <button
           type="button"
@@ -365,7 +364,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* ---- Middle: projects + grouped sessions ---- */}
-      <div className="custom-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto px-6 pb-3">
+      <div className="sidebar-content custom-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto px-6 pb-3">
         {projectsExpanded ? (
           <div id="sidebar-projects-section">
             {projects.length === 0 ? (
@@ -537,7 +536,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       </dialog>
 
       {/* ---- Bottom: user section (shrink-0) ---- */}
-      <div className="p-4 border-t border-gray-100 shrink-0">
+      <div className="sidebar-account p-4 border-t border-gray-100 shrink-0">
         <div className="flex items-center gap-2 px-2 py-1">
           <div ref={userMenuRef} className="relative shrink-0">
             <button
@@ -546,6 +545,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               aria-expanded={userMenuOpen}
               aria-haspopup="menu"
               title="账户"
+              aria-label="账户"
               className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-sm outline-none ring-offset-2 hover:bg-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 transition-colors"
             >
               {avatarInitial(displayName)}

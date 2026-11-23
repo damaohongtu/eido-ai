@@ -41,8 +41,6 @@ select {
 button {
   cursor: pointer;
   color: inherit;
-  border: 0;
-  background: none;
 }
 button:disabled {
   opacity: 0.4;
@@ -112,23 +110,14 @@ a {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.h5-header-title img {
-  width: 28px;
-  height: 28px;
-  object-fit: contain;
-}
+
 .h5-main {
   min-height: 0;
   display: flex;
   flex: 1;
   overflow: hidden;
 }
-.h5-page {
-  width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 28px 22px 32px;
-}
+
 .h5-eyebrow {
   display: flex;
   align-items: center;
@@ -145,7 +134,6 @@ a {
   border-radius: 50%;
   background: var(--h5-accent);
 }
-.h5-page h1,
 .h5-login h1 {
   font-size: clamp(28px, 7.8vw, 40px);
   line-height: 1.45;
@@ -154,48 +142,14 @@ a {
   margin: 0;
   overflow-wrap: anywhere;
 }
-.h5-home h1 {
-  font-size: 40px;
-}
-.h5-home h1 > span {
-  color: var(--h5-accent);
-}
+
 .h5-intro {
   font-size: 13px;
   line-height: 1.8;
   color: var(--h5-muted);
   margin: 11px 0 27px;
 }
-.h5-start {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  border-radius: 20px;
-  padding: 22px;
-  color: #374151;
-}
-.h5-start > span {
-  display: grid;
-  grid-template-columns: 35px 1fr;
-  column-gap: 9px;
-  align-items: center;
-}
-.h5-start > span > svg {
-  grid-row: span 2;
-}
-.h5-start strong {
-  font-size: 16px;
-  font-weight: 600;
-}
-.h5-start small {
-  color: #6b7280;
-  font-size: 10px;
-  margin-top: 6px;
-}
+
 .h5-section-title {
   display: flex;
   align-items: center;
@@ -229,49 +183,7 @@ a {
   font-size: 11px;
   line-height: 1.7;
 }
-.h5-project-strip {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.h5-project-strip > button {
-  min-width: 150px;
-  max-width: 180px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-  text-align: left;
-  border: 1px solid var(--h5-line);
-  background: white;
-  padding: 17px;
-  border-radius: 16px;
-}
-.h5-project-strip strong {
-  font-size: 13px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.h5-project-strip small {
-  font-size: 10px;
-  color: var(--h5-muted);
-}
-.h5-project-strip > .h5-project-placeholder {
-  width: 100%;
-  max-width: none;
-  background: transparent;
-  border-style: dashed;
-  display: grid;
-  grid-template-columns: 30px 1fr;
-  column-gap: 10px;
-}
-.h5-project-placeholder svg {
-  grid-row: span 2;
-}
+
 .h5-list {
   display: flex;
   flex-direction: column;
@@ -338,32 +250,7 @@ a {
   min-width: 44px;
   min-height: 44px;
 }
-.h5-tabs {
-  display: flex;
-  padding: 9px 9px calc(9px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--h5-line);
-  background: #fff;
-  flex-shrink: 0;
-}
-.h5-tabs button {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  min-height: 44px;
-  color: #9ca3af;
-  font-size: 10px;
-}
-.h5-tabs button[aria-current] {
-  color: var(--h5-accent);
-  font-weight: 650;
-}
-.h5-tabs button[aria-current] svg {
-  background: #e5e7eb;
-  border-radius: 7px;
-  box-shadow: 0 0 0 6px #e5e7eb;
-}
+
 .h5-sheet {
   top: auto;
   bottom: max(0px, calc(100dvh - var(--h5-height) - var(--h5-offset, 0px)));
@@ -508,68 +395,7 @@ a {
   font-size: 13px;
   line-height: 1.8;
 }
-.h5-history > div {
-  display: flex;
-  border-bottom: 1px solid var(--h5-line);
-  align-items: center;
-  border-radius: 10px;
-}
-.h5-history .is-active {
-  background: #e5e7eb;
-}
-.h5-history button:first-child {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  flex: 1;
-  min-width: 0;
-  text-align: left;
-  padding: 13px 8px;
-  font-size: 13px;
-}
-.h5-history button:first-child > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-.h5-history button:last-child {
-  width: 44px;
-  min-height: 44px;
-  color: var(--h5-muted);
-}
-.h5-account {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-top: 1px solid var(--h5-line);
-  padding-top: 20px;
-  margin-top: 25px;
-  font-size: 12px;
-  flex-wrap: wrap;
-}
-.h5-account strong {
-  flex: 1;
-  overflow-wrap: anywhere;
-}
-.h5-account button {
-  min-height: 44px;
-}
-.h5-avatar {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  background: #e5e7eb;
-  border-radius: 50%;
-}
-.h5-key {
-  width: 100%;
-  min-height: 130px;
-  padding: 12px;
-  overflow-wrap: anywhere;
-  margin-top: 12px;
-}
+
 .h5-card {
   padding: 17px;
   border: 1px solid var(--h5-line);
@@ -645,15 +471,7 @@ a {
   background: white;
   box-shadow: 0 1px 4px #1118270a;
 }
-.h5-logs p {
-  padding: 13px 0;
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.8;
-  border-bottom: 1px solid var(--h5-line);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
+
 .h5-chat {
   display: flex;
   flex-direction: column;
@@ -897,12 +715,7 @@ a {
   max-width: 440px;
   overflow: auto;
 }
-.h5-login > img {
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
-  margin-bottom: 38px;
-}
+
 .h5-login > p {
   color: var(--h5-muted);
   font-size: 13px;
@@ -925,17 +738,11 @@ a {
   padding: 12px;
 }
 @media (min-width: 640px) {
-  .h5-page {
-    max-width: 640px;
-    margin-inline: auto;
-    padding-inline: 30px;
-  }
   .h5-chat {
     max-width: 760px;
     margin-inline: auto;
   }
-  .h5-header,
-  .h5-tabs {
+  .h5-header {
     padding-inline: max(16px, calc((100vw - 680px) / 2));
   }
 }
@@ -979,92 +786,7 @@ a {
 .h5-drawer::backdrop {
   background: #0000004d;
 }
-.h5-drawer-header {
-  flex-shrink: 0;
-  padding: calc(8px + env(safe-area-inset-top)) 16px 8px;
-  border-bottom: 1px solid var(--h5-line);
-}
-.h5-drawer-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.h5-drawer-title h2 {
-  font-size: 21px;
-  font-weight: 650;
-  margin: 0;
-}
-.h5-drawer-header .h5-secondary {
-  border: 1px solid var(--h5-line);
-  background: #ffffff;
-  color: #1f2937;
-}
-.h5-drawer-nav {
-  display: grid;
-  gap: 3px;
-  margin-top: 12px;
-}
-.h5-drawer-nav button {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  text-align: left;
-  color: #4b5563;
-  font-size: 13px;
-}
-.h5-drawer-nav button[aria-current] {
-  background: #e5e7eb;
-  color: #111827;
-  font-weight: 600;
-}
-.h5-drawer-body {
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 4px 16px 20px;
-}
-.h5-drawer-body .h5-section-title {
-  margin: 10px 0;
-}
-.h5-drawer-body .h5-search {
-  margin-bottom: 0;
-}
-.h5-drawer-footer {
-  flex-shrink: 0;
-  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--h5-line);
-  background: #ffffff;
-}
-.h5-drawer-footer .h5-account {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  gap: 8px;
-  flex-wrap: nowrap;
-}
-.h5-drawer-footer .h5-account strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-}
-.h5-drawer-footer .h5-account button {
-  flex-shrink: 0;
-  font-size: 11px;
-}
-.h5-drawer-footer .h5-avatar {
-  flex-shrink: 0;
-}
-.h5-drawer-footer .h5-error {
-  max-height: 60px;
-  overflow: auto;
-  margin: 4px 0;
-}
+
 @keyframes h5-drawer-enter {
   from {
     transform: translateX(-100%);
@@ -1079,4 +801,156 @@ a {
 }
 .h5-message-user .h5-bubble pre code {
   background: transparent;
+}
+
+/* PC sidebar is shared unchanged in behavior: only projects/sessions scroll. */
+.h5-drawer-close {
+  position: absolute;
+  z-index: 2;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 8px;
+}
+.h5-drawer > aside {
+  width: 100%;
+  max-width: 100%;
+  min-height: 0;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.h5-drawer .sidebar-header {
+  padding: 16px 16px 4px;
+}
+.h5-drawer .sidebar-brand {
+  margin-bottom: 16px;
+}
+.h5-drawer .sidebar-header > button {
+  margin-bottom: 12px;
+}
+.h5-drawer .sidebar-header nav {
+  margin-bottom: 8px;
+}
+.h5-drawer .sidebar-header nav button {
+  min-height: 40px;
+  font-size: 13px;
+}
+.h5-drawer .sidebar-content {
+  padding-inline: 16px;
+}
+.h5-drawer .sidebar-account {
+  padding: 10px 14px;
+}
+.h5-drawer .sidebar-account button[title='账户'] {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
+.h5-login > .eido-brand {
+  margin-bottom: 38px;
+}
+.h5-header-title > .eido-brand {
+  flex: none;
+  overflow: visible;
+}
+.h5-management {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+}
+.h5-management > div {
+  min-width: 0;
+  min-height: 0;
+  max-width: 100%;
+  padding: 16px;
+}
+.h5-management .management-header > div {
+  min-width: 0;
+}
+.h5-management h1,
+.h5-management p {
+  overflow-wrap: anywhere;
+}
+.h5-management .fixed {
+  padding: 12px;
+}
+.h5-management .fixed > section {
+  max-height: calc(var(--h5-height) - 24px);
+}
+.h5-management .fixed footer {
+  flex-wrap: wrap;
+}
+.h5-management .fixed textarea {
+  min-height: 120px;
+}
+.ant-modal {
+  max-width: calc(100vw - 24px);
+}
+.ant-modal .ant-modal-body {
+  max-height: calc(var(--h5-height) - 180px);
+  overflow-y: auto;
+}
+@media (max-height: 560px) {
+  .h5-drawer-close {
+    top: calc(2px + env(safe-area-inset-top));
+    height: 32px;
+  }
+  .h5-drawer .sidebar-header {
+    padding: 8px 12px 2px;
+  }
+  .h5-drawer .sidebar-brand {
+    margin-bottom: 6px;
+  }
+  .h5-drawer .sidebar-header > button {
+    margin-bottom: 6px;
+    padding-block: 5px;
+  }
+  .h5-drawer .sidebar-header nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+    margin-bottom: 4px;
+  }
+  .h5-drawer .sidebar-header nav button {
+    min-height: 30px;
+    padding: 3px 6px;
+    font-size: 11px;
+  }
+  .h5-drawer .sidebar-header nav > * + * {
+    margin-top: 0;
+  }
+  .h5-drawer .sidebar-header input {
+    padding-block: 3px;
+  }
+  .h5-drawer .sidebar-header .relative {
+    margin-bottom: 4px;
+  }
+  .h5-drawer .sidebar-account {
+    padding: 4px 12px;
+  }
+}
+
+.h5-home-view > div {
+  padding: 20px;
+}
+.h5-home-view header {
+  margin-top: 8vh;
+  margin-bottom: 28px;
+}
+.h5-reference {
+  height: min(72dvh, calc(var(--h5-height) - 140px));
+  min-height: 120px;
+}
+.h5-reference > aside {
+  width: 100%;
+  max-width: 100%;
+  border-left: 0;
+  box-shadow: none;
+  animation: none;
+}
+.h5-reference .markdown-body {
+  overflow-wrap: anywhere;
 }

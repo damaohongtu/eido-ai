@@ -109,9 +109,9 @@ const ScheduledTasksManager: React.FC<{
   };
 
   return (
-    <div className="flex-1 p-6 lg:p-8 overflow-y-auto">
+    <div className="management-page flex-1 min-h-0 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="management-header mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">自动任务</h1>
             <p className="text-sm text-gray-500 font-medium">定时执行对话任务，支持 Cron 与固定间隔</p>

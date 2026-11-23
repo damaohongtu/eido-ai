@@ -151,7 +151,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 lg:p-8">
+    <div className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-6xl">
         <header className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="min-w-0">
@@ -187,7 +187,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({
 
         {tab === 'overview' ? (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
-            <section className="rounded-xl border border-gray-200 bg-white p-6">
+            <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <h2 className="font-black text-gray-900">项目设置</h2>
                 <span className="text-xs text-gray-400">上下文版本 {project.context_revision}</span>
@@ -258,8 +258,8 @@ const ProjectView: React.FC<ProjectViewProps> = ({
         ) : null}
 
         {tab === 'files' ? (
-          <section className="rounded-xl border border-gray-200 bg-white p-6">
-            <div className="flex items-center justify-between gap-3">
+          <section className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-black text-gray-900">共享资料</h2>
                 <p className="mt-1 text-xs text-gray-500">这些资料由服务端按项目注入。</p>
@@ -278,7 +278,7 @@ const ProjectView: React.FC<ProjectViewProps> = ({
               ) : files.length === 0 ? (
                 <div className="p-10 text-center text-sm text-gray-400">暂无共享资料</div>
               ) : files.map((file) => (
-                <div key={file.id} className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
+                <div key={file.id} className="flex flex-wrap items-center gap-3 border-b border-gray-100 px-4 py-3 last:border-0">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100">📄</div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-bold text-gray-800">{file.display_name}</div>

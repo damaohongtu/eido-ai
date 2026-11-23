@@ -1,21 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAppController } from '../hooks/useAppController';
 import { ViewType } from '../types';
 import { api, type LoginProvider } from '../services/api';
 import { BACKEND_URL } from '../constants';
-import { getAssetUrl } from '../config';
+import Brand from '../components/Brand';
+import Sidebar from '../components/Sidebar';
 import Chat from './Chat';
-import { Home, Project, Resources, Skills, Tasks, Tools } from './Views';
+import HomeView from '../components/HomeView';
+import ProjectView, { CreateProjectModal } from '../components/ProjectView';
+import ReferenceArea from '../components/ReferenceArea';
+const SkillManager = lazy(() => import('../components/SkillManager'));
+const SkillDetailPage = lazy(() => import('../components/SkillDetailPage'));
+const ScheduledTasksManager = lazy(
+  () => import('../components/ScheduledTasksManager'),
+);
+const McpToolsView = lazy(() => import('../components/McpToolsView'));
 import { Drawer, Empty, ErrorMessage, Icon, Sheet, errorText } from './ui';
-
-const tabs = [
-  { view: ViewType.HOME, label: '探索', icon: 'home' },
-  { view: ViewType.SKILLS, label: '技能', icon: 'spark' },
-  { view: ViewType.TOOLS, label: '工具', icon: 'tools' },
-  { view: ViewType.SCHEDULED_TASKS, label: '自动任务', icon: 'clock' },
-] as const;
 
 function Login() {
   const [providers, setProviders] = useState<LoginProvider[]>([]);
@@ -39,7 +41,7 @@ function Login() {
   }, []);
   return (
     <main className="h5-login">
-      <img src={getAssetUrl('/images/logo.png')} alt="Eido" />
+      <Brand />
       <div className="h5-eyebrow">YOUR EVERYDAY COPILOT</div>
       <h1>
         每个想法，
@@ -68,12 +70,6 @@ function Login() {
 export default function App() {
   const app = useAppController({ referencesOpen: false });
   const [drawer, setDrawer] = useState(false);
-  const [query, setQuery] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [projectDescription, setProjectDescription] = useState('');
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [apiKeyError, setApiKeyError] = useState('');
-  const [apiKeyLoading, setApiKeyLoading] = useState(false);
   const [draftPreview, setDraftPreview] = useState(false);
   const isChat = app.activeView === ViewType.CHAT;
 
@@ -142,10 +138,10 @@ export default function App() {
           className="h5-header-title"
           onClick={() => navigate(ViewType.HOME)}
         >
-          {!isChat && app.activeView !== ViewType.PROJECT && (
-            <img src={getAssetUrl('/images/logo.png')} alt="" />
+          {!isChat && app.activeView !== ViewType.PROJECT && <Brand />}
+          {(isChat || app.activeView === ViewType.PROJECT) && (
+            <span>{title}</span>
           )}
-          <span>{title}</span>
         </button>
         <button
           className="h5-icon-button"
@@ -156,13 +152,93 @@ export default function App() {
         </button>
       </header>
       <main className="h5-main">
-        {app.activeView === ViewType.HOME && <Home app={app} />}
-        {app.activeView === ViewType.PROJECT && app.activeProject && (
-          <Project key={app.activeProject.id} app={app} />
+        {app.activeView === ViewType.HOME && (
+          <div className="h5-management h5-home-view">
+            <HomeView
+              onStartSkill={(skillId) =>
+                app.createNewSession({ skillId, projectId: null })
+              }
+              skills={app.systemSkills}
+            />
+          </div>
         )}
-        {app.activeView === ViewType.SKILLS && <Skills app={app} />}
-        {app.activeView === ViewType.TOOLS && <Tools />}
-        {app.activeView === ViewType.SCHEDULED_TASKS && <Tasks app={app} />}
+        {app.activeView === ViewType.PROJECT && app.activeProject && (
+          <div className="h5-management">
+            <ProjectView
+              key={app.activeProject.id}
+              project={app.activeProject}
+              sessions={app.sessions.filter(
+                (session) => session.projectId === app.activeProject.id,
+              )}
+              files={
+                app.projectFilesProjectId === app.activeProject.id
+                  ? app.projectFiles
+                  : []
+              }
+              filesLoading={app.projectFilesLoading}
+              saving={app.savingProject}
+              onNewChat={() =>
+                app.createNewSession({ projectId: app.activeProject.id })
+              }
+              onOpenSession={app.selectSession}
+              onMoveSession={app.moveSession}
+              onSave={app.saveProject}
+              onDelete={app.deleteProject}
+              onUploadFile={app.uploadProjectFile}
+              onDeleteFile={app.deleteProjectFile}
+              onRefreshFiles={() => app.loadProjectFiles(app.activeProject.id)}
+            />
+          </div>
+        )}
+        <Suspense fallback={<Empty>正在加载页面…</Empty>}>
+          {app.activeView === ViewType.SKILLS && (
+            <div className="h5-management">
+              <SkillManager
+                onSelectSkill={(skill) =>
+                  app.createNewSession({ skillId: skill.id, projectId: null })
+                }
+                onViewDetail={(skill) => {
+                  app.setDetailSkill(skill);
+                  app.setActiveView(ViewType.SKILL_DETAIL);
+                }}
+                onRefreshAppSkills={app.refreshSkills}
+              />
+            </div>
+          )}
+          {app.activeView === ViewType.SKILL_DETAIL && app.detailSkill && (
+            <div className="h5-management">
+              <SkillDetailPage
+                skill={app.detailSkill}
+                onBack={() => {
+                  app.setDetailSkill(null);
+                  app.setActiveView(ViewType.SKILLS);
+                }}
+                onUseSkill={(skill) => {
+                  app.setDetailSkill(null);
+                  void app.createNewSession({
+                    skillId: skill.id,
+                    projectId: null,
+                  });
+                }}
+                onDeleted={() => {
+                  void app.refreshSkills();
+                  app.setDetailSkill(null);
+                  app.setActiveView(ViewType.SKILLS);
+                }}
+              />
+            </div>
+          )}
+          {app.activeView === ViewType.TOOLS && (
+            <div className="h5-management">
+              <McpToolsView />
+            </div>
+          )}
+          {app.activeView === ViewType.SCHEDULED_TASKS && (
+            <div className="h5-management">
+              <ScheduledTasksManager onOpenSession={app.openTaskSession} />
+            </div>
+          )}
+        </Suspense>
         {isChat && (
           <Chat
             session={app.activeSession}
@@ -195,210 +271,95 @@ export default function App() {
           />
         )}
       </main>
-      {!isChat && (
-        <nav className="h5-tabs" aria-label="主导航">
-          {tabs.map((t) => (
-            <button
-              key={t.view}
-              aria-current={app.activeView === t.view ? 'page' : undefined}
-              onClick={() => navigate(t.view)}
-            >
-              <Icon name={t.icon} size={21} />
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </nav>
-      )}
       {drawer && (
-        <Drawer
-          title="Eido"
-          onClose={() => setDrawer(false)}
-          header={
-            <>
-              <button className="h5-secondary h5-wide" onClick={newChat}>
-                <Icon name="plus" size={18} /> 新建会话
-              </button>
-            </>
-          }
-          footer={
-            <>
-              <div className="h5-account">
-                <span className="h5-avatar">
-                  {(app.currentUser.username || app.currentUser.user_id)
-                    .slice(0, 1)
-                    .toUpperCase()}
-                </span>
-                <strong>
-                  {app.currentUser.username || app.currentUser.user_id}
-                </strong>
-                <button
-                  disabled={apiKeyLoading}
-                  onClick={async () => {
-                    setApiKeyLoading(true);
-                    setApiKeyError('');
-                    try {
-                      setApiKey(await api.getApiKey());
-                      setDrawer(false);
-                    } catch (e) {
-                      setApiKeyError(errorText(e));
-                    } finally {
-                      setApiKeyLoading(false);
-                    }
-                  }}
-                >
-                  API Key
-                </button>
-                <button onClick={app.handleLogout}>退出</button>
-              </div>
-              <ErrorMessage error={apiKeyError} />
-            </>
-          }
-        >
-          <nav className="h5-drawer-nav" aria-label="抽屉导航">
-            {tabs.map((t) => (
-              <button
-                key={t.view}
-                aria-current={app.activeView === t.view ? 'page' : undefined}
-                onClick={() => navigate(t.view)}
-              >
-                <Icon name={t.icon} size={19} />
-                <span>
-                  {
-                    {
-                      home: '探索发现',
-                      skills: '我的技能',
-                      tools: 'MCP 管理',
-                      scheduled_tasks: '自动任务',
-                    }[t.view]
-                  }
-                </span>
-              </button>
-            ))}
-          </nav>
-          <input
-            className="h5-search"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索项目与会话"
-            aria-label="搜索项目与会话"
+        <Drawer title="对话与项目" onClose={() => setDrawer(false)}>
+          <Sidebar
+            activeView={app.activeView}
+            onNavigate={navigate}
+            sessions={app.sessions}
+            projects={app.projects}
+            activeProjectId={
+              isChat
+                ? (app.activeSession?.projectId ?? null)
+                : app.activeProjectId
+            }
+            activeSessionId={app.activeSessionId}
+            runningSessionIds={app.runningSessionIds}
+            onSelectSession={(id) => {
+              setDrawer(false);
+              void app.selectSession(id);
+            }}
+            onNewChat={newChat}
+            onNewProject={() => {
+              setDrawer(false);
+              app.setCreateProjectOpen(true);
+            }}
+            onSelectProject={(id) => {
+              setDrawer(false);
+              app.openProject(id);
+            }}
+            onDeleteSession={(id) => {
+              if (confirm('删除这段会话？')) void app.deleteSession(id);
+            }}
+            currentUser={app.currentUser}
+            onLogout={app.handleLogout}
           />
-          <div className="h5-section-title">
-            <h3>项目</h3>
-            <button
-              onClick={() => {
-                setDrawer(false);
-                setProjectName('');
-                setProjectDescription('');
-                app.setCreateProjectOpen(true);
-              }}
-            >
-              新建 ＋
-            </button>
-          </div>
-          <div className="h5-list">
-            {app.projects
-              .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
-              .map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => {
-                    setDrawer(false);
-                    void app.openProject(p.id);
-                  }}
-                >
-                  <Icon name="folder" />
-                  <div>
-                    <strong>{p.name}</strong>
-                    <small>
-                      {p.session_count} 段对话{p.archived_at ? ' · 已归档' : ''}
-                    </small>
-                  </div>
-                  <span>›</span>
-                </button>
-              ))}
-          </div>
-          <div className="h5-section-title">
-            <h3>最近对话</h3>
-          </div>
-          <div className="h5-history">
-            {app.sessions
-              .filter((s) =>
-                s.title.toLowerCase().includes(query.toLowerCase()),
-              )
-              .map((s) => (
-                <div
-                  key={s.id}
-                  className={s.id === app.activeSessionId ? 'is-active' : ''}
-                >
-                  <button
-                    onClick={() => {
-                      setDrawer(false);
-                      void app.selectSession(s.id);
-                    }}
-                  >
-                    <Icon name="chat" size={18} />
-                    <span>{s.title}</span>
-                    {app.runningSessionIds.has(s.id) && <small>执行中</small>}
-                  </button>
-                  <button
-                    aria-label={`删除会话 ${s.title}`}
-                    onClick={() => {
-                      if (confirm(`删除会话「${s.title}」？`))
-                        void app.deleteSession(s.id);
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-          </div>
         </Drawer>
       )}
       {isChat && app.rightPanelOpen && app.activeSessionId && (
-        <Resources key={app.activeSessionId} app={app} />
-      )}
-      {app.createProjectOpen && (
-        <Sheet title="新建项目" onClose={() => app.setCreateProjectOpen(false)}>
-          <form
-            className="h5-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void app.createProject({
-                name: projectName.trim(),
-                description: projectDescription.trim(),
-              });
-            }}
-          >
-            <label>
-              项目名称
-              <input
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                maxLength={80}
-                required
-                placeholder="例如：行业研究"
-              />
-            </label>
-            <label>
-              简介（可选）
-              <textarea
-                value={projectDescription}
-                onChange={(e) => setProjectDescription(e.target.value)}
-                rows={3}
-                maxLength={2000}
-                placeholder="你希望在这里完成什么？"
-              />
-            </label>
-            <button
-              className="h5-primary"
-              disabled={app.creatingProject || !projectName.trim()}
-            >
-              {app.creatingProject ? '创建中…' : '创建项目'}
-            </button>
-          </form>
+        <Sheet
+          title="资料与执行记录"
+          onClose={() => app.setRightPanelOpen(false)}
+        >
+          <div className="h5-reference">
+            <ReferenceArea
+              references={app.activeReferences}
+              thinkingLog={app.activeThinkingLog}
+              sessionId={app.activeSessionId}
+              project={app.activeSessionProject}
+              projectFiles={
+                app.projectFilesProjectId === app.activeSessionProject?.id
+                  ? app.projectFiles
+                  : []
+              }
+              projectFilesLoading={app.projectFilesLoading}
+              onOpenProject={
+                app.activeSessionProject
+                  ? () => {
+                      app.setRightPanelOpen(false);
+                      app.openProject(app.activeSessionProject.id);
+                    }
+                  : undefined
+              }
+              onRefreshProjectFiles={
+                app.activeSessionProject
+                  ? () => app.loadProjectFiles(app.activeSessionProject.id)
+                  : undefined
+              }
+              onImportProjectFile={
+                app.activeSessionProject &&
+                !app.activeSessionProject.archived_at
+                  ? app.importSessionFileToProject
+                  : undefined
+              }
+              onClose={() => app.setRightPanelOpen(false)}
+              isFetching={app.activeSession?.messages.some(
+                (message) =>
+                  message.role === 'assistant' &&
+                  message.executionSteps?.some(
+                    (step) => step.status === 'running',
+                  ),
+              )}
+            />
+          </div>
         </Sheet>
       )}
+      <CreateProjectModal
+        open={app.createProjectOpen}
+        creating={app.creatingProject}
+        onClose={() => app.setCreateProjectOpen(false)}
+        onCreate={app.createProject}
+      />
       {app.executingAction && (
         <Sheet
           title={app.executingAction.label}
@@ -440,18 +401,6 @@ export default function App() {
           >
             提交更改
           </button>
-        </Sheet>
-      )}
-      {apiKey !== null && (
-        <Sheet title="我的 API Key" onClose={() => setApiKey(null)}>
-          <p className="h5-muted">用于连接 Eido API，请妥善保管。</p>
-          <textarea
-            className="h5-key"
-            readOnly
-            value={apiKey}
-            aria-label="我的 API Key"
-            onFocus={(e) => e.target.select()}
-          />
         </Sheet>
       )}
     </div>

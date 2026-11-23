@@ -350,10 +350,10 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
   if (!visible) return null;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="skill-file-browser flex h-full min-w-0 flex-col">
       {/* Toolbar */}
       {!readOnly && (
-        <div className="flex items-center gap-2 mb-3 px-1">
+        <div className="mb-3 flex flex-wrap items-center gap-2 px-1">
           <Button
             size="small"
             icon={<PlusOutlined />}
@@ -408,9 +408,9 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
       )}
 
       {/* Main content */}
-      <div className="flex flex-1 gap-3 min-h-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 sm:flex-row">
         {/* Tree Panel */}
-        <div className="w-2/5 min-w-[180px] border border-gray-200 rounded-lg overflow-auto bg-white p-2">
+        <div className="max-h-48 w-full shrink-0 overflow-auto rounded-lg border border-gray-200 bg-white p-2 sm:max-h-none sm:w-2/5 sm:min-w-[180px]">
           {loading && treeData.length === 0 ? (
             <div className="flex justify-center py-8">
               <Spin size="small" />
@@ -436,7 +436,7 @@ const SkillFileBrowser: React.FC<SkillFileBrowserProps> = ({
         </div>
 
         {/* Content Panel */}
-        <div className="flex-1 border border-gray-200 rounded-lg overflow-hidden bg-white flex flex-col">
+        <div className="flex min-h-64 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white">
           {selectedNodeType === 'file' ? (
             <>
               <div className="px-3 py-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between">

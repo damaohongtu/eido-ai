@@ -121,11 +121,11 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
   ];
 
   return (
-    <div className="flex-1 p-6 lg:p-8 overflow-y-auto">
+    <div className="management-page flex-1 min-h-0 min-w-0 p-4 sm:p-6 lg:p-8 overflow-y-auto">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="management-header mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             <button
               onClick={onBack}
               className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-100 rounded-xl text-gray-500 hover:text-gray-800 transition-all font-bold text-sm whitespace-nowrap"
@@ -133,7 +133,7 @@ const SkillDetailPage: React.FC<SkillDetailPageProps> = ({
               <ArrowLeftOutlined />
               <span>返回</span>
             </button>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               {skill.icon && <span className="text-3xl">{skill.icon}</span>}
               <div>
                 <h1 className="text-2xl font-black text-gray-900 tracking-tight">{skill.name}</h1>

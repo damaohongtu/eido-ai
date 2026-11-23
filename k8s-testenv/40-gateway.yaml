@@ -115,7 +115,7 @@ spec:
             - name: ANTHROPIC_SMALL_FAST_MODEL
               value: glm-5.2
             - name: CLAUDE_DEFAULT_RUNTIME_MODE
-              value: qa
+              value: agent
             - name: CLAUDE_COMPACT_PERCENT
               value: "80"
             - name: CLAUDE_SIMPLE_SYSTEM_PROMPT

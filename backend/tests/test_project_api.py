@@ -1404,9 +1404,9 @@ def test_session_model_switch_is_persisted_and_resets_native_session(project_api
     assert project_api.chat_service.model == "deepseek"
 
 
-def test_session_runtime_mode_defaults_follow_session_kind(project_api):
+def test_session_runtime_mode_defaults_to_agent(project_api):
     generic = _create_session(project_api, title="Quick question")
-    assert generic["runtime_mode"] == "qa"
+    assert generic["runtime_mode"] == "agent"
 
     skill = project_api.client.post(
         "/api/v1/sessions/", json={"title": "Skill", "skill_id": "research"}
@@ -1424,21 +1424,21 @@ def test_runtime_mode_switch_persists_clears_native_session_and_reaches_runtime(
     assert project_api.store.set_claude_session_id("user-a", session["id"], "native-old")
 
     changed = project_api.client.patch(
-        f"/api/v1/sessions/{session['id']}", json={"runtime_mode": "agent"}
+        f"/api/v1/sessions/{session['id']}", json={"runtime_mode": "qa"}
     )
     assert changed.status_code == 200, changed.text
-    assert changed.json()["runtime_mode"] == "agent"
+    assert changed.json()["runtime_mode"] == "qa"
     assert changed.json()["claude_session_id"] is None
     assert project_api.chat_service.reset_sessions == [session["id"]]
 
     response = _send_context_chat(
         project_api,
         session["id"],
-        assistant_message_id="assistant-agent",
-        runtime_mode="agent",
+        assistant_message_id="assistant-qa",
+        runtime_mode="qa",
     )
     assert response.status_code == 200, response.text
-    assert project_api.chat_service.runtime_mode == "agent"
+    assert project_api.chat_service.runtime_mode == "qa"
 
 
 @pytest.mark.asyncio

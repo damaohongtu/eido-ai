@@ -34,7 +34,7 @@ class CreateSessionRequest(BaseModel):
     project_id: Optional[str] = Field(None, description="所属项目 ID；不传表示普通会话")
     model: Optional[str] = Field(None, description="模型配置 ID；不传使用默认模型")
     runtime_mode: Optional[RuntimeMode] = Field(
-        None, description="Claude Code 执行模式；普通会话默认问答，Project/Skill 会话默认 Agent"
+        None, description="Claude Code 执行模式；普通会话与 Project/Skill 会话默认 Agent"
     )
 
 
